@@ -2,6 +2,7 @@
  * Hashes a word using _base64_ encoding.
  * @param word The word to be hashed.
  * @returns A `string` representing the hashed word.
+ * @deprecated
  */
 export const hash = (word: string) => {
   // FIXME: improve sanitization
@@ -20,6 +21,7 @@ export const hash = (word: string) => {
  * Reverses a hashed word, obtaining the original word.
  * @param hash The _base64_ hashed word to be reversed.
  * @returns A `string` representing the original word.
+ * @deprecated
  */
 export const reverse = (hash: string) => {
   return window.atob(hash);
