@@ -1,0 +1,121 @@
+import os
+import time
+from contextlib import asynccontextmanager
+
+from alembic import command
+from alembic.config import Config
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.formparsers import MultiPartParser
+
+from aymurai.api import core
+from aymurai.api.endpoints.routers.frontend import frontend
+from aymurai.api.startup.database import check_db_connection
+from aymurai.api.utils import configure_torch_threads
+from aymurai.logger import get_logger
+from aymurai.pipeline import AymurAIPipeline
+from aymurai.settings import settings
+
+try:
+    from aymurai.version import __version__
+except ImportError:
+    __version__ = "0.0.0"
+
+logger = get_logger(__name__)
+
+
+configure_torch_threads()
+
+RESOURCES_BASEPATH = settings.RESOURCES_BASEPATH
+
+MULTIPART_MAX_PART_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _set_kwdefault(func, name: str, value: int) -> None:
+    kwdefaults = getattr(func, "__kwdefaults__", None)
+    if kwdefaults and name in kwdefaults:
+        kwdefaults[name] = value
+
+
+# FastAPI parses Form(...) before endpoint execution. Starlette defaults each
+# non-file multipart field to 1MB, which is too small for annotations JSON.
+MultiPartParser.max_part_size = MULTIPART_MAX_PART_SIZE
+_set_kwdefault(MultiPartParser.__init__, "max_part_size", MULTIPART_MAX_PART_SIZE)
+_set_kwdefault(Request.form, "max_part_size", MULTIPART_MAX_PART_SIZE)
+_set_kwdefault(Request._get_form, "max_part_size", MULTIPART_MAX_PART_SIZE)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("> Initializing service")
+    logger.info(f">> Checking DB connection: `{settings.SQLALCHEMY_DATABASE_URI}`")
+    try:
+        check_db_connection()
+        logger.info(">> Running Alembic migrations")
+        alembic_cfg = Config(str(settings.ALEMBIC_INI_PATH))
+        command.upgrade(alembic_cfg, "head")
+    except Exception:
+        logger.exception("Error while starting up")
+        raise
+
+    yield
+
+
+api = FastAPI(
+    title="AymurAI API",
+    version=__version__,
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+
+
+# configure CORS
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+logger.info("Loading server ...")
+logger.info(f"CORS_ORIGINS: {settings.CORS_ORIGINS}")
+
+
+@api.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+
+################################################################################
+# MARK: API ENDPOINTS
+################################################################################
+
+
+# Healthcheck
+@api.get("/api/server/healthcheck", status_code=200, tags=["server"])
+def healthcheck():
+    return {"status": "ok"}
+
+
+# Api endpoints
+api.include_router(core.router, prefix="/api")
+api.include_router(frontend.router)
+
+
+if __name__ == "__main__":
+    # download the necessary data
+    logger.info("Loading pipelines and exit.")
+    AymurAIPipeline.load(
+        os.path.join(RESOURCES_BASEPATH, "pipelines", "production", "flair-anonymizer")
+    )
+    AymurAIPipeline.load(
+        os.path.join(RESOURCES_BASEPATH, "pipelines", "production", "datapublic")
+    )

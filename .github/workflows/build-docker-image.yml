@@ -1,0 +1,61 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on all tags
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 3: Extract the tag name from the Git reference
+      - name: Extract tag name
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ -z "$TAG" || "$TAG" == "$GITHUB_REF" ]]; then
+            TAG="dev-${GITHUB_SHA::7}"
+          fi
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+      # Step 4: Build and push the Docker images
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          target: aymurai-api
+          build-args: |
+            SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
+          tags: |
+            ghcr.io/aymurai/api:${{ steps.tag.outputs.TAG }}
+            ghcr.io/aymurai/api:latest
+
+      - name: Build and push Docker full image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          target: aymurai-api-full
+          build-args: |
+            SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
+          tags: |
+            ghcr.io/aymurai/api:full-${{ steps.tag.outputs.TAG }}
+            ghcr.io/aymurai/api:full

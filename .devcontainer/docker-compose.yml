@@ -1,0 +1,43 @@
+x-template: &template
+  network_mode: host
+  shm_size: "8gb"
+  volumes:
+    - ..:/workspace:cached
+    - ../notebooks/:/notebooks
+    - ../resources/:/resources
+    - ../tests/:/tests
+    - $HOME/.ssh/:/home/ubuntu/.ssh
+    - /var/run/docker.sock:/var/run/docker.sock
+  env_file:
+    - ../.env.common
+    - ../.env
+  command: /bin/sh -c "while true; do :; done"
+
+services:
+  aymurai-devcontainer-gpu:
+    <<: *template
+    image: aymurai-devcontainer-gpu
+    container_name: aymurai-devcontainer-gpu
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        - CORE_IMAGE=nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+  aymurai-devcontainer:
+    <<: *template
+    image: aymurai-devcontainer
+    container_name: aymurai-devcontainer-cpu
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        - CORE_IMAGE=ubuntu:noble
+    command: /bin/sh -c "while sleep 1000; do :; done"
