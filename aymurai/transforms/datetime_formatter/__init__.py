@@ -1,1 +1,1 @@
-from .core import DatetimeFormatter
+from .core import DatetimeFormatter as DatetimeFormatter
