@@ -64,7 +64,7 @@ repo = "local"
 [[repos.hooks]]
 id = "agents-conventional-commits"
 name = "agents-conventional-commits (commit-msg)"
-entry = "python -c \"import re,sys; msg=open(sys.argv[1],encoding='utf-8').readline().strip(); ok=bool(re.match(r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-z0-9._-]+\\))?!?: .+', msg)) or msg.startswith(('Merge ','Revert ','fixup! ')); sys.exit(0 if ok else not print(f'Error: CES-75 (agents-conventional-commits): commit subject must follow Conventional Commits (type(scope): description). Got: {msg!r}'))\""
+entry = "python3 -c \"import re,sys; msg=open(sys.argv[1],encoding='utf-8').readline().strip(); ok=bool(re.match(r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-z0-9._-]+\\))?!?: .+', msg)) or msg.startswith(('Merge ','Revert ','fixup! ')); sys.exit(0 if ok else not print(f'Error: CES-75 (agents-conventional-commits): commit subject must follow Conventional Commits (type(scope): description). Got: {msg!r}'))\""
 language = "system"
 stages = ["commit-msg"]
 
@@ -120,7 +120,7 @@ priority = 2
 [[repos.hooks]]
 id = "file-size-guard"
 name = "file-size-guard (400 large / 700 enormous)"
-entry = "python -c \"import sys; sys.exit(max([0] + [1 for f in sys.argv[1:] for n in [sum(1 for _ in open(f, errors='ignore'))] if (n >= 700 and not print(f'Error: CES-71 (file-size-guard): {f} is too large ({n} lines, limit is 700)')) or (n >= 400 and not print(f'Warning: CES-71 (file-size-guard): {f} is large ({n} lines, recommended limit is 400)') and False)]))\""
+entry = "python3 -c \"import sys; sys.exit(max([0] + [1 for f in sys.argv[1:] for n in [sum(1 for _ in open(f, errors='ignore'))] if (n >= 700 and not print(f'Error: CES-71 (file-size-guard): {f} is too large ({n} lines, limit is 700)')) or (n >= 400 and not print(f'Warning: CES-71 (file-size-guard): {f} is large ({n} lines, recommended limit is 400)') and False)]))\""
 language = "system"
 types = ["python"]
 priority = 2
@@ -131,7 +131,7 @@ priority = 2
 [[repos.hooks]]
 id = "no-utils"
 name = "no-utils (no catch-all modules)"
-entry = "python -c \"import sys; [print(f'Error: CES-63 (no-utils): {f} is a catch-all module — name modules for what they hold, not utils/helpers/aux/misc/common.') for f in sys.argv[1:]]; sys.exit(1 if sys.argv[1:] else 0)\""
+entry = "python3 -c \"import sys; [print(f'Error: CES-63 (no-utils): {f} is a catch-all module — name modules for what they hold, not utils/helpers/aux/misc/common.') for f in sys.argv[1:]]; sys.exit(1 if sys.argv[1:] else 0)\""
 language = "system"
 files = "(^|/)(utils|helpers|aux|misc|common)\\.py$"
 exclude = "(^|/)tests/"
@@ -144,7 +144,7 @@ priority = 2
 [[repos.hooks]]
 id = "repo-shape"
 name = "repo-shape (no notebooks/resources/reports/data in the package)"
-entry = "python -c \"import sys; [print(f'Error: CES-32 (repo-shape): {f} does not belong inside the import package — keep notebooks/resources/reports/data outside it.') for f in sys.argv[1:]]; sys.exit(1 if sys.argv[1:] else 0)\""
+entry = "python3 -c \"import sys; [print(f'Error: CES-32 (repo-shape): {f} does not belong inside the import package — keep notebooks/resources/reports/data outside it.') for f in sys.argv[1:]]; sys.exit(1 if sys.argv[1:] else 0)\""
 language = "system"
 files = "^{{ import_package }}/(.*\\.ipynb$|(.*/)?(resources|reports|data)/.*)"
 priority = 2
