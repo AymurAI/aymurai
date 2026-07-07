@@ -35,8 +35,11 @@ jobs:
 
       # Export the fully-resolved, pinned dependency set from uv.lock so the
       # audit matches exactly what gets installed, including every extra.
+      # --no-hashes: the dependency set includes a git-sourced package
+      # (datetime_matcher), which pip cannot hash-verify; mixing hashed and
+      # unhashed requirements makes pip enforce hashes for everything and fail.
       - name: Export locked requirements
-        run: uv export --frozen --no-emit-project --all-extras --output-file requirements.txt
+        run: uv export --frozen --no-emit-project --all-extras --no-hashes --output-file requirements.txt
 
       - name: Audit dependencies
         uses: pypa/gh-action-pip-audit@v1.1.0
