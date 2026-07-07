@@ -124,14 +124,3 @@ class TrainingPipeline(object):
             overwrite_config = model.save(f"{path}/{model.__name__}")
             self.config["models"][i][1].update(overwrite_config or {})
         return self.config
-
-    def load(self, path: str):
-        """
-        load models pipeline
-
-        Args:
-            path (str): parent path where models are stored
-
-        DEPRECATED: models loades in __init__ method
-        """
-        pass

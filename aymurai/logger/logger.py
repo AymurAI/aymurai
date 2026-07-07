@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 from rich.logging import RichHandler
 
@@ -10,17 +10,6 @@ LOG_LEVEL_MAP = {
     "warning": logging.WARNING,
     "error": logging.ERROR,
 }
-
-
-class PrefixFilter(logging.Filter):
-    def __init__(self, prefix: str):
-        super().__init__()
-        self.prefix = prefix
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Adding a custom prefix to the log message
-        record.msg = f"{self.prefix} {record.msg}"
-        return True
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -36,17 +36,6 @@ def flatten_dict(current: dict, key: str = "", result: dict = {}) -> dict:
     return result
 
 
-def cache_clear(keys: list[str]) -> None:
-    """
-    Remove the provided keys from the disk-backed cache.
-
-    Args:
-        keys (list[str]): Cache keys to delete.
-    """
-    for key in keys:
-        cache.pop(key)
-
-
 def get_cache_key(item: Any, context: Any = "") -> str:
     """
     Build a stable cache key combining the item payload and context.
@@ -70,19 +59,6 @@ def get_cache_key(item: Any, context: Any = "") -> str:
     cache_key = f"context:{context_hash}-item:{item_hash}"
 
     return cache_key
-
-
-def is_cached(key: str) -> bool:
-    """
-    Determine whether a cache entry exists for the given key.
-
-    Args:
-        key (str): Cache key to inspect.
-
-    Returns:
-        bool: True when the key is present, otherwise False.
-    """
-    return key in cache
 
 
 def cache_save(data_item: Any, key: str) -> None:

@@ -1,8 +1,6 @@
-# from: https://stackoverflow.com/a/23361323/4913438
-import sys
-import json
-import decimal
 import datetime
+import decimal
+import json
 from typing import Any
 
 import numpy as np
@@ -73,35 +71,3 @@ class EnhancedJSONEncoder(json.JSONEncoder):
             except:
                 logger.error(f"Error trying to encode {obj}")
                 raise
-
-
-class EnhancedJSONDecoder(json.JSONDecoder):
-    """JSON decoder that reconstructs objects serialized by `EnhancedJSONEncoder`."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        """
-        Initialize decoder with a custom object hook.
-
-        Args:
-            *args: Positional arguments forwarded to `json.JSONDecoder`.
-            **kwargs: Keyword arguments forwarded to `json.JSONDecoder`.
-        """
-        super().__init__(*args, object_hook=self.object_hook, **kwargs)
-
-    def object_hook(self, d: dict) -> Any:
-        """
-        Decode typed payloads into native Python objects.
-
-        Args:
-            d (dict): Decoded dictionary from JSON.
-
-        Returns:
-            Any: Reconstructed object when `__type__` is present, else `d`.
-        """
-        if "__type__" not in d:
-            return d
-        o = sys.modules[__name__]
-        for e in d["__type__"].split("."):
-            o = getattr(o, e)
-        args, kwargs = d.get("args", ()), d.get("kwargs", {})
-        return o(*args, **kwargs)

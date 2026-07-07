@@ -1,21 +1,15 @@
-import json
 import importlib
+import json
 from copy import deepcopy
 from typing import Any
 
-import yaml  # Added to replace srsly
+import yaml
 
 from aymurai.meta.config import ConfigSchema
 from aymurai.meta.pipeline_interfaces import TrainModule, Transform
 
 
-class PipeNotFoundError(Exception):
-    """Pipe not valid or found"""
-
-    pass
-
-
-def resolve_obj(func_path: Any):
+def resolve_obj(func_path: Any) -> Any:
     """
     Resolve a string path to a callable object
 
@@ -69,16 +63,7 @@ def json2config(config: str) -> ConfigSchema:
 
             if callable(func_path):
                 continue
-            # # else func is a string
-            # module_name = ".".join(func_path.split(".")[:-1])
-            # # if func_path not in pipes_list():
-            # # raise PipeNotFoundError(f"{func_path} not found in pipeline list")
 
-            # # importlib.invalidate_caches()  # clear modules cache
-            # module = importlib.import_module(module_name)
-
-            # obj_name = func_path.split(".")[-1]
-            # obj = getattr(module, obj_name)
             obj = resolve_obj(func_path)
 
             if pipeline == "models":
