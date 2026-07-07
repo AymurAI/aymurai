@@ -1,8 +1,11 @@
-name: Tests
+name: Lint
 
-# Lint, type-check and test on every push to main and every PR.
-# Runs the same prek hooks as locally (ruff-format, ruff, pyrefly, hygiene)
-# plus the pytest suite, all through uv so versions match uv.lock.
+# Lint and type-check on every push to main and every PR, through uv so
+# versions match uv.lock. Runs the same prek hooks as locally (ruff-format,
+# ruff, pyrefly, hygiene). Does NOT run pytest: that's pytest.yml's job,
+# which matrices ubuntu/windows and sets up the env vars and pipeline
+# download the test suite actually needs — duplicating it here as a bare
+# `uv run pytest` both wastes CI time and runs misconfigured.
 
 on:
   push:
@@ -12,7 +15,7 @@ on:
   workflow_call:
 
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
+  group: lint-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -20,7 +23,7 @@ permissions:
 
 jobs:
   test:
-    name: lint, type-check & test
+    name: lint & type check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,11 +40,11 @@ jobs:
       - name: Set up Python
         run: uv python install
 
-      # --frozen fails if uv.lock is out of date. --group tests pulls in
-      # pytest, which lives in its own dependency-group (not installed by
-      # plain `uv sync`).
+      # --frozen fails if uv.lock is out of date. pyrefly (once un-skipped,
+      # see below) needs the project's own dependencies installed to
+      # resolve imports accurately.
       - name: Install dependencies
-        run: uv sync --frozen --group tests
+        run: uv sync --frozen
 
       # TODO(CES debt): pyrefly/ast-grep/file-size-guard/no-utils are skipped
       # because prek --all-files runs repo-wide, and the codebase predates
@@ -52,6 +55,3 @@ jobs:
         env:
           SKIP: pyrefly,ast-grep,file-size-guard,no-utils
         run: uvx prek run --all-files --show-diff-on-failure
-
-      - name: Run tests
-        run: uv run pytest
