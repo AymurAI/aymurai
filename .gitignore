@@ -141,3 +141,8 @@ frontend-dist/
 
 # pnpm local package store
 .pnpm-store/
+!.env.schema
+.tmp/
+.scratch/
+.worktrees/
+.journals/
