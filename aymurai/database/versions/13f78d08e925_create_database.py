@@ -1,10 +1,11 @@
 """Create database
 
 Revision ID: 13f78d08e925
-Revises: 
+Revises:
 Create Date: 2025-05-01 00:15:10.748811
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
