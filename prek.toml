@@ -33,13 +33,17 @@ args = ["--unsafe"]
 priority = 0
 
 # MARK: end-of-file-fixer
+# frontend/ is a separate JS/TS toolchain (biome.json) with its own formatting rules.
 [[repos.hooks]]
 id = "end-of-file-fixer"
+exclude = "^frontend/"
 priority = 0
 
 # MARK: trailing-whitespace
+# frontend/ is a separate JS/TS toolchain (biome.json) with its own formatting rules.
 [[repos.hooks]]
 id = "trailing-whitespace"
+exclude = "^frontend/"
 priority = 0
 
 # MARK: betterleaks
