@@ -36,7 +36,7 @@ api-full-pull:
 	docker compose pull $(API_FULL_SERVICE)
 
 stress-test:
-	locust -f locustfile.py --host http://localhost:8899
+	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899
 
 alembic-regenerate:
 	rm -rvf resources/cache/sqlite/* && \
