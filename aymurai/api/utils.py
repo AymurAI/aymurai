@@ -8,11 +8,11 @@ from aymurai.pipeline import AymurAIPipeline
 logger = get_logger(__name__)
 
 
-mem_cache = cachetools.TTLCache(
-    maxsize=settings.MEMORY_CACHE_MAXSIZE,
-    ttl=settings.MEMORY_CACHE_TTL,
-    getsizeof=lambda _: 0,
-)
+# Loaded pipelines are expensive (Flair NER, sentence-transformers, etc.) and
+# immutable for a given path, so this never expires entries by time — a
+# TTLCache with a low TTL would force a full model reload on every request
+# past the deadline, even for a pipeline still being hit constantly.
+mem_cache = cachetools.LRUCache(maxsize=settings.MEMORY_CACHE_MAXSIZE)
 
 RESOURCES_BASEPATH = settings.RESOURCES_BASEPATH
 

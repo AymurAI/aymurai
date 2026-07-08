@@ -69,9 +69,11 @@ class Settings(BaseSettings):
 
     ENV: str | None = None
 
-    # Cachetools settings
-    MEMORY_CACHE_MAXSIZE: int = 1
-    MEMORY_CACHE_TTL: int = 60
+    # In-memory pipeline cache (see aymurai.api.utils.mem_cache). There are
+    # only 2 production pipelines (datapublic, flair-anonymizer) today; 4
+    # gives headroom for near-term growth (e.g. per-model-manager instances)
+    # without ever evicting either under normal traffic.
+    MEMORY_CACHE_MAXSIZE: int = 4
     TORCH_NUM_THREADS: int = 4
 
     LIBREOFFICE_BIN: str = "libreoffice"
