@@ -1,0 +1,57 @@
+name: Lint
+
+# Lint and type-check on every push to main and every PR, through uv so
+# versions match uv.lock. Runs the same prek hooks as locally (ruff-format,
+# ruff, pyrefly, hygiene). Does NOT run pytest: that's pytest.yml's job,
+# which matrices ubuntu/windows and sets up the env vars and pipeline
+# download the test suite actually needs — duplicating it here as a bare
+# `uv run pytest` both wastes CI time and runs misconfigured.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Allow other workflows (e.g. release.yml) to gate on this suite.
+  workflow_call:
+
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: lint & type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.12"
+          enable-cache: true
+
+      # Uses the version pinned by .python-version / pyproject.toml.
+      - name: Set up Python
+        run: uv python install
+
+      # --frozen fails if uv.lock is out of date. pyrefly (once un-skipped,
+      # see below) needs the project's own dependencies installed to
+      # resolve imports accurately.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # TODO(CES debt): pyrefly/ast-grep/file-size-guard/no-utils are skipped
+      # because prek --all-files runs repo-wide, and the codebase predates
+      # these checks (227 pyrefly errors, ~69 ast-grep CES findings, 3
+      # oversized files, 7 catch-all-named modules as of 2026-07-07). Tracked
+      # for a dedicated remediation PR — remove this SKIP once that lands.
+      - name: Lint, format & type check (prek)
+        env:
+          SKIP: pyrefly,ast-grep,file-size-guard,no-utils
+        run: uvx prek run --all-files --show-diff-on-failure

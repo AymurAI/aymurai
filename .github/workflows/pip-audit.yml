@@ -1,0 +1,54 @@
+name: pip-audit
+
+# Audit Python dependencies for known vulnerabilities with pip-audit.
+# CI-only check: it is intentionally not wired into prek.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Re-audit weekly so newly disclosed CVEs surface without a code change.
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: pip-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.12"
+          enable-cache: true
+
+      # Export the fully-resolved, pinned dependency set from uv.lock so the
+      # audit matches exactly what gets installed, including every extra.
+      # --no-hashes: the dependency set includes a git-sourced package
+      # (datetime_matcher), which pip cannot hash-verify; mixing hashed and
+      # unhashed requirements makes pip enforce hashes for everything and fail.
+      - name: Export locked requirements
+        run: uv export --frozen --no-emit-project --all-extras --no-hashes --output-file requirements.txt
+
+      # TODO(dependency debt): first run of this audit found 40 known
+      # vulnerabilities across 8 packages (aiohttp, bleach, diskcache, gdown,
+      # idna, jupyter-server, transformers, urllib3) as of 2026-07-07,
+      # including a critical RCE in transformers. Upgrading them (especially
+      # transformers, tightly coupled to torch/flair) needs its own tested
+      # PR, not a blind bump here. Non-blocking until that PR lands.
+      - name: Audit dependencies
+        continue-on-error: true
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          inputs: requirements.txt

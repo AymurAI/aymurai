@@ -32,12 +32,12 @@ classifiers = [
     #   3 - Alpha
     #   4 - Beta
     #   5 - Production/Stable
-    "Development Status :: 5 - Stable",
+    "Development Status :: 5 - Production/Stable",
 
     # Indicate who your project is intended for
     "Intended Audience :: Developers",
-    "Intended Audience :: Lawyers",
-    "Intended Audience :: ONGs",
+    "Intended Audience :: Legal Industry",
+    "Intended Audience :: Other Audience",
 
     # Pick your license as you wish (see also "license" above)
     "License :: OSI Approved :: MIT License",

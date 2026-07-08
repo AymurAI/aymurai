@@ -67,13 +67,13 @@ def json2config(config: str) -> ConfigSchema:
             obj = resolve_obj(func_path)
 
             if pipeline == "models":
-                assert issubclass(
-                    obj, TrainModule
-                ), f"{obj} is not a valid TrainModule object"
+                assert issubclass(obj, TrainModule), (
+                    f"{obj} is not a valid TrainModule object"
+                )
             else:
-                assert issubclass(
-                    obj, Transform
-                ), f"{obj} is not a valid Transform object"
+                assert issubclass(obj, Transform), (
+                    f"{obj} is not a valid Transform object"
+                )
 
             config[pipeline][i] = (obj, kwargs)
 
