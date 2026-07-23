@@ -38,6 +38,7 @@ from aymurai.text.anonymization.pdf.widgets import (
     _entity_overlaps_widget,
     _page_widget_infos,
     _prepare_signature_widget_ops,
+    _widget_value_contains,
 )
 
 logger = get_logger(__name__)
@@ -383,9 +384,10 @@ def _collect_page_redactions(
                         page_widgets[page_index],
                     )
                     if fallback_widget is not None:
-                        if (
-                            fallback_widget["field_type"]
-                            == pymupdf.PDF_WIDGET_TYPE_TEXT
+                        if fallback_widget[
+                            "field_type"
+                        ] == pymupdf.PDF_WIDGET_TYPE_TEXT and _widget_value_contains(
+                            fallback_widget, entity_text
                         ):
                             widget_ops.setdefault(page_index, []).append(
                                 {
@@ -556,7 +558,11 @@ def _collect_page_redactions(
                 # Single-line entity: route widget-backed content through the widget path.
                 line, _seg_text, rect, img_rect, ent_style, widget_info = segments[0]
                 if widget_info is not None:
-                    if widget_info["field_type"] == pymupdf.PDF_WIDGET_TYPE_TEXT:
+                    if widget_info[
+                        "field_type"
+                    ] == pymupdf.PDF_WIDGET_TYPE_TEXT and _widget_value_contains(
+                        widget_info, entity_text
+                    ):
                         widget_ops.setdefault(page_index, []).append(
                             {
                                 "widget_xref": widget_info["xref"],

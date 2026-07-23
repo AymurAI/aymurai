@@ -607,6 +607,40 @@ def test_pdf_anonymizer_preserves_non_signature_widget_appearance_when_baking(
 
 @pytest.mark.integration
 @WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_footnote_text_overlapped_by_foreign_text_widget(
+    tmp_path,
+):
+    # GEDO-style PDFs place an oversized invisible footer form field over the
+    # footnote area; footnote entities must still be redacted as page text.
+    document = "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010."
+
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        page.insert_text((72, 770), document, fontsize=10)
+
+        footer_widget = pymupdf.Widget()
+        footer_widget.field_name = "Numero_1"
+        footer_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        footer_widget.field_value = "IF-2026-19469434"
+        footer_widget.text_font = "Helv"
+        footer_widget.text_fontsize = 10
+        footer_widget.rect = pymupdf.Rect(250, 764, 580, 800)
+        page.add_widget(footer_widget)
+
+    source_path = _write_pdf(tmp_path / "footnote-widget.pdf", configure)
+    labels = [_label_for_document_text(document, "Tomo:182 Folio:010")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182 Folio:010" not in page_text
+    assert "IF-2026-19469434" in page_text
+    assert "Contador Publico Nacional" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
 def test_pdf_anonymizer_preserves_signature_appearance_when_redacting_signer_name(
     tmp_path,
 ):

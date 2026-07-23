@@ -148,6 +148,30 @@ def _entity_overlaps_widget(
     return best_widget
 
 
+def _widget_value_contains(
+    widget_info: dict[str, Any],
+    entity_text: str,
+) -> bool:
+    """
+    Checks whether a widget's field value contains the entity text.
+
+    Page text can merely overlap an oversized form-field rectangle without
+    belonging to the widget; only entities present in the widget value should
+    be routed through the widget replacement path.
+
+    Args:
+        widget_info (dict[str, Any]): The widget metadata being checked.
+        entity_text (str): The entity text being mapped.
+
+    Returns:
+        bool: True when the widget value contains the entity text.
+    """
+    field_value = str(widget_info.get("field_value") or "")
+    if not field_value:
+        return False
+    return _find_flexible(field_value, entity_text) is not None
+
+
 def _fit_widget_token(
     widget_info: dict[str, Any],
     current_text: str,
