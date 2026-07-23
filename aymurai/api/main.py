@@ -1,7 +1,7 @@
-import os
 import time
 from contextlib import asynccontextmanager
 
+import uvicorn
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI, Request
@@ -13,7 +13,6 @@ from aymurai.api.endpoints.routers.frontend import frontend
 from aymurai.api.startup.database import check_db_connection
 from aymurai.api.utils import configure_torch_threads
 from aymurai.logger import get_logger
-from aymurai.pipeline import AymurAIPipeline
 from aymurai.settings import settings
 
 try:
@@ -25,8 +24,6 @@ logger = get_logger(__name__)
 
 
 configure_torch_threads()
-
-RESOURCES_BASEPATH = settings.RESOURCES_BASEPATH
 
 MULTIPART_MAX_PART_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -110,12 +107,14 @@ api.include_router(core.router, prefix="/api")
 api.include_router(frontend.router)
 
 
+def main() -> None:
+    """Console entrypoint (`aymurai-api`): serve the API with uvicorn."""
+    uvicorn.run(
+        "aymurai.api.main:api",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+    )
+
+
 if __name__ == "__main__":
-    # download the necessary data
-    logger.info("Loading pipelines and exit.")
-    AymurAIPipeline.load(
-        os.path.join(RESOURCES_BASEPATH, "pipelines", "production", "flair-anonymizer")
-    )
-    AymurAIPipeline.load(
-        os.path.join(RESOURCES_BASEPATH, "pipelines", "production", "datapublic")
-    )
+    main()
