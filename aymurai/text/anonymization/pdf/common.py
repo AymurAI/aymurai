@@ -299,6 +299,10 @@ def _build_flexible_pattern(text: str) -> str:
     """
     Builds a whitespace-tolerant regex pattern for the given text.
 
+    Whitespace between tokens is optional: text extraction can insert spurious
+    spaces that do not exist in the PDF glyph stream (e.g. "SGC BA" extracted
+    from "SGCBA"), and such labels must still map back onto the page text.
+
     Args:
         text (str): The text value being normalized or searched.
 
@@ -306,7 +310,7 @@ def _build_flexible_pattern(text: str) -> str:
         str: The whitespace-tolerant regex pattern.
     """
     tokens = [re.escape(tok) for tok in re.split(r"\s+", text.strip()) if tok]
-    return r"\s+".join(tokens)
+    return r"\s*".join(tokens)
 
 
 def _find_flexible(

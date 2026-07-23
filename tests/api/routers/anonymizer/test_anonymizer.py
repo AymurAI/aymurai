@@ -679,6 +679,34 @@ def test_pdf_anonymizer_redacts_entity_spanning_multiple_text_widgets(tmp_path):
 
 @pytest.mark.integration
 @WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_when_extraction_added_spurious_space(tmp_path):
+    # Text extraction sometimes inserts a space that is absent from the real
+    # PDF glyph stream (e.g. "SGC BA" for "SGCBA"); the label must still map.
+    page_line = "Numero: IF-2026-19469434-GCABA-SGCBA"
+    source_path = _write_pdf(
+        tmp_path / "spurious-space.pdf",
+        lambda _doc, page: page.insert_text((72, 72), page_line),
+    )
+    document = "Numero: IF-2026-19469434-GCABA-SGC BA"
+    labels = [
+        _label_for_document_text(
+            document,
+            "IF-2026-19469434-GCABA-SGC BA",
+            label="NUM_EXPEDIENTE",
+        )
+    ]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "IF-2026-19469434-GCABA-SGCBA" not in page_text
+    assert "Numero:" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
 def test_pdf_anonymizer_preserves_signature_appearance_when_redacting_signer_name(
     tmp_path,
 ):
