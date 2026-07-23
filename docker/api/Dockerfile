@@ -22,7 +22,7 @@ RUN pnpm run build:web
 # -------------------
 # Build Stage
 # -------------------
-FROM python:3.10-slim-bullseye AS builder
+FROM python:3.13-slim-bullseye AS builder
 
 # Install Git
 RUN apt-get update && \
@@ -58,7 +58,7 @@ RUN --mount=type=bind,source=.git,target=.git \
 # -------------------
 # Base API Stage
 # -------------------
-FROM python:3.10-slim-bullseye AS aymurai-api
+FROM python:3.13-slim-bullseye AS aymurai-api
 
 # Set environment variables
 ENV LANG=C.UTF-8 \
@@ -103,7 +103,7 @@ WORKDIR /app
 ENV FRONTEND_DIST_DIR=/app/frontend-dist
 
 # Define start command
-CMD uv run fastapi run --port 8899 .venv/lib/python3.10/site-packages/aymurai/api/main.py
+CMD ["/app/.venv/bin/aymurai-api"]
 
 
 # -----------------------------
@@ -118,4 +118,4 @@ ENV RESOURCES_BASEPATH=resources
 COPY ./resources/pipelines/production resources/pipelines/production
 
 # Initialize application to download models
-RUN uv run python /app/.venv/lib/python3.10/site-packages/aymurai/api/main.py
+RUN /app/.venv/bin/pipeline-download

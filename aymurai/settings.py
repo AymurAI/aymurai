@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # Alembic Config for running migrations
     ALEMBIC_INI_PATH: FilePath = PARENT / "alembic.ini"
 
+    # API server bind address (used by the `aymurai-api` console entrypoint)
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8899
+
     ENV: str | None = None
 
     # In-memory pipeline cache (see aymurai.api.utils.mem_cache). There are
