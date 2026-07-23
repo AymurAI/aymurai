@@ -267,12 +267,18 @@ def _apply_widget_ops(
                     )
                     continue
 
-                token_text = _fit_widget_token(
-                    replacement["widget_info"],
-                    current_text,
-                    span,
-                    replacement["logical_token"],
-                )
+                logical_token = replacement["logical_token"]
+                if logical_token is None:
+                    # Continuation segment of a multi-line entity: blank it, the
+                    # token is written on the widest segment.
+                    token_text = ""
+                else:
+                    token_text = _fit_widget_token(
+                        replacement["widget_info"],
+                        current_text,
+                        span,
+                        logical_token,
+                    )
                 current_text = (
                     f"{current_text[: span[0]]}{token_text}{current_text[span[1] :]}"
                 )

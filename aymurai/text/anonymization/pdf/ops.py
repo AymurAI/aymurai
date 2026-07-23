@@ -639,6 +639,26 @@ def _collect_page_redactions(
                         signature_widget_ops.setdefault(page_index, []).append(op)
                         continue
 
+                    if (
+                        seg_widget is not None
+                        and seg_widget["field_type"] == pymupdf.PDF_WIDGET_TYPE_TEXT
+                        and _widget_value_contains(seg_widget, seg_text)
+                    ):
+                        # Segment text lives in a form field: blank or token the
+                        # field value instead of redacting page content.
+                        widget_ops.setdefault(page_index, []).append(
+                            {
+                                "widget_xref": seg_widget["xref"],
+                                "field_name": seg_widget["field_name"],
+                                "widget_info": seg_widget,
+                                "entity_text": seg_text,
+                                "logical_token": (
+                                    token if seg_idx == widest_idx else None
+                                ),
+                            }
+                        )
+                        continue
+
                     if seg_idx == widest_idx:
                         op = _build_page_op(
                             seg_rect,

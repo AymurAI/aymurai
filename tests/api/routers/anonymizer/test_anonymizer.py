@@ -641,6 +641,44 @@ def test_pdf_anonymizer_redacts_footnote_text_overlapped_by_foreign_text_widget(
 
 @pytest.mark.integration
 @WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_spanning_multiple_text_widgets(tmp_path):
+    # GEDO-style signature blocks store the signer name and role in stacked
+    # AcroForm text fields; an entity spanning both fields must clear the
+    # sensitive field values.
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        name_widget = pymupdf.Widget()
+        name_widget.field_name = "usuario_0"
+        name_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        name_widget.field_value = "Monica Freda"
+        name_widget.text_font = "Helv"
+        name_widget.text_fontsize = 9
+        name_widget.rect = pymupdf.Rect(36, 358, 286, 369)
+        page.add_widget(name_widget)
+
+        role_widget = pymupdf.Widget()
+        role_widget.field_name = "cargo_0"
+        role_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        role_widget.field_value = "Sindico General"
+        role_widget.text_font = "Helv"
+        role_widget.text_fontsize = 9
+        role_widget.rect = pymupdf.Rect(36, 368, 286, 379)
+        page.add_widget(role_widget)
+
+    source_path = _write_pdf(tmp_path / "signature-block-widgets.pdf", configure)
+    document = "Monica Freda Sindico General"
+    labels = [_label_for_document_text(document, "Monica Freda Sindico")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Monica Freda" not in page_text
+    assert "General" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
 def test_pdf_anonymizer_preserves_signature_appearance_when_redacting_signer_name(
     tmp_path,
 ):
