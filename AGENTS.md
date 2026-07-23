@@ -120,3 +120,21 @@ rules are reviewer/agent judgment; `[snippet]` ships canonical drop-in code. Ful
 - **CES-66 · coverage gaps are a signal** `[judgment]` — treat an uncovered branch as a missing
   test, dead code, or a seam to refactor — not a number to game. Slug: `test-coverage-gap`. →
   `@.agents/rules/test-coverage-gap.md`
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are local markdown files under `.scratch/` — never create issues or PRDs on
+GitHub. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`), recorded as `Status:` lines in issue files. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See
+`docs/agents/domain.md`.
