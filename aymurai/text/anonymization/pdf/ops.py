@@ -311,6 +311,41 @@ def _entity_overlaps_image(
     return None
 
 
+def _append_blank_ops(
+    page_ops: dict[int, list[dict]],
+    page_index: int,
+    rects: list[pymupdf.Rect],
+    line: dict,
+    token: str,
+    entity_style: dict[str, Any] | None,
+) -> None:
+    """
+    Appends token-less redaction ops covering additional entity rectangles.
+
+    Used for the extra physical lines of a wrapped entity: the token is
+    rendered on the primary rectangle only, the remaining glyphs are blanked.
+
+    Args:
+        page_ops (dict[int, list[dict]]): The page operations grouped by page index.
+        page_index (int): The page index receiving the operations.
+        rects (list[pymupdf.Rect]): The additional rectangles to blank.
+        line (dict): The parsed line metadata used for styling.
+        token (str): The logical replacement token being processed.
+        entity_style (dict[str, Any] | None): The entity style dictionary, if resolved.
+    """
+    for rect in rects:
+        op = _build_page_op(
+            rect,
+            line,
+            token,
+            is_image=False,
+            entity_style=entity_style,
+        )
+        op["text"] = None
+        op["fontsize"] = None
+        page_ops.setdefault(page_index, []).append(op)
+
+
 def _collect_page_redactions(
     doc: pymupdf.Document,
     paragraphs: list[dict],
@@ -476,6 +511,7 @@ def _collect_page_redactions(
                     pymupdf.Rect | None,
                     dict,
                     dict[str, Any] | None,
+                    list[pymupdf.Rect],
                 ]
             ] = []
             for line in lines:
@@ -510,9 +546,35 @@ def _collect_page_redactions(
                     raw_text=line_char_text,
                 )
                 rect = None
+                extra_rects: list[pymupdf.Rect] = []
                 if raw_span is not None:
                     line_char_cursor[line_key] = raw_span[1]
                     rect = _rect_from_char_slice(line_chars, raw_span[0], raw_span[1])
+
+                if rect is None and raw_span is None:
+                    # The layout parser can declare a line range longer than the
+                    # physical glyphs on that line (wrapped tail reported inside
+                    # the same logical line). Search the whole box so the
+                    # remaining physical lines of the segment are covered too.
+                    declared_length = int(line["end"]) - int(line["start"])
+                    if declared_length > len(line_chars):
+                        wrap_rects = [
+                            wrap_rect
+                            for wrap_rect in page.search_for(
+                                segment_text, clip=box_clip
+                            )
+                            if wrap_rect.intersects(box_clip)
+                        ]
+                        if wrap_rects:
+                            grouped = sorted(
+                                _group_adjacent_rects(
+                                    wrap_rects, max_gap=PDF_TAG_RECT_GAP_MAX
+                                ),
+                                key=lambda group_rect: group_rect.width,
+                                reverse=True,
+                            )
+                            rect = grouped[0]
+                            extra_rects = grouped[1:]
 
                 if rect is None:
                     raw_start = (
@@ -548,7 +610,15 @@ def _collect_page_redactions(
                 ent_style = _entity_style_from_spans(line, offset_in_line)
 
                 segments.append(
-                    (line, segment_text, rect, img_rect, ent_style, widget_info)
+                    (
+                        line,
+                        segment_text,
+                        rect,
+                        img_rect,
+                        ent_style,
+                        widget_info,
+                        extra_rects,
+                    )
                 )
 
             if not segments:
@@ -556,7 +626,15 @@ def _collect_page_redactions(
 
             if len(segments) == 1:
                 # Single-line entity: route widget-backed content through the widget path.
-                line, _seg_text, rect, img_rect, ent_style, widget_info = segments[0]
+                (
+                    line,
+                    _seg_text,
+                    rect,
+                    img_rect,
+                    ent_style,
+                    widget_info,
+                    seg_extra_rects,
+                ) = segments[0]
                 if widget_info is not None:
                     if widget_info[
                         "field_type"
@@ -595,6 +673,9 @@ def _collect_page_redactions(
                 if img_rect is not None:
                     op["image_rect"] = img_rect
                 page_ops.setdefault(page_index, []).append(op)
+                _append_blank_ops(
+                    page_ops, page_index, seg_extra_rects, line, token, ent_style
+                )
             else:
                 # Multi-line entity: write the token on the widest segment only; blank the others.
                 widest_idx = max(
@@ -623,6 +704,7 @@ def _collect_page_redactions(
                     seg_img,
                     seg_style,
                     seg_widget,
+                    seg_extra_rects,
                 ) in enumerate(segments):
                     if signature_widget is not None:
                         op = _build_signature_page_op(
@@ -683,6 +765,9 @@ def _collect_page_redactions(
                             op["image_rect"] = seg_img
 
                     page_ops.setdefault(page_index, []).append(op)
+                    _append_blank_ops(
+                        page_ops, page_index, seg_extra_rects, seg_line, token, seg_style
+                    )
 
     return page_ops, widget_ops, signature_widget_ops
 

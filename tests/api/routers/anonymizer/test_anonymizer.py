@@ -18,7 +18,11 @@ from aymurai.meta.api_interfaces import LabelPolicy, RenderPolicy
 from aymurai.settings import Settings
 from aymurai.text.anonymization import DocxAnonymizer, PdfAnonymizer, get_anonymizer
 from aymurai.text.anonymization.alignment import index_paragraphs
-from aymurai.text.anonymization.pdf.ops import _refine_signature_text_rect
+from aymurai.text.anonymization.pdf.ops import (
+    _apply_redactions,
+    _collect_page_redactions,
+    _refine_signature_text_rect,
+)
 from aymurai.text.anonymization.pdf.widgets import _signature_background_rect
 from tests.api.conftest import build_label
 from tests.api.routers.conftest import build_mock_pipeline
@@ -703,6 +707,78 @@ def test_pdf_anonymizer_redacts_entity_when_extraction_added_spurious_space(tmp_
 
     assert "IF-2026-19469434-GCABA-SGCBA" not in page_text
     assert "Numero:" in page_text
+
+
+@pytest.mark.integration
+def test_pdf_redactions_cover_wrapped_tail_declared_inside_one_layout_line(tmp_path):
+    # The layout parser sometimes reports a wrapped footnote as one logical
+    # line whose char range includes the tail rendered on the next physical
+    # line (the tail is then duplicated as a second line entry). The redaction
+    # must still cover the wrapped tail glyphs.
+    line1 = (
+        "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010. "
+        "Estudio: Price Waterhouse & Co."
+    )
+    tail = "S.R.L."
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 760), line1, fontsize=8)
+    page.insert_text((72, 772), tail, fontsize=8)
+
+    rect1 = page.search_for(line1)[0]
+    rect2 = page.search_for(tail)[0]
+    document = f"{line1} {tail}"
+    entity = "Tomo:182 Folio:010. Estudio: Price Waterhouse & Co. S.R.L"
+    label = _label_for_document_text(document, entity, label="TEXTO_ANONIMIZAR")
+
+    def line_entry(index: int, rect, start: int, end: int, text: str) -> dict:
+        return {
+            "page_index": 0,
+            "box_index": 0,
+            "line_index": index,
+            "bbox": tuple(rect),
+            "font_size": 8.0,
+            "start": start,
+            "end": end,
+            "text": text,
+            "style": None,
+            "spans_detail": [],
+            "strip_offset": 0,
+        }
+
+    box_bbox = pymupdf.Rect(rect1)
+    box_bbox.include_rect(rect2)
+    paragraph = {
+        "document": document,
+        "labels": [label],
+        "metadata": {
+            "page_index": 0,
+            "page_number": 1,
+            "box_index": 0,
+            "box_bbox": tuple(box_bbox),
+            "line_text": f"{document}\n{tail}",
+            "lines": [
+                line_entry(0, rect1, 0, len(document), document),
+                line_entry(
+                    1, rect2, len(document) + 1, len(document) + 1 + len(tail), tail
+                ),
+            ],
+        },
+    }
+
+    page_ops, widget_ops, signature_ops = _collect_page_redactions(
+        doc, [paragraph], None
+    )
+    _apply_redactions(doc, page_ops, widget_ops, signature_ops)
+    output_path = tmp_path / "wrapped-tail.pdf"
+    doc.save(output_path)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182" not in page_text
+    assert "S.R.L" not in page_text
+    assert "Contador Publico Nacional" in page_text
 
 
 @pytest.mark.integration
