@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import type { PredictLabel } from "@/types/aymurai";
 import type { DocFile } from "@/types/file";
+import { describe, expect, it } from "vitest";
 import {
   AnonymizerExportValidationError,
   assertValidAnonymizerExportState,

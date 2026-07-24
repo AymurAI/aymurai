@@ -327,7 +327,10 @@ export default function AnnotationProvider({
       // Check against ALL predictions (also the ones hidden by excluded tags
       // or terms): a latent overlap would block the export later with no
       // visible counterpart in the document view.
-      const overlapConflict = findOverlapConflict(file.predictions ?? [], predictions);
+      const overlapConflict = findOverlapConflict(
+        file.predictions ?? [],
+        predictions,
+      );
       if (overlapConflict) {
         showToast(
           "La selección se solapa con una entidad existente (puede estar oculta por una categoría o término excluido). Eliminá o editá la entidad existente antes de crear otra.",
