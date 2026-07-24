@@ -307,3 +307,38 @@ def test_should_return_500_when_extraction_fails(mock_extraction, client):
     response = client.post("/api/document-extract", files=files)
 
     assert response.status_code == 500
+
+
+def test_pdf_paragraph_extraction_includes_table_and_picture_boxes(
+    tmp_path, monkeypatch
+):
+    """Regression: text in table/picture boxes must reach anonymization.
+
+    Any text the extractor drops can never be labeled and leaks verbatim
+    into anonymized exports (e.g. personnel tables with names and DNIs).
+    Only formula boxes may be skipped.
+    """
+    from aymurai.text.extractors import pdf as pdf_extractor
+
+    pdf_path = tmp_path / "boxes.pdf"
+    pdf_path.write_bytes(_build_pdf_bytes(["placeholder"]))
+
+    page_text = "Parrafo normal.\nJuan Rios | DNI 12.345.678\nStamp Rivas\nE=mc2"
+    boxes = [
+        {"class": "text", "pos": (0, 15)},
+        {"class": "table", "pos": (16, 42)},
+        {"class": "picture", "pos": (43, 54)},
+        {"class": "formula", "pos": (55, 60)},
+    ]
+    monkeypatch.setattr(
+        pdf_extractor.pymupdf4llm,
+        "to_text",
+        lambda *args, **kwargs: [{"text": page_text, "page_boxes": boxes}],
+    )
+
+    paragraphs = pdf_extractor.pdf_to_paragraphs(pdf_path)
+
+    assert "Parrafo normal." in paragraphs
+    assert "Juan Rios | DNI 12.345.678" in paragraphs
+    assert "Stamp Rivas" in paragraphs
+    assert "E=mc2" not in paragraphs
