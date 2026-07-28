@@ -58,7 +58,7 @@ dependencies = [
     "jiwer==3.0.5",
     "unidecode==1.4.0",
     "flair==0.15.1",
-    "fastapi[standard]>=0.115.6",
+    "fastapi[standard]>=0.139.2",
     "uvicorn>=0.34.0",
     "python-multipart>=0.0.20",
     "pydantic>=2.10.4",
