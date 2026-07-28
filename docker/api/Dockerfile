@@ -83,7 +83,8 @@ RUN apt update && \
         libreoffice-writer \
         libreoffice-common \
         default-jre \
-        libmagic1 && \
+        libmagic1 \
+        ffmpeg && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /tmp/* /var/tmp/* && \
