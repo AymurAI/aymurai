@@ -766,7 +766,12 @@ def _collect_page_redactions(
 
                     page_ops.setdefault(page_index, []).append(op)
                     _append_blank_ops(
-                        page_ops, page_index, seg_extra_rects, seg_line, token, seg_style
+                        page_ops,
+                        page_index,
+                        seg_extra_rects,
+                        seg_line,
+                        token,
+                        seg_style,
                     )
 
     return page_ops, widget_ops, signature_widget_ops
