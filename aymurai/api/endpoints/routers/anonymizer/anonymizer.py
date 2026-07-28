@@ -22,6 +22,7 @@ from aymurai.database.schema import AnonymizationParagraph, AnonymizationParagra
 from aymurai.database.session import get_session
 from aymurai.database.utils import data_to_uuid, text_to_uuid
 from aymurai.logger import get_logger
+from aymurai.models.flair.utils import FlairTextNormalize
 from aymurai.meta.api_interfaces import (
     DocLabel,
     DocumentAnnotations,
@@ -354,7 +355,12 @@ async def anonymizer_paragraph_predict(
     logger.info("anonymization predict single")
 
     logger.info(f"Checking cache (use cache: {use_cache})")
-    text = text_request.text
+    # Compute the cache key over the *normalized* text: the pipeline rewrites
+    # doc.text with this same normalization (strips zero-width chars, collapses
+    # whitespace), and the paragraph is stored under the normalized-text hash.
+    # Hashing the raw text here would miss the cache forever and re-insert the
+    # same primary key on reprocessing (IntegrityError).
+    text = FlairTextNormalize.normalize_text(text_request.text)
     paragraph_id = text_to_uuid(text)
 
     cached_prediction = session.get(AnonymizationParagraph, paragraph_id)
@@ -545,7 +551,9 @@ async def anonymizer_get_paragraph_validation(
         list[DocLabel] | None: A list of validation labels for the given paragraph text, or None if no validation exists.
     """
 
-    text = text_request.text
+    # Paragraphs are stored under the pipeline-normalized text hash (see
+    # /predict): normalize before hashing so the lookup key matches.
+    text = FlairTextNormalize.normalize_text(text_request.text)
     paragraph_id = text_to_uuid(text)
 
     paragraph = anonymization_paragraph_read(paragraph_id, session=session)
