@@ -19,11 +19,19 @@ _FFPROBE_TIMEOUT_SECONDS = 30
 
 
 def probe_audio_duration(payload: bytes) -> float | None:
-    """Probe the duration of an audio payload in seconds using ffprobe.
+    """
+    Probe the duration of an audio payload in seconds using ffprobe.
 
-    Any failure (missing ffprobe, undecodable input, timeout, non-numeric
-    output) is treated as "unknown" and returns None so callers can degrade
-    gracefully.
+    The bytes are written to a temporary file because ffprobe cannot read the
+    duration of container formats (e.g. WAV) from a non-seekable stdin pipe. Any
+    failure (missing ffprobe, undecodable input, timeout, non-numeric output) is
+    treated as "unknown" and returns None so callers can degrade gracefully.
+
+    Args:
+        payload (bytes): The raw audio file bytes.
+
+    Returns:
+        float | None: The duration in seconds, or None if it cannot be determined.
     """
     if not payload:
         return None

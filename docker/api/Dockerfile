@@ -77,7 +77,7 @@ RUN apt update && \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-# Install LibreOffice for document processing
+# Install LibreOffice for document processing and ffmpeg for audio probing
 RUN apt update && \
     apt-get install -y --no-install-recommends \
         libreoffice-writer \

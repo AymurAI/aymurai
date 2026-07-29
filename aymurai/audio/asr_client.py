@@ -23,6 +23,24 @@ async def transcribe_audio_bytes(
     filename: str,
     content_type: str,
 ) -> list[CoroSegment]:
+    """
+    Transcribe audio by streaming it to the coro server over SSE.
+
+    Sends the audio to coro's OpenAI-compatible ``/v1/audio/transcriptions``
+    endpoint with ``stream=True`` and parses the ``transcript.text.done`` frame.
+
+    Args:
+        payload (bytes): The raw audio file bytes (any ffmpeg-decodable format).
+        filename (str): The uploaded file name (used for the multipart part).
+        content_type (str): The uploaded file MIME type.
+
+    Raises:
+        RuntimeError: If the base URL is unset, the service errors, or no done
+            frame is received.
+
+    Returns:
+        list[CoroSegment]: The speaker-attributed transcription segments.
+    """
     base_url = settings.TRANSCRIBE_BASE_URL
     if not base_url:
         raise RuntimeError("TRANSCRIBE_BASE_URL is not configured")
@@ -57,6 +75,26 @@ async def stream_transcribe_audio_bytes(
     filename: str,
     content_type: str,
 ) -> AsyncGenerator[CoroStreamEvent, None]:
+    """
+    Stream a transcription from coro, yielding deltas then the final segments.
+
+    Sends the audio to coro's OpenAI-compatible ``/v1/audio/transcriptions``
+    endpoint with ``stream=True``. Yields one ``CoroStreamDelta`` per
+    ``transcript.text.delta`` event as text arrives, then a single
+    ``CoroStreamSegments`` parsed from the ``transcript.text.done`` frame.
+
+    Args:
+        payload (bytes): The raw audio file bytes (any ffmpeg-decodable format).
+        filename (str): The uploaded file name (used for the multipart part).
+        content_type (str): The uploaded file MIME type.
+
+    Raises:
+        RuntimeError: If the base URL is unset, the service errors, or no done
+            frame is received.
+
+    Yields:
+        CoroStreamEvent: Incremental deltas followed by the final segments.
+    """
     base_url = settings.TRANSCRIBE_BASE_URL
     if not base_url:
         raise RuntimeError("TRANSCRIBE_BASE_URL is not configured")

@@ -53,14 +53,41 @@ ASR_PROGRESS_K = math.log(10)
 
 
 def _estimate_progress(cumulative_chars: int, duration_s: float | None) -> float | None:
+    """
+    Estimate transcription progress with an asymptotic easing curve.
+
+    Computes ``1 - exp(-k * raw)`` where ``raw`` is the ratio of characters seen
+    so far to the expected total (``duration_s * ASR_PROGRESS_CHARS_PER_SEC``).
+    The curve never reaches 1.0, so it decelerates near the top instead of
+    pinning to a hard cap; completion is signalled separately by the done event.
+
+    Args:
+        cumulative_chars (int): Characters received from deltas so far.
+        duration_s (float | None): Audio duration in seconds, or None if unknown.
+
+    Returns:
+        float | None: Progress in [0.0, 1.0), or None if duration is unknown.
+    """
     if not duration_s or duration_s <= 0:
         return None
     raw = cumulative_chars / (duration_s * ASR_PROGRESS_CHARS_PER_SEC)
     value = 1.0 - math.exp(-ASR_PROGRESS_K * raw)
+    # Guard the float-underflow corner so deltas stay strictly below 1.0
+    # (1.0 is reserved for the done event). This only corrects the artifact at
+    # extreme raw values; it is not a visible cap.
     return min(value, math.nextafter(1.0, 0.0))
 
 
 def _segments_to_paragraphs(segments: list[CoroSegment]) -> list[ASRParagraph]:
+    """
+    Map coro segments to ASRParagraph objects.
+
+    Args:
+        segments (list[CoroSegment]): The coro speaker-attributed segments.
+
+    Returns:
+        list[ASRParagraph]: The transcribed paragraphs.
+    """
     return [
         ASRParagraph(
             speaker_no=int(segment.speaker),
@@ -75,6 +102,16 @@ def _segments_to_paragraphs(segments: list[CoroSegment]) -> list[ASRParagraph]:
 def _speaker_turns_for_transcription(
     paragraphs: list[ASRParagraph],
 ) -> list[ASRSpeakerTurn]:
+    """
+    Build speaker turns from a fresh transcription by merging paragraphs into turns.
+
+    Args:
+        paragraphs (list[ASRParagraph]): The transcribed paragraphs, in order.
+
+    Returns:
+        list[ASRSpeakerTurn]: The merged speaker turns, empty if there are no
+            paragraphs.
+    """
     if not paragraphs:
         return []
     return [
@@ -86,6 +123,19 @@ def _speaker_turns_for_transcription(
 def _speaker_turns_for_validation(
     paragraphs: list[ASRParagraph],
 ) -> list[ASRSpeakerTurn]:
+    """
+    Build speaker turns from human-validated paragraphs.
+
+    Unlike `_speaker_turns_for_transcription`, this does not re-merge
+    consecutive same-speaker paragraphs by sentence boundary, since validated
+    paragraphs already reflect the reviewer's intended segmentation.
+
+    Args:
+        paragraphs (list[ASRParagraph]): The validated paragraphs, in order.
+
+    Returns:
+        list[ASRSpeakerTurn]: One speaker turn per validated paragraph.
+    """
     return [
         ASRSpeakerTurn.model_validate(turn)
         for turn in speaker_turns_from_validated_paragraphs(paragraphs)
@@ -97,6 +147,17 @@ def _asr_document_from_transcription(
     paragraphs: list[ASRParagraph],
     title: str | None = None,
 ) -> ASRDocument:
+    """
+    Build an ASRDocument from a fresh transcription's paragraphs.
+
+    Args:
+        document_id (UUID5): The document's content-derived identifier.
+        paragraphs (list[ASRParagraph]): The transcribed paragraphs.
+        title (str | None, optional): The document title. Defaults to None.
+
+    Returns:
+        ASRDocument: The document, with speaker turns computed from `paragraphs`.
+    """
     return ASRDocument(
         document_id=document_id,
         title=title,
@@ -106,10 +167,33 @@ def _asr_document_from_transcription(
 
 
 def _paragraphs_from_storage(items: list[Any]) -> list[ASRParagraph]:
+    """
+    Deserialize paragraphs previously persisted as JSON back into ASRParagraph objects.
+
+    Args:
+        items (list[Any]): Raw JSON-compatible paragraph records from storage.
+
+    Returns:
+        list[ASRParagraph]: The deserialized paragraphs.
+    """
     return [ASRParagraph.model_validate(item) for item in items]
 
 
 def _asr_document_from_cached_record(document_id: UUID5, record: Any) -> ASRDocument:
+    """
+    Build an ASRDocument from a cached AudioTranscription database record.
+
+    Prefers the record's validation (human-reviewed paragraphs) over its raw
+    transcription when present.
+
+    Args:
+        document_id (UUID5): The document's content-derived identifier.
+        record (Any): The AudioTranscription record read from the database.
+
+    Returns:
+        ASRDocument: The document, built from validation if present, otherwise
+            from the raw transcription.
+    """
     validation = record.validation or []
     if validation:
         paragraphs = _paragraphs_from_storage(validation)
@@ -125,10 +209,28 @@ def _asr_document_from_cached_record(document_id: UUID5, record: Any) -> ASRDocu
 
 
 def _build_sse_message(payload: dict[str, Any]) -> str:
+    """
+    Format a payload as an SSE data message.
+
+    Args:
+        payload (dict[str, Any]): Dictionary to serialize into the SSE data field.
+
+    Returns:
+        str: Serialized SSE message string.
+    """
     return f"data: {json.dumps(payload)}\n\n"
 
 
 def get_transcribe_base_url() -> str:
+    """
+    Get the coro base URL for the transcription service from settings.
+
+    Raises:
+        ConfigurationError: If the base URL is not configured in settings.
+
+    Returns:
+        str: The coro base URL (e.g. http://localhost:8000/v1).
+    """
     base_url = settings.TRANSCRIBE_BASE_URL
     if not base_url:
         raise ConfigurationError(detail="TRANSCRIBE_BASE_URL is not configured")
@@ -140,6 +242,21 @@ async def _transcribe_audio_bytes_with_error_handling(
     filename: str,
     content_type: str,
 ) -> list[ASRParagraph]:
+    """
+    Transcribe audio bytes into a list of ASRParagraph objects via coro.
+
+    Args:
+        data (bytes): The audio data to be transcribed.
+        filename (str): The uploaded file name.
+        content_type (str): The uploaded file MIME type.
+
+    Raises:
+        UpstreamServiceError: If the coro service errors or returns no result.
+        AymuraiAPIException: If there is an unexpected error during transcription.
+
+    Returns:
+        list[ASRParagraph]: The transcribed paragraphs.
+    """
     try:
         segments = await transcribe_audio_bytes(data, filename, content_type)
     except RuntimeError as exc:
@@ -159,6 +276,18 @@ async def transcribe(
     base_url: str = Depends(get_transcribe_base_url),
     session: Session = Depends(get_session),
 ) -> ASRDocument:
+    """
+    Transcribes an uploaded audio file and returns the transcribed document.
+
+    Args:
+        file (UploadFile): The audio file to be transcribed.
+        use_cache (bool, optional): Whether to use cached transcription results. Defaults to True.
+        base_url (str, optional): The coro base URL for the transcription service. Defaults to Depends(get_transcribe_base_url).
+        session (Session, optional): The database session. Defaults to Depends(get_session).
+
+    Returns:
+        ASRDocument: The transcribed audio document.
+    """
     data = await file.read()
     document_id = data_to_uuid(data)
 
@@ -197,6 +326,27 @@ async def transcribe_stream(
     base_url: str = Depends(get_transcribe_base_url),
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
+    """
+    Transcribe an uploaded audio file and stream progress via Server-Sent Events.
+
+    Emits ``data: {json}`` SSE messages with a ``type`` discriminator:
+        - meta: ``{document_id, duration}`` (duration is null if unknown)
+        - delta: ``{text, progress?}`` incremental text (progress omitted if no duration)
+        - segments: ``{document}`` the final paragraph list
+        - done: ``{progress: 1.0}`` terminal success
+        - error: ``{detail}`` upstream/internal failure
+
+    On a cache hit it emits meta, segments, done without calling coro.
+
+    Args:
+        file (UploadFile): The audio file to be transcribed.
+        use_cache (bool, optional): Whether to use cached results. Defaults to True.
+        base_url (str, optional): The coro base URL. Defaults to Depends(get_transcribe_base_url).
+        session (Session, optional): The database session. Defaults to Depends(get_session).
+
+    Returns:
+        StreamingResponse: A text/event-stream of transcription progress events.
+    """
     data = await file.read()
     document_id = data_to_uuid(data)
     filename = file.filename or str(document_id)
@@ -219,9 +369,9 @@ async def transcribe_stream(
             {
                 "type": "meta",
                 "document_id": str(document_id),
-                "title": cached_document.title
-                if cached_document is not None
-                else filename,
+                "title": (
+                    cached_document.title if cached_document is not None else filename
+                ),
                 "duration": duration,
             }
         )
@@ -251,7 +401,10 @@ async def transcribe_stream(
             ):
                 if isinstance(event, CoroStreamDelta):
                     cumulative_chars += len(event.text)
-                    payload: dict[str, Any] = {"type": "delta", "text": event.text}
+                    payload: dict[str, Any] = {
+                        "type": "delta",
+                        "text": event.text,
+                    }
                     progress = _estimate_progress(cumulative_chars, duration)
                     if progress is not None:
                         payload["progress"] = progress
@@ -297,6 +450,19 @@ async def asr_read_document_validation(
     document_id: UUID5,
     session: Session = Depends(get_session),
 ) -> ASRDocument | None:
+    """
+    Retrieves the validation document for a given document ID.
+
+    Args:
+        document_id (UUID5): The ID of the document to retrieve.
+        session (Session, optional): The database session. Defaults to Depends(get_session).
+
+    Raises:
+        NotFoundError: If the document with the given ID is not found.
+
+    Returns:
+        ASRDocument | None: The validation document if found, otherwise None.
+    """
     record = audio_transcription_get(transcription_id=document_id, session=session)
     if not record:
         raise NotFoundError(detail=f"Document not found: {document_id}")
@@ -310,6 +476,17 @@ async def asr_save_document_validation(
     payload: list[ASRParagraphRequest] | ASRValidationDocumentRequest = Body(...),
     session: Session = Depends(get_session),
 ) -> None:
+    """
+    Saves the validation annotations for a given document ID.
+
+    Args:
+        document_id (UUID5): The ID of the document to validate.
+        payload (list[ASRParagraphRequest] | ASRValidationDocumentRequest): Legacy annotation list or validation payload with title and document.
+        session (Session, optional): The database session. Defaults to Depends(get_session).
+
+    Raises:
+        NotFoundError: If the document with the given ID is not found.
+    """
     record = audio_transcription_get(transcription_id=document_id, session=session)
     if not record:
         raise NotFoundError(detail=f"Document not found: {document_id}")
@@ -321,6 +498,7 @@ async def asr_save_document_validation(
     else:
         annotations = payload
 
+    # NOTE: we are serializing the paragraphs to JSON for writing to the DB
     record.validation = [  # type: ignore
         ASRParagraph.model_validate(item).model_dump(mode="json")
         for item in annotations
