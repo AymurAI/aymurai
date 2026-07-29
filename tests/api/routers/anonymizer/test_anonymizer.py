@@ -15,6 +15,7 @@ from aymurai.api.endpoints.routers.anonymizer import anonymizer as anonymizer_mo
 from aymurai.database.schema import AnonymizationParagraph
 from aymurai.database.utils import text_to_uuid
 from aymurai.meta.api_interfaces import LabelPolicy, RenderPolicy
+from aymurai.meta.entities import CanonicalEntity
 from aymurai.settings import Settings
 from aymurai.text.anonymization import DocxAnonymizer, PdfAnonymizer, get_anonymizer
 from aymurai.text.anonymization.alignment import index_paragraphs
@@ -1004,8 +1005,8 @@ def test_should_disambiguate_and_persist_paragraphs(
 ):
     mock_build_canonical_entities.return_value = []
     mock_get_canonical_dates.return_value = []
-    mock_map_canonical_entities.side_effect = lambda predictions, canonical_entities: (
-        predictions
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
     )
 
     text = "Ana Pérez denunció en el juzgado."
@@ -1051,8 +1052,8 @@ def test_should_dedupe_duplicate_labels_when_disambiguating_and_persisting(
 ):
     mock_build_canonical_entities.return_value = []
     mock_get_canonical_dates.return_value = []
-    mock_map_canonical_entities.side_effect = lambda predictions, canonical_entities: (
-        predictions
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
     )
 
     text = "EL SEÑOR JUEZ, doctor Tarte, señaló :"
@@ -1352,3 +1353,185 @@ def test_should_return_500_when_anonymize_document_conversion_fails(
     )
 
     assert response.status_code == 500
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.llm_canonical_entities_inference")
+@patch(
+    "aymurai.api.endpoints.routers.anonymizer.anonymizer.map_canonical_entities_ner_preds"
+)
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.get_canonical_dates")
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.build_canonical_entities")
+def test_disambiguate_without_overrides_never_calls_llm(
+    mock_build_canonical_entities,
+    mock_get_canonical_dates,
+    mock_map_canonical_entities,
+    mock_llm_inference,
+    client,
+    db_session,
+):
+    mock_build_canonical_entities.return_value = []
+    mock_get_canonical_dates.return_value = []
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
+    )
+
+    text = "Ana Perez fue citada."
+    body = {
+        "paragraphs": [
+            {
+                "document": text,
+                "labels": [build_label("PER", "Ana Perez").model_dump(mode="json")],
+            }
+        ],
+    }
+
+    response = client.post("/api/anonymizer/disambiguate", json=body)
+
+    assert response.status_code == 200
+    mock_llm_inference.assert_not_called()
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.llm_canonical_entities_inference")
+@patch(
+    "aymurai.api.endpoints.routers.anonymizer.anonymizer.map_canonical_entities_ner_preds"
+)
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.get_canonical_dates")
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.build_canonical_entities")
+def test_disambiguate_routes_label_to_llm_when_policy_requests_it(
+    mock_build_canonical_entities,
+    mock_get_canonical_dates,
+    mock_map_canonical_entities,
+    mock_llm_inference,
+    client,
+    db_session,
+):
+    entity = CanonicalEntity(
+        aymurai_label="PER", canonical_text="PEREZ, ANA", aliases=["Ana Perez"]
+    )
+    mock_build_canonical_entities.return_value = [entity]
+    mock_get_canonical_dates.return_value = []
+    mock_llm_inference.return_value = [
+        CanonicalEntity(
+            aymurai_label="PER",
+            canonical_text="PEREZ, ANA",
+            aliases=["Ana Perez"],
+            attributes={"role": "Denunciante"},
+        )
+    ]
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
+    )
+
+    text = "Ana Perez fue citada."
+    body = {
+        "paragraphs": [
+            {
+                "document": text,
+                "labels": [build_label("PER", "Ana Perez").model_dump(mode="json")],
+            }
+        ],
+        "label_policies": {"PER": {"anonymize": True, "disambiguation": "llm"}},
+    }
+
+    response = client.post("/api/anonymizer/disambiguate", json=body)
+
+    assert response.status_code == 200
+    mock_llm_inference.assert_called_once()
+    _, kwargs = mock_llm_inference.call_args
+    assert kwargs["target_label"] == "PER"
+    payload = response.json()
+    assert payload["data"][0]["labels"][0]["attrs"]["aymurai_disambiguation"] == "llm"
+    force_labels_used = mock_map_canonical_entities.call_args.kwargs["force_labels"]
+    assert force_labels_used == {"PER"}
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.llm_canonical_entities_inference")
+@patch(
+    "aymurai.api.endpoints.routers.anonymizer.anonymizer.map_canonical_entities_ner_preds"
+)
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.get_canonical_dates")
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.build_canonical_entities")
+def test_disambiguate_target_labels_query_param_opts_in_without_policy(
+    mock_build_canonical_entities,
+    mock_get_canonical_dates,
+    mock_map_canonical_entities,
+    mock_llm_inference,
+    client,
+    db_session,
+):
+    entity = CanonicalEntity(
+        aymurai_label="PER", canonical_text="PEREZ, ANA", aliases=["Ana Perez"]
+    )
+    mock_build_canonical_entities.return_value = [entity]
+    mock_get_canonical_dates.return_value = []
+    mock_llm_inference.return_value = []
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
+    )
+
+    text = "Ana Perez fue citada."
+    body = {
+        "paragraphs": [
+            {
+                "document": text,
+                "labels": [build_label("PER", "Ana Perez").model_dump(mode="json")],
+            }
+        ],
+    }
+
+    response = client.post(
+        "/api/anonymizer/disambiguate?target_labels=PER", json=body
+    )
+
+    assert response.status_code == 200
+    mock_llm_inference.assert_called_once()
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.llm_canonical_entities_inference")
+@patch(
+    "aymurai.api.endpoints.routers.anonymizer.anonymizer.map_canonical_entities_ner_preds"
+)
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.get_canonical_dates")
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.build_canonical_entities")
+def test_disambiguate_custom_prompts_override_default_yaml_prompt(
+    mock_build_canonical_entities,
+    mock_get_canonical_dates,
+    mock_map_canonical_entities,
+    mock_llm_inference,
+    client,
+    db_session,
+):
+    entity = CanonicalEntity(
+        aymurai_label="PER", canonical_text="PEREZ, ANA", aliases=["Ana Perez"]
+    )
+    mock_build_canonical_entities.return_value = [entity]
+    mock_get_canonical_dates.return_value = []
+    mock_llm_inference.return_value = []
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
+    )
+
+    text = "Ana Perez fue citada."
+    body = {
+        "paragraphs": [
+            {
+                "document": text,
+                "labels": [build_label("PER", "Ana Perez").model_dump(mode="json")],
+            }
+        ],
+        "custom_prompts": [
+            {"label": "PER", "system": "custom system prompt", "user": "custom {canonical_entities}"}
+        ],
+        "label_policies": {"PER": {"anonymize": True, "disambiguation": "llm"}},
+    }
+
+    response = client.post("/api/anonymizer/disambiguate", json=body)
+
+    assert response.status_code == 200
+    _, kwargs = mock_llm_inference.call_args
+    assert kwargs["system_prompt"] == "custom system prompt"
+    assert kwargs["user_prompt_template"] == "custom {canonical_entities}"
