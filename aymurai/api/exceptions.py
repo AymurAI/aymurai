@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 
 class AymuraiAPIException(HTTPException):
@@ -12,20 +12,20 @@ class AymuraiAPIException(HTTPException):
 
 
 class UnsupportedFileType(AymuraiAPIException):
-    status_code = 400
+    status_code = status.HTTP_400_BAD_REQUEST
     title = "Unsupported file type"
 
 
 class NotFoundError(AymuraiAPIException):
-    status_code = 404
+    status_code = status.HTTP_404_NOT_FOUND
     title = "Resource not found"
 
 
 class ConfigurationError(AymuraiAPIException):
-    status_code = 500
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     title = "Configuration error"
 
 
 class UpstreamServiceError(AymuraiAPIException):
-    status_code = 502
+    status_code = status.HTTP_502_BAD_GATEWAY
     title = "Upstream service error"
