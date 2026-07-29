@@ -1,4 +1,5 @@
 import uuid
+from functools import cached_property
 from typing import Literal
 
 from pydantic import UUID5, BaseModel, Field, RootModel
@@ -47,7 +48,7 @@ class LabelPolicy(BaseModel):
     """Per-label policy for disambiguation and anonymization."""
 
     anonymize: bool | None = None
-    disambiguation: Literal["none", "fuzzy"] | None = None
+    disambiguation: Literal["none", "fuzzy", "llm"] | None = None
     use_subclass_when_available: bool | None = None
 
 
@@ -77,3 +78,20 @@ class Document(BaseModel):
     document_id: UUID5
     header: list[str] | None = None
     footer: list[str] | None = None
+
+
+class PromptSet(BaseModel):
+    label: str
+    system: str
+    user: str
+
+
+class PromptLibrary(RootModel):
+    root: list[PromptSet] = Field(default_factory=list)
+
+    @cached_property
+    def as_dict(self) -> dict[str, PromptSet]:
+        return {p.label: p for p in self.root}
+
+    def get(self, label: str) -> PromptSet | None:
+        return self.as_dict.get(label)
