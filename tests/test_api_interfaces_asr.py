@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from aymurai.database.utils import data_to_uuid
 from aymurai.meta.api_interfaces import (
     ASRDocument,
     ASRParagraph,
@@ -45,7 +46,7 @@ def test_asr_document_to_txt_joins_paragraphs():
             ASRParagraph(speaker_no=1, start=0, end=1, text="uno"),
             ASRParagraph(speaker_no=1, start=1, end=2, text="dos"),
         ],
-        document_id="00000000-0000-0000-0000-000000000000",
+        document_id=data_to_uuid(b"sample-document"),
     )
     assert "uno" in doc.to_txt()
     assert "dos" in doc.to_txt()

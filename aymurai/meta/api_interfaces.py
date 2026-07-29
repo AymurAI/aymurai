@@ -22,6 +22,8 @@ from aymurai.meta.entities import EntityAttributes
 if TYPE_CHECKING:
     from aymurai.database.meta.audio_transcription import AudioTranscriptionRead
 
+UUID = UUID4 | UUID5
+
 
 class SuccessResponse(BaseModel):
     id: int | uuid.UUID | None = None
@@ -114,7 +116,7 @@ class ASRParagraph(BaseModel):
 
     @computed_field
     @property
-    def paragraph_id(self) -> UUID4:
+    def paragraph_id(self) -> UUID:
         return text_to_uuid(self.text)
 
     @staticmethod
@@ -179,7 +181,7 @@ class ASRSpeakerTurn(BaseModel):
 
 class ASRDocument(BaseModel):
     document: list[ASRParagraph]
-    document_id: uuid.UUID
+    document_id: UUID
     title: str | None = None
     speaker_turns: list[ASRSpeakerTurn] = Field(default_factory=list)
 

@@ -1,12 +1,12 @@
 import json
 import math
-import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import Body, Depends, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRouter
+from pydantic import UUID5
 from sqlmodel import Session
 
 from aymurai.api.exceptions import (
@@ -15,11 +15,7 @@ from aymurai.api.exceptions import (
     NotFoundError,
     UpstreamServiceError,
 )
-from aymurai.api.meta.asr.coro import (
-    CoroSegment,
-    CoroStreamDelta,
-    CoroStreamSegments,
-)
+from aymurai.api.meta.asr.coro import CoroSegment, CoroStreamDelta, CoroStreamSegments
 from aymurai.audio.asr_client import (
     stream_transcribe_audio_bytes,
     transcribe_audio_bytes,
@@ -97,7 +93,9 @@ def _speaker_turns_for_validation(
 
 
 def _asr_document_from_transcription(
-    document_id: uuid.UUID, paragraphs: list[ASRParagraph], title: str | None = None
+    document_id: UUID5,
+    paragraphs: list[ASRParagraph],
+    title: str | None = None,
 ) -> ASRDocument:
     return ASRDocument(
         document_id=document_id,
@@ -111,9 +109,7 @@ def _paragraphs_from_storage(items: list[Any]) -> list[ASRParagraph]:
     return [ASRParagraph.model_validate(item) for item in items]
 
 
-def _asr_document_from_cached_record(
-    document_id: uuid.UUID, record: Any
-) -> ASRDocument:
+def _asr_document_from_cached_record(document_id: UUID5, record: Any) -> ASRDocument:
     validation = record.validation or []
     if validation:
         paragraphs = _paragraphs_from_storage(validation)
@@ -298,7 +294,7 @@ async def transcribe_stream(
 
 @router.get("/validation/document/{document_id}")
 async def asr_read_document_validation(
-    document_id: uuid.UUID,
+    document_id: UUID5,
     session: Session = Depends(get_session),
 ) -> ASRDocument | None:
     record = audio_transcription_get(transcription_id=document_id, session=session)
@@ -310,7 +306,7 @@ async def asr_read_document_validation(
 
 @router.post("/validation/document/{document_id}")
 async def asr_save_document_validation(
-    document_id: uuid.UUID,
+    document_id: UUID5,
     payload: list[ASRParagraphRequest] | ASRValidationDocumentRequest = Body(...),
     session: Session = Depends(get_session),
 ) -> None:

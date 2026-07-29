@@ -80,9 +80,8 @@ def test_transcribe_uses_cache_and_skips_coro_call_on_hit(asr_test_client):
 
 def test_validation_document_returns_404_when_missing(asr_test_client):
     client, _engine = asr_test_client
-    response = client.get(
-        "/asr/validation/document/00000000-0000-0000-0000-000000000000"
-    )
+    missing_id = data_to_uuid(b"never-uploaded-audio")
+    response = client.get(f"/asr/validation/document/{missing_id}")
     assert response.status_code == 404
 
 
