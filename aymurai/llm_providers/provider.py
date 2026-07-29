@@ -43,13 +43,42 @@ class LLMProvider(abc.ABC):
 
     @abc.abstractmethod
     def generate(self, prompt: str, **kwargs) -> LLMResponse:
+        """
+        Generate a response from the model using the provided prompt.
+
+        Args:
+            prompt (str): The input prompt to generate a response for.
+            **kwargs: Additional provider-specific parameters.
+
+        Returns:
+            LLMResponse: The generated response wrapped in an LLMResponse object.
+        """
         pass
 
     @abc.abstractmethod
     def stream(self, prompt: str, **kwargs):
+        """
+        Stream the response from the model using the provided prompt.
+
+        Args:
+            prompt (str): The input prompt to generate a response for.
+            **kwargs: Additional provider-specific parameters.
+
+        Raises:
+            NotImplementedError: If the provider does not support streaming.
+        """
         raise NotImplementedError("This provider does not support streaming.")
 
     def count_tokens(self, text: str) -> int:
+        """
+        Count the number of tokens in the given text.
+
+        Args:
+            text (str): The input text to count tokens for.
+
+        Returns:
+            int: The number of tokens in the input text.
+        """
         tokens = self._tokenize(text)
         return len(tokens)
 
@@ -60,6 +89,17 @@ class LLMProvider(abc.ABC):
         max_tokens: int | None = None,
         overlap: int | None = None,
     ) -> list[DocumentChunk]:
+        """
+        Chunk text ensuring every piece respects the token budget.
+
+        Args:
+            text (str): The input text to chunk.
+            max_tokens (int | None): Optional maximum tokens per chunk.
+            overlap (int | None): Optional token overlap between chunks.
+
+        Returns:
+            list[DocumentChunk]: A list of document chunks.
+        """
         cleaned_text = text.strip()
         if not cleaned_text:
             return []
@@ -134,6 +174,15 @@ class LLMProvider(abc.ABC):
         return chunks
 
     def _tokenize(self, text: str) -> Sequence[Any]:
+        """
+        Tokenize text using the configured tokenizer or fallback to whitespace.
+
+        Args:
+            text (str): The input text to tokenize.
+
+        Returns:
+            Sequence[Any]: The sequence of tokens.
+        """
         if self._tokenizer is None:
             return text.split()
 
@@ -150,6 +199,17 @@ class LLMProvider(abc.ABC):
         return text.split()
 
     def _overlap_tail(self, words: list[str], overlap_tokens: int) -> list[str]:
+        """
+        Get the tail overlap of words based on the token budget.
+
+        Args:
+            words (list[str]): The list of words to consider for overlap.
+            overlap_tokens (int): The token budget for the overlap. Must be
+                non-negative.
+
+        Returns:
+            list[str]: The list of words representing the tail overlap.
+        """
         assert overlap_tokens >= 0, "`overlap_tokens` must be non-negative."
 
         if not words or overlap_tokens == 0:
@@ -173,6 +233,16 @@ class LLMProvider(abc.ABC):
         token_count: int,
         fallback_count: bool = False,
     ) -> None:
+        """
+        Append a chunk with consistent indexing, optionally recomputing token count if missing.
+
+        Args:
+            chunks (list[DocumentChunk]): Accumulated chunk list.
+            text (str): Chunk text.
+            token_count (int): Token count for the chunk.
+            fallback_count (bool): Recompute token count when provided count is
+                falsy. Defaults to False.
+        """
         count = token_count or (
             self.count_tokens(text) if fallback_count else token_count
         )
