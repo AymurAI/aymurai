@@ -36,6 +36,9 @@ x-coro: &coro-base
     volumes:
         - coro-hf-cache:/root/.cache/huggingface
     profiles: ["asr"]
+    networks:
+        default:
+            aliases: ["coro"]
 
 services:
     aymurai-api:
