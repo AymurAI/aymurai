@@ -77,13 +77,14 @@ RUN apt update && \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-# Install LibreOffice for document processing
+# Install LibreOffice for document processing and ffmpeg for audio probing
 RUN apt update && \
     apt-get install -y --no-install-recommends \
         libreoffice-writer \
         libreoffice-common \
         default-jre \
-        libmagic1 && \
+        libmagic1 \
+        ffmpeg && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /tmp/* /var/tmp/* && \
