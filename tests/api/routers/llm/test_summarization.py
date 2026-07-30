@@ -92,3 +92,29 @@ def test_summarize_stream_emits_meta_token_and_summary_events(llm_test_client):
     assert types[-1] == "summary"
     summary_event = events[-1]
     assert summary_event["summary"] == "Hola mundo"
+
+
+def test_llm_test_client_has_a_working_summarization_table(llm_test_client, llm_engine):
+    from sqlmodel import Session
+
+    from aymurai.database.schema import Summarization
+    from aymurai.database.utils import text_to_uuid
+
+    document_id = text_to_uuid("fixture-check")
+    with Session(llm_engine) as session:
+        session.add(
+            Summarization(
+                id=document_id,
+                title=None,
+                text="fixture-check",
+                summary="ok",
+                validation=None,
+                config={},
+                steps=[],
+                chunks_used=1,
+            )
+        )
+        session.commit()
+
+    with Session(llm_engine) as session:
+        assert session.get(Summarization, document_id) is not None
