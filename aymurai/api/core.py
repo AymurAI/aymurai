@@ -1,6 +1,7 @@
 from fastapi.routing import APIRouter
 
 from .endpoints.routers.anonymizer import anonymizer
+from .endpoints.routers.asr import transcribe
 from .endpoints.routers.datapublic import datapublic
 from .endpoints.routers.llm import summarization
 from .endpoints.routers.misc import convert, document_extract
@@ -35,6 +36,13 @@ router.include_router(
     summarization.router,
     prefix="/llm",
     tags=["llm/summarization"],
+)
+
+# ASR
+router.include_router(
+    transcribe.router,
+    prefix="/asr",
+    tags=["asr"],
 )
 
 

@@ -1,9 +1,28 @@
+from __future__ import annotations
+
 import uuid
-from typing import Literal
+from datetime import timedelta
+from typing import TYPE_CHECKING, ClassVar, Literal
 
-from pydantic import UUID5, BaseModel, Field, RootModel
+from pydantic import (
+    UUID4,
+    UUID5,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    computed_field,
+    field_validator,
+)
 
+from aymurai.api.meta.asr.coro import _parse_hhmmss
+from aymurai.database.utils import text_to_uuid
 from aymurai.meta.entities import EntityAttributes
+
+if TYPE_CHECKING:
+    from aymurai.database.meta.audio_transcription import AudioTranscriptionRead
+
+UUID = UUID4 | UUID5
 
 
 class SuccessResponse(BaseModel):
@@ -77,3 +96,102 @@ class Document(BaseModel):
     document_id: UUID5
     header: list[str] | None = None
     footer: list[str] | None = None
+
+
+class ASRParagraph(BaseModel):
+    """A speaker-attributed transcription paragraph (persisted and anonymized)."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
+
+    speaker_no: int
+    speaker_name: str | None = None
+    start: timedelta
+    end: timedelta
+    text: str
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def parse_hhmmss(cls, value: str | int | float | timedelta) -> timedelta:
+        return _parse_hhmmss(value)
+
+    @computed_field
+    @property
+    def paragraph_id(self) -> UUID:
+        return text_to_uuid(self.text)
+
+    @staticmethod
+    def _format_hh_mm_ss(value: timedelta | float | int | str) -> str:
+        if isinstance(value, timedelta):
+            total_seconds = value.total_seconds()
+        elif isinstance(value, str):
+            return value
+        else:
+            total_seconds = float(value)
+
+        seconds = max(0, int(total_seconds))
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+    def to_txt(self) -> str:
+        start = self._format_hh_mm_ss(self.start)
+        end = self._format_hh_mm_ss(self.end)
+        name = (self.speaker_name or "").strip()
+        speaker_label = name or str(self.speaker_no)
+        return "\n".join(
+            [
+                f"{start} - {end}",
+                f"speaker {speaker_label}",
+                self.text,
+            ]
+        )
+
+
+class ASRParagraphRequest(BaseModel):
+    speaker_no: int
+    speaker_name: str | None = None
+    start: str | float | int
+    end: str | float | int
+    text: str
+
+
+class ASRValidationDocumentRequest(BaseModel):
+    title: str | None = None
+    document: list[ASRParagraphRequest]
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        title = value.strip()
+        if not title:
+            raise ValueError("title cannot be empty")
+        return title
+
+
+class ASRSpeakerTurn(BaseModel):
+    speaker: str
+    speaker_no: int
+    start: str
+    end: str
+    text: str
+    segments: list[ASRParagraph]
+
+
+class ASRDocument(BaseModel):
+    document: list[ASRParagraph]
+    document_id: UUID
+    title: str | None = None
+    speaker_turns: list[ASRSpeakerTurn] = Field(default_factory=list)
+
+    def to_txt(self) -> str:
+        return "\n\n".join([paragraph.to_txt() for paragraph in self.document])
+
+    @classmethod
+    def from_transcription(cls, transcription: AudioTranscriptionRead) -> ASRDocument:
+        return cls(
+            document=transcription.validation or transcription.transcription,
+            document_id=transcription.id,
+            title=transcription.name,
+        )
