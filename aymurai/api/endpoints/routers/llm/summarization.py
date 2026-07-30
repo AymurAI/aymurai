@@ -5,10 +5,18 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import tiktoken
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import UUID5, BaseModel, ConfigDict, Field
+from sqlmodel import Session
 
+from aymurai.database.crud.summarization import (
+    summarization_create_or_update,
+    summarization_get,
+)
+from aymurai.database.schema import Summarization
+from aymurai.database.session import get_session
+from aymurai.database.utils import text_to_uuid
 from aymurai.llm_providers import OllamaLLMProvider
 from aymurai.logger import get_logger
 from aymurai.settings import settings
@@ -98,13 +106,29 @@ class SummarizationStep(BaseModel):
     source: str
 
 
+class SummarizationConfig(BaseModel):
+    """The generation config that produced a stored summary.
+
+    Persisted alongside the summary and echoed back on every read. It is
+    informational only: the cache key is the source text alone, so a differing
+    config never triggers regeneration.
+    """
+
+    model: str
+    system_prompt: str
+    tokenizer: str | None = None
+    options: dict[str, Any]
+
+
 class SummarizationResponse(BaseModel):
+    document_id: UUID5
     summary: str
     model: str
     system_prompt: str
     options: dict[str, Any]
     chunks_used: int
     steps: list[SummarizationStep]
+    config: SummarizationConfig
 
 
 def _load_template_prompt(
@@ -374,16 +398,70 @@ def _trim_to_context(provider: OllamaLLMProvider, text: str) -> str:
     return " ".join(trimmed_parts)
 
 
-@router.post("/summarize", response_model=SummarizationResponse)
-async def summarize_document(payload: SummarizationRequest) -> SummarizationResponse:
-    """Summarize a document using a local Ollama model.
+def _response_from_record(record: Summarization) -> SummarizationResponse:
+    """
+    Build a summarize response from a persisted summarization record.
 
-    Chunks inputs above the context limit and performs a rolling
-    summarization that keeps the interim summary in context for subsequent
-    chunks.
+    Args:
+        record (Summarization): The stored summarization row.
+
+    Returns:
+        SummarizationResponse: The response, with the stored generation config
+            echoed in both the flat legacy fields and the `config` object.
+    """
+    config = SummarizationConfig.model_validate(record.config)
+    return SummarizationResponse(
+        document_id=record.id,
+        summary=record.summary,
+        model=config.model,
+        system_prompt=config.system_prompt,
+        options=config.options,
+        chunks_used=record.chunks_used,
+        steps=[SummarizationStep.model_validate(step) for step in record.steps],
+        config=config,
+    )
+
+
+@router.post("/summarize", response_model=SummarizationResponse)
+async def summarize_document(
+    payload: SummarizationRequest,
+    use_cache: bool = True,
+    session: Session = Depends(get_session),
+) -> SummarizationResponse:
+    """
+    Summarize a document using a local Ollama model, persisting the result.
+
+    Chunks inputs above the context limit and performs a rolling summarization
+    that keeps the interim summary in context for subsequent chunks. The result
+    is stored in `llm_summarization`, keyed by `text_to_uuid(text)`.
+
+    Cache identity is the source text alone — the request's generation config is
+    never compared against the stored one. Regeneration therefore requires an
+    explicit `use_cache=false`, and clears any stored human validation.
+
+    Args:
+        payload (SummarizationRequest): The summarization request body.
+        use_cache (bool, optional): Whether to return a stored summary when one
+            exists for this text. Defaults to True.
+        session (Session, optional): The database session. Defaults to
+            Depends(get_session).
+
+    Raises:
+        HTTPException: If the input text is empty or `num_ctx` is invalid.
+
+    Returns:
+        SummarizationResponse: The summary, its document id and its config.
     """
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Input text cannot be empty.")
+
+    document_id = text_to_uuid(payload.text)
+
+    if use_cache:
+        cached_record = summarization_get(summarization_id=document_id, session=session)
+        if cached_record is not None:
+            logger.debug("Summarization DB hit for %s", document_id)
+            return _response_from_record(cached_record)
 
     system_prompt = payload.system_prompt or _load_template_prompt(
         information_to_extract=payload.information_to_extract,
@@ -416,14 +494,24 @@ async def summarize_document(payload: SummarizationRequest) -> SummarizationResp
         options=options,
     )
 
-    return SummarizationResponse(
-        summary=summary,
+    config = SummarizationConfig(
         model=provider.model_name,
         system_prompt=system_prompt,
+        tokenizer=payload.tokenizer,
         options=options,
-        chunks_used=chunk_count or 1,
-        steps=steps,
     )
+    record = summarization_create_or_update(
+        summarization_id=document_id,
+        text=payload.text,
+        summary=summary,
+        config=config.model_dump(mode="json"),
+        steps=[step.model_dump(mode="json") for step in steps],
+        chunks_used=chunk_count or 1,
+        session=session,
+    )
+    logger.debug("Summarization stored in DB for %s", document_id)
+
+    return _response_from_record(record)
 
 
 @router.post("/summarize/stream")

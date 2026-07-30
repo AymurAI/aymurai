@@ -118,3 +118,139 @@ def test_llm_test_client_has_a_working_summarization_table(llm_test_client, llm_
 
     with Session(llm_engine) as session:
         assert session.get(Summarization, document_id) is not None
+
+
+def test_summarize_persists_record_and_returns_document_id_and_config(
+    llm_test_client, llm_engine
+):
+    from sqlmodel import Session
+
+    from aymurai.database.schema import Summarization
+    from aymurai.database.utils import text_to_uuid
+
+    text = "Texto de entrada a persistir."
+    document_id = text_to_uuid(text)
+    fake_response = LLMResponse(text="Resumen persistido.", metadata={})
+
+    with patch(
+        "aymurai.llm_providers.OllamaLLMProvider.async_generate",
+        new=AsyncMock(return_value=fake_response),
+    ):
+        response = llm_test_client.post("/llm/summarize", json={"text": text})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["document_id"] == str(document_id)
+    assert body["summary"] == "Resumen persistido."
+    assert body["config"]["model"] == "gpt-oss:20b"
+    assert body["config"]["options"]["num_ctx"] == 16384
+    assert body["config"]["system_prompt"]
+
+    with Session(llm_engine) as session:
+        record = session.get(Summarization, document_id)
+        assert record is not None
+        assert record.text == text
+        assert record.summary == "Resumen persistido."
+        assert record.config["model"] == "gpt-oss:20b"
+        assert record.chunks_used == 1
+        assert record.validation is None
+
+
+def test_summarize_cache_hit_returns_stored_summary_without_calling_provider(
+    llm_test_client, llm_engine
+):
+    from sqlmodel import Session
+
+    from aymurai.database.schema import Summarization
+    from aymurai.database.utils import text_to_uuid
+
+    text = "Texto ya resumido previamente."
+    document_id = text_to_uuid(text)
+
+    with Session(llm_engine) as session:
+        session.add(
+            Summarization(
+                id=document_id,
+                title="Cacheado",
+                text=text,
+                summary="# Resumen cacheado",
+                validation=None,
+                config={
+                    "model": "phi4:14b",
+                    "system_prompt": "prompt viejo",
+                    "tokenizer": "o200k_harmony",
+                    "options": {"num_ctx": 8192},
+                },
+                steps=[{"chunk_index": 0, "input_tokens": 3, "source": "chunk"}],
+                chunks_used=1,
+            )
+        )
+        session.commit()
+
+    def _fail(*args, **kwargs):
+        raise AssertionError("the provider must not be called on a cache hit")
+
+    with patch(
+        "aymurai.llm_providers.OllamaLLMProvider.async_generate",
+        new=_fail,
+    ):
+        response = llm_test_client.post("/llm/summarize", json={"text": text})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"] == "# Resumen cacheado"
+    assert body["document_id"] == str(document_id)
+    # Config is stored and returned as-is; it is never compared against the request.
+    assert body["config"]["model"] == "phi4:14b"
+    assert body["model"] == "phi4:14b"
+
+
+def test_summarize_with_use_cache_false_regenerates_and_clears_validation(
+    llm_test_client, llm_engine
+):
+    from sqlmodel import Session
+
+    from aymurai.database.schema import Summarization
+    from aymurai.database.utils import text_to_uuid
+
+    text = "Texto a regenerar."
+    document_id = text_to_uuid(text)
+
+    with Session(llm_engine) as session:
+        session.add(
+            Summarization(
+                id=document_id,
+                title="Viejo",
+                text=text,
+                summary="# Resumen viejo",
+                validation={"type": "doc", "content": []},
+                config={
+                    "model": "phi4:14b",
+                    "system_prompt": "prompt viejo",
+                    "tokenizer": None,
+                    "options": {"num_ctx": 8192},
+                },
+                steps=[],
+                chunks_used=1,
+            )
+        )
+        session.commit()
+
+    fake_response = LLMResponse(text="# Resumen nuevo", metadata={})
+
+    with patch(
+        "aymurai.llm_providers.OllamaLLMProvider.async_generate",
+        new=AsyncMock(return_value=fake_response),
+    ):
+        response = llm_test_client.post(
+            "/llm/summarize?use_cache=false", json={"text": text}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "# Resumen nuevo"
+
+    with Session(llm_engine) as session:
+        record = session.get(Summarization, document_id)
+        assert record.summary == "# Resumen nuevo"
+        assert record.validation is None
+        assert record.config["model"] == "gpt-oss:20b"
