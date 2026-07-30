@@ -29,6 +29,15 @@ x-api-full: &api-full
                 memory: 4g
                 cpus: "4.0"
 
+x-ollama: &ollama-base
+    image: ollama/ollama
+    ports:
+        - "11434:11434"
+    volumes:
+        - ollama:/root/.ollama
+    restart: always
+    shm_size: "2gb"
+
 x-coro: &coro-base
     shm_size: "2gb"
     ports:
@@ -41,17 +50,38 @@ x-coro: &coro-base
             aliases: ["coro"]
 
 services:
+    ollama:
+        <<: *ollama-base
+        container_name: ollama
+
+    ollama-gpu:
+        <<: *ollama-base
+        container_name: ollama-gpu
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities: [gpu]
+
     aymurai-api:
         <<: *api-lite
         container_name: aymurai-api
+        depends_on:
+            - ollama
         environment:
             TORCH_DEVICE: cpu
+            OLLAMA_HOST: http://ollama:11434
 
     aymurai-api-gpu:
         <<: *api-lite
         container_name: aymurai-api-gpu
+        depends_on:
+            - ollama-gpu
         environment:
             TORCH_DEVICE: cuda
+            OLLAMA_HOST: http://ollama-gpu:11434
         deploy:
             resources:
                 reservations:
@@ -63,14 +93,20 @@ services:
     aymurai-api-full:
         <<: *api-full
         container_name: aymurai-api-full
+        depends_on:
+            - ollama
         environment:
             TORCH_DEVICE: cpu
+            OLLAMA_HOST: http://ollama:11434
 
     aymurai-api-full-gpu:
         <<: *api-full
         container_name: aymurai-api-full-gpu
+        depends_on:
+            - ollama-gpu
         environment:
             TORCH_DEVICE: cuda
+            OLLAMA_HOST: http://ollama-gpu:11434
         deploy:
             resources:
                 reservations:
@@ -114,4 +150,5 @@ services:
                           capabilities: [gpu]
 
 volumes:
+    ollama:
     coro-hf-cache:
