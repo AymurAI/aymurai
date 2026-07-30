@@ -96,6 +96,7 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 
 # Copy static resources
 COPY resources/pipelines /resources/pipelines
+COPY resources/llm /resources/llm
 COPY --from=frontend-builder /frontend/out/renderer /app/frontend-dist
 
 # Set working directory
@@ -117,6 +118,7 @@ ENV RESOURCES_BASEPATH=resources
 
 # Copy additional resources
 COPY ./resources/pipelines/production resources/pipelines/production
+COPY ./resources/llm resources/llm
 
 # Initialize application to download models
 RUN /app/.venv/bin/pipeline-download
