@@ -29,6 +29,14 @@ x-api-full: &api-full
                 memory: 4g
                 cpus: "4.0"
 
+x-coro: &coro-base
+    shm_size: "2gb"
+    ports:
+        - "8000:8000"
+    volumes:
+        - coro-hf-cache:/root/.cache/huggingface
+    profiles: ["asr"]
+
 services:
     aymurai-api:
         <<: *api-lite
@@ -70,3 +78,37 @@ services:
                 limits:
                     memory: 4g
                     cpus: "4.0"
+
+    coro:
+        <<: *coro-base
+        image: ghcr.io/collectiveai-team/coro:${CORO_VERSION:-1.0.5}-cpu
+        container_name: coro
+        command:
+            - --backend-asr
+            - ${CORO_BACKEND_ASR:-onnx-asr}
+            - --model-asr
+            - ${CORO_MODEL_ASR:-nemo-parakeet-tdt-0.6b-v3}
+            - --backend-diarization
+            - ${CORO_BACKEND_DIARIZATION:-nemo}
+
+    coro-gpu:
+        <<: *coro-base
+        image: ghcr.io/collectiveai-team/coro:${CORO_VERSION:-1.0.5}-gpu
+        container_name: coro-gpu
+        command:
+            - --backend-asr
+            - ${CORO_BACKEND_ASR_GPU:-faster-whisper}
+            - --model-asr
+            - ${CORO_MODEL_ASR_GPU:-openai/whisper-medium}
+            - --backend-diarization
+            - ${CORO_BACKEND_DIARIZATION:-nemo}
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities: [gpu]
+
+volumes:
+    coro-hf-cache:
