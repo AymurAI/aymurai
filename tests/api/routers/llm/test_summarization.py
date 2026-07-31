@@ -72,10 +72,8 @@ def test_summarize_uses_requested_model_and_options(llm_test_client):
 
 def test_summarize_stream_emits_meta_token_and_summary_events(llm_test_client):
     async def fake_stream(self, prompt, **kwargs):
-        from aymurai.llm_providers import LLMResponse as _LLMResponse
-
         for piece in ["Hola", " mundo"]:
-            yield _LLMResponse(text=piece, metadata={})
+            yield LLMResponse(text=piece, metadata={})
 
     with patch(
         "aymurai.llm_providers.OllamaLLMProvider.async_stream",

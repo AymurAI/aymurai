@@ -124,6 +124,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AYMURAI_FRONTEND_DIST_DIR", "FRONTEND_DIST_DIR"),
     )
 
+    # ASR Config (coro — OpenAI-compatible server)
+    TRANSCRIBE_BASE_URL: str | None = None
+    TRANSCRIBE_API_KEY: str = "not-needed"
+
 
 load_env()
 settings = Settings()

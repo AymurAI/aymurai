@@ -63,6 +63,27 @@ def test_malformed_anonymization_policy_env_vars_raise_validation_error(
         Settings()
 
 
+def test_transcribe_base_url_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("TRANSCRIBE_BASE_URL", raising=False)
+    from aymurai.settings import Settings
+
+    assert Settings().TRANSCRIBE_BASE_URL is None
+
+
+def test_transcribe_api_key_defaults_to_not_needed(monkeypatch):
+    monkeypatch.delenv("TRANSCRIBE_API_KEY", raising=False)
+    from aymurai.settings import Settings
+
+    assert Settings().TRANSCRIBE_API_KEY == "not-needed"
+
+
+def test_transcribe_base_url_reads_from_env(monkeypatch):
+    monkeypatch.setenv("TRANSCRIBE_BASE_URL", "http://coro:8000/v1")
+    from aymurai.settings import Settings
+
+    assert Settings().TRANSCRIBE_BASE_URL == "http://coro:8000/v1"
+
+
 def test_disambiguation_llm_settings_have_expected_defaults(monkeypatch):
     for var in (
         "MODEL",

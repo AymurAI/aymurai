@@ -25,6 +25,20 @@ PROMPT_TEMPLATE_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "summarizatio
 
 
 def _load_prompt_defaults(path: Path) -> tuple[str, str]:
+    """
+    Load default placeholders from the YAML template,
+    ensuring both required fields are present.
+
+    Args:
+        path: Path to the summarization YAML file.
+
+    Returns:
+        tuple[str, str]: Defaults for `information_to_extract` and `entities_to_identify`.
+
+    Raises:
+        FileNotFoundError: If the YAML file cannot be located.
+        RuntimeError: If the defaults block is missing or incomplete.
+    """
     content = load_yaml(str(path))
     defaults = content.get("defaults", {})
     info = (defaults.get("information-to-extract") or "").strip()
@@ -98,6 +112,19 @@ def _load_template_prompt(
     information_to_extract: str | None,
     entities_to_identify: str | None,
 ) -> str:
+    """
+    Load and format the summarization prompt template.
+
+    Args:
+        information_to_extract: Template placeholder describing what to extract.
+        entities_to_identify: Template placeholder listing entities to detect.
+
+    Returns:
+        str: Formatted system prompt for summarization.
+
+    Raises:
+        HTTPException: If the template file is missing or cannot be parsed.
+    """
     path = PROMPT_TEMPLATE_PATH
     try:
         content = load_yaml(str(path))
@@ -126,6 +153,15 @@ def _load_template_prompt(
 
 
 def _load_tokenizer(tokenizer_name: str | None) -> tiktoken.Encoding | None:
+    """
+    Load a tiktoken tokenizer by name.
+
+    Args:
+        tokenizer_name (str | None): Name of the tokenizer to load.
+
+    Returns:
+        tiktoken.Encoding | None: The loaded tokenizer encoding or None if unavailable.
+    """
     if not tokenizer_name:
         return None
 
@@ -140,6 +176,16 @@ def _load_tokenizer(tokenizer_name: str | None) -> tiktoken.Encoding | None:
 
 
 def _count_tokens(text: str, tokenizer: Any) -> int:
+    """
+    Count the number of tokens in the given text using the provided tokenizer.
+
+    Args:
+        text (str): The input text to count tokens for.
+        tokenizer (Any): The tokenizer to use for counting tokens.
+
+    Returns:
+        int: The number of tokens in the input text.
+    """
     if tokenizer is None:
         return len(text.split())
     try:
@@ -155,6 +201,18 @@ def _build_provider(
     system_prompt: str,
     context_limit: int,
 ) -> OllamaLLMProvider:
+    """
+    Build an Ollama provider, adjusting available context for the system prompt.
+
+    Args:
+        model_name: Name of the model to use.
+        tokenizer_name: Tokenizer name to attempt loading.
+        system_prompt: System prompt to set and budget for.
+        context_limit: Maximum number of context tokens.
+
+    Returns:
+        OllamaLLMProvider: Configured OllamaLLMProvider instance.
+    """
     encoding = _load_tokenizer(tokenizer_name)
     available_context = max(context_limit - _count_tokens(system_prompt, encoding), 1)
 
@@ -172,6 +230,17 @@ async def _summarize_once(
     text: str,
     options: dict[str, Any],
 ) -> str:
+    """
+    Run a single summarization call on the provider.
+
+    Args:
+        provider: Initialized OllamaLLMProvider instance.
+        text: Chunk or combined text to summarize.
+        options: Provider options forwarded to the model.
+
+    Returns:
+        str: The model's text output for the given input.
+    """
     response = await provider.async_generate(prompt=text, options=options)
     return response.text
 
@@ -182,6 +251,17 @@ async def _rolling_summarize(
     text: str,
     options: dict[str, Any],
 ) -> tuple[str, list[SummarizationStep], int]:
+    """
+    Summarize potentially long text by chunking and rolling summaries forward.
+
+    Args:
+        provider: Initialized OllamaLLMProvider instance.
+        text: Full document text to summarize.
+        options: Provider options forwarded to the model.
+
+    Returns:
+        tuple[str, list[SummarizationStep], int]: A tuple of (final_summary, steps_metadata, chunk_count).
+    """
     chunks = provider.chunk_text(text, max_tokens=provider.max_context_tokens)
     if not chunks:
         return "", [], 0
@@ -255,10 +335,29 @@ async def _rolling_summarize(
 
 
 def _build_sse_message(payload: dict[str, Any]) -> str:
+    """
+    Format a payload as an SSE data message.
+
+    Args:
+        payload: Dictionary to serialize into the SSE data field.
+
+    Returns:
+        str: Serialized SSE message string.
+    """
     return f"data: {json.dumps(payload)}\n\n"
 
 
 def _trim_to_context(provider: OllamaLLMProvider, text: str) -> str:
+    """
+    Trim combined text to respect the provider's context window.
+
+    Args:
+        provider: Provider with a configured max_context_tokens.
+        text: Concatenated summary and chunk text.
+
+    Returns:
+        str: Text trimmed to fit within the context limit.
+    """
     if not provider.max_context_tokens:
         return text
 
