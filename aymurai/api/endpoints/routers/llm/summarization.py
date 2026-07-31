@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from aymurai.llm_providers import OllamaLLMProvider
+from aymurai.llm_providers import LLMProvider, get_llm_provider
 from aymurai.logger import get_logger
 from aymurai.settings import settings
 from aymurai.utils.yaml_data import load_yaml
@@ -200,23 +200,24 @@ def _build_provider(
     tokenizer_name: str | None,
     system_prompt: str,
     context_limit: int,
-) -> OllamaLLMProvider:
+) -> LLMProvider:
     """
-    Build an Ollama provider, adjusting available context for the system prompt.
+    Build the configured LLM provider, adjusting available context for the system prompt.
 
     Args:
-        model_name: Name of the model to use.
-        tokenizer_name: Tokenizer name to attempt loading.
-        system_prompt: System prompt to set and budget for.
-        context_limit: Maximum number of context tokens.
+        model_name (str): Name of the model to use.
+        tokenizer_name (str | None): Tokenizer name to attempt loading.
+        system_prompt (str): System prompt to set and budget for.
+        context_limit (int): Maximum number of context tokens.
 
     Returns:
-        OllamaLLMProvider: Configured OllamaLLMProvider instance.
+        LLMProvider: Configured provider instance for the backend selected by
+            `settings.LLM_PROVIDER`.
     """
     encoding = _load_tokenizer(tokenizer_name)
     available_context = max(context_limit - _count_tokens(system_prompt, encoding), 1)
 
-    return OllamaLLMProvider(
+    return get_llm_provider(
         model=model_name,
         tokenizer=encoding,
         system_prompt=system_prompt,
@@ -225,7 +226,7 @@ def _build_provider(
 
 
 async def _summarize_once(
-    provider: OllamaLLMProvider,
+    provider: LLMProvider,
     *,
     text: str,
     options: dict[str, Any],
@@ -234,7 +235,7 @@ async def _summarize_once(
     Run a single summarization call on the provider.
 
     Args:
-        provider: Initialized OllamaLLMProvider instance.
+        provider: Initialized LLMProvider instance.
         text: Chunk or combined text to summarize.
         options: Provider options forwarded to the model.
 
@@ -246,7 +247,7 @@ async def _summarize_once(
 
 
 async def _rolling_summarize(
-    provider: OllamaLLMProvider,
+    provider: LLMProvider,
     *,
     text: str,
     options: dict[str, Any],
@@ -255,7 +256,7 @@ async def _rolling_summarize(
     Summarize potentially long text by chunking and rolling summaries forward.
 
     Args:
-        provider: Initialized OllamaLLMProvider instance.
+        provider: Initialized LLMProvider instance.
         text: Full document text to summarize.
         options: Provider options forwarded to the model.
 
@@ -347,7 +348,7 @@ def _build_sse_message(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-def _trim_to_context(provider: OllamaLLMProvider, text: str) -> str:
+def _trim_to_context(provider: LLMProvider, text: str) -> str:
     """
     Trim combined text to respect the provider's context window.
 

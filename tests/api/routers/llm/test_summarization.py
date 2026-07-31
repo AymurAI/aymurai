@@ -92,3 +92,72 @@ def test_summarize_stream_emits_meta_token_and_summary_events(llm_test_client):
     assert types[-1] == "summary"
     summary_event = events[-1]
     assert summary_event["summary"] == "Hola mundo"
+
+
+def test_build_provider_uses_the_configured_llm_provider(monkeypatch):
+    from aymurai.api.endpoints.routers.llm import summarization
+    from aymurai.llm_providers import LlamaCppLLMProvider, OllamaLLMProvider
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+    ollama_provider = summarization._build_provider(
+        "llama3",
+        tokenizer_name=None,
+        system_prompt="Sistema",
+        context_limit=4096,
+    )
+    assert isinstance(ollama_provider, OllamaLLMProvider)
+    assert ollama_provider.model_name == "llama3"
+    assert ollama_provider.system_prompt == "Sistema"
+    assert ollama_provider.max_context_tokens == 4096 - len("Sistema".split())
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "llamacpp")
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+    llamacpp_provider = summarization._build_provider(
+        "llama3",
+        tokenizer_name=None,
+        system_prompt="Sistema",
+        context_limit=4096,
+    )
+    assert isinstance(llamacpp_provider, LlamaCppLLMProvider)
+    assert llamacpp_provider.base_url == "http://llamacpp:8080/v1"
+    assert llamacpp_provider.system_prompt == "Sistema"
+
+
+def test_summarize_end_to_end_under_llamacpp_provider(llm_test_client, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "llamacpp")
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="Resumen llamacpp."))],
+        usage=SimpleNamespace(prompt_tokens=11, completion_tokens=3),
+    )
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=completion)
+
+    with patch(
+        "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
+        return_value=mock_client,
+    ):
+        response = llm_test_client.post(
+            "/llm/summarize",
+            json={"text": "Texto de entrada corto a resumir."},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"] == "Resumen llamacpp."
+    # The request body omitted `options`, so the router used its defaults.
+    assert body["options"] == {"num_ctx": 16_384, "num_predict": 4096}
+
+    mock_client.chat.completions.create.assert_awaited_once()
+    _, kwargs = mock_client.chat.completions.create.call_args
+    assert "options" not in kwargs
+    assert "num_ctx" not in kwargs
+    assert kwargs["max_tokens"] == 4096
+    assert kwargs["messages"][0]["role"] == "system"
