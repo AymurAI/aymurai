@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
-from aymurai.api.endpoints.routers.llm import summarization
+from aymurai.api.endpoints.routers.llm import summarization, summary_validation
 from aymurai.database.session import get_session
 
 
@@ -23,6 +23,7 @@ def llm_engine():
 def llm_test_client(llm_engine):
     app = FastAPI()
     app.include_router(summarization.router, prefix="/llm")
+    app.include_router(summary_validation.router, prefix="/llm")
 
     def _override_get_session():
         with Session(llm_engine) as session:
