@@ -254,3 +254,65 @@ def test_summarize_with_use_cache_false_regenerates_and_clears_validation(
         assert record.summary == "# Resumen nuevo"
         assert record.validation is None
         assert record.config["model"] == "gpt-oss:20b"
+
+
+def test_summarize_stream_meta_event_carries_document_id(llm_test_client):
+    from aymurai.database.utils import text_to_uuid
+
+    text = "Texto corto para streaming meta."
+    document_id = text_to_uuid(text)
+
+    async def fake_stream(self, prompt, **kwargs):
+        from aymurai.llm_providers import LLMResponse as _LLMResponse
+
+        for piece in ["Hola", " mundo"]:
+            yield _LLMResponse(text=piece, metadata={})
+
+    with patch(
+        "aymurai.llm_providers.OllamaLLMProvider.async_stream",
+        new=fake_stream,
+    ):
+        response = llm_test_client.post("/llm/summarize/stream", json={"text": text})
+
+    assert response.status_code == 200
+    events = _parse_sse(response.text)
+    assert events[0]["type"] == "meta"
+    assert events[0]["document_id"] == str(document_id)
+
+
+def test_summarize_stream_persists_on_terminal_summary_event(
+    llm_test_client, llm_engine
+):
+    from sqlmodel import Session
+
+    from aymurai.database.schema import Summarization
+    from aymurai.database.utils import text_to_uuid
+
+    text = "Texto corto para persistir por stream."
+    document_id = text_to_uuid(text)
+
+    async def fake_stream(self, prompt, **kwargs):
+        from aymurai.llm_providers import LLMResponse as _LLMResponse
+
+        for piece in ["Resumen", " streamed"]:
+            yield _LLMResponse(text=piece, metadata={})
+
+    with patch(
+        "aymurai.llm_providers.OllamaLLMProvider.async_stream",
+        new=fake_stream,
+    ):
+        response = llm_test_client.post("/llm/summarize/stream", json={"text": text})
+
+    assert response.status_code == 200
+    events = _parse_sse(response.text)
+    assert events[-1]["type"] == "summary"
+    assert events[-1]["summary"] == "Resumen streamed"
+
+    with Session(llm_engine) as session:
+        record = session.get(Summarization, document_id)
+        assert record is not None
+        assert record.text == text
+        assert record.summary == "Resumen streamed"
+        assert record.chunks_used == 1
+        assert record.config["model"] == "gpt-oss:20b"
+        assert record.validation is None
