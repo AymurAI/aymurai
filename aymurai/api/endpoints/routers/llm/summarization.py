@@ -201,16 +201,78 @@ async def summarize_document(
     return _response_from_record(record)
 
 
+def _cache_hit_events(record: Summarization) -> list[str]:
+    """
+    Build the SSE frames for a stream cache hit.
+
+    Emits the stored summary as-is — meta, a single full-text token, then the
+    terminal summary event — without calling the provider or writing to the
+    database. Crucially it does NOT regenerate, so the stored human `validation`
+    is left intact, mirroring how `/asr/transcribe/stream` replays a cached
+    record instead of re-transcribing.
+
+    Args:
+        record (Summarization): The stored summarization row.
+
+    Returns:
+        list[str]: The SSE `data:` frames to stream for the cache hit.
+    """
+    config = SummarizationConfig.model_validate(record.config)
+    steps = [
+        SummarizationStep.model_validate(step).model_dump(mode="json")
+        for step in record.steps
+    ]
+
+    frames = [
+        _build_sse_message(
+            {
+                "type": "meta",
+                "document_id": str(record.id),
+                "model": config.model,
+                "system_prompt": config.system_prompt,
+                "options": config.options,
+            }
+        )
+    ]
+    if record.summary:
+        frames.append(
+            _build_sse_message(
+                {
+                    "type": "token",
+                    "chunk_index": 0,
+                    "source": "cache",
+                    "text": record.summary,
+                }
+            )
+        )
+    frames.append(
+        _build_sse_message(
+            {
+                "type": "summary",
+                "summary": record.summary,
+                "chunks_used": record.chunks_used,
+                "steps": steps,
+                "model": config.model,
+            }
+        )
+    )
+    return frames
+
+
 @router.post("/summarize/stream")
 async def stream_summarize_document(
     payload: SummarizationRequest,
+    use_cache: bool = True,
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     """Stream a document summary using server-sent events (text/event-stream).
 
-    Persists the result on the terminal `summary` event, mirroring how
-    `/asr/transcribe/stream` persists on its terminal segments event. The `meta`
-    event carries `document_id` so the client has it from the first frame.
+    On a cache hit (a stored summary exists for this text and `use_cache` is
+    true) it replays the stored summary without calling the provider or writing
+    to the database — mirroring `/asr/transcribe/stream`, and leaving any stored
+    human `validation` intact. Otherwise it generates, streams tokens, and
+    persists the result on the terminal `summary` event (which clears the
+    validation). The `meta` event carries `document_id` from the first frame.
 
     Emits:
         - data: {"type": "meta", "document_id": str, "model": str, "system_prompt": str, "options": {...}}
@@ -219,6 +281,8 @@ async def stream_summarize_document(
 
     Args:
         payload (SummarizationRequest): The summarization request body.
+        use_cache (bool, optional): Whether to replay a stored summary when one
+            exists for this text. Defaults to True.
         session (Session, optional): The database session. Defaults to
             Depends(get_session).
 
@@ -230,6 +294,14 @@ async def stream_summarize_document(
     """
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Input text cannot be empty.")
+
+    document_id = text_to_uuid(payload.text)
+
+    cached_record = (
+        summarization_get(summarization_id=document_id, session=session)
+        if use_cache
+        else None
+    )
 
     system_prompt = payload.system_prompt or _load_template_prompt(
         information_to_extract=payload.information_to_extract,
@@ -256,9 +328,13 @@ async def stream_summarize_document(
         context_limit=context_limit,
     )
 
-    document_id = text_to_uuid(payload.text)
-
     async def event_stream() -> AsyncIterator[str]:
+        if cached_record is not None:
+            logger.debug("Summarization stream cache hit for %s", document_id)
+            for frame in _cache_hit_events(cached_record):
+                yield frame
+            return
+
         yield _build_sse_message(
             {
                 "type": "meta",
