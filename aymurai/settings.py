@@ -2,6 +2,7 @@ import json
 import os
 from copy import deepcopy
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import AliasChoices, ConfigDict, Field, FilePath, field_validator
@@ -118,6 +119,13 @@ class Settings(BaseSettings):
     # ASR Config (coro — OpenAI-compatible server)
     TRANSCRIBE_BASE_URL: str | None = None
     TRANSCRIBE_API_KEY: str = "not-needed"
+
+    # LLM provider selection (global per deployment)
+    LLM_PROVIDER: Literal["ollama", "llamacpp"] = "ollama"
+
+    # llama.cpp Config (llama-server — OpenAI-compatible server)
+    LLAMACPP_BASE_URL: str | None = None
+    LLAMACPP_API_KEY: str = "not-needed"
 
 
 load_env()
