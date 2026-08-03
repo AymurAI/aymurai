@@ -1,6 +1,7 @@
 import concurrent.futures
 import io
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -307,3 +308,85 @@ def test_should_return_500_when_extraction_fails(mock_extraction, client):
     response = client.post("/api/document-extract", files=files)
 
     assert response.status_code == 500
+
+
+SAMPLE_DOCX = (
+    Path(__file__).resolve().parents[4]
+    / "resources"
+    / "data"
+    / "sample"
+    / "document-01.docx"
+)
+
+DOCX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_when_uploading_sample_docx(mock_extraction, client):
+    """Test that a real sample DOCX reports its cached page count."""
+    mock_extraction.return_value = "Para 1\nPara 2"
+    assert SAMPLE_DOCX.exists(), f"missing fixture: {SAMPLE_DOCX}"
+
+    file_content = SAMPLE_DOCX.read_bytes()
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] == 19
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_null_page_count_when_metadata_unreadable(
+    mock_extraction, client
+):
+    """Test that unreadable metadata yields page_count null with HTTP 200."""
+    mock_extraction.return_value = "Para 1"
+
+    files = {"file": ("test.docx", b"not a zip archive at all", DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] is None
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_via_misc_prefix(mock_extraction, client):
+    """Test that /misc/document-extract also reports page_count."""
+    mock_extraction.return_value = "Para 1"
+    assert SAMPLE_DOCX.exists(), f"missing fixture: {SAMPLE_DOCX}"
+
+    file_content = SAMPLE_DOCX.read_bytes()
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/misc/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 19
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_should_return_page_count_for_generated_pdf(client):
+    """Test that a generated 3-page PDF reports page_count 3."""
+    import pymupdf
+
+    pdf_document = pymupdf.open()
+    try:
+        for index in range(3):
+            page = pdf_document.new_page()  # type: ignore[attr-defined]
+            page.insert_text((72, 72), f"page {index + 1}")
+        file_content = pdf_document.tobytes()
+    finally:
+        pdf_document.close()
+
+    files = {"file": ("sample.pdf", file_content, "application/pdf")}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 3
