@@ -20,6 +20,9 @@ logger = get_logger(__file__)
 
 ODT_NS = {"text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0"}
 PDF_SKIP_BOX_CLASSES = frozenset({"picture", "formula", "table"})
+DOCX_EXTENDED_PROPERTIES_NS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+)
 
 
 def normalize_text(text: str) -> str:
@@ -292,3 +295,34 @@ def get_pdf_page_count(path: Path) -> int:
     """
     with pymupdf.open(str(path)) as doc:
         return doc.page_count
+
+
+def get_docx_page_count(path: Path) -> int | None:
+    """
+    Read the cached page count of a DOCX document.
+
+    DOCX has no intrinsic pagination: the value comes from ``docProps/app.xml``
+    and is written by whichever application last saved the file.
+
+    Args:
+        path (Path): DOCX archive path.
+
+    Returns:
+        int | None: Number of pages, or None when the archive carries no
+            ``docProps/app.xml`` or no ``<Pages>`` element.
+    """
+    with zipfile.ZipFile(path, "r") as archive:
+        if "docProps/app.xml" not in archive.namelist():
+            return None
+        app_xml = archive.read("docProps/app.xml")
+
+    root = ET.fromstring(app_xml)
+    pages = root.find(f"{{{DOCX_EXTENDED_PROPERTIES_NS}}}Pages")
+    if pages is None:
+        return None
+
+    value = (pages.text or "").strip()
+    if not value:
+        return None
+
+    return int(value)

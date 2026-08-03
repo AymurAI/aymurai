@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from aymurai.text.extractors.base import BaseExtractor
 
 
@@ -73,3 +75,95 @@ def test_pdf_extractor_returns_none_for_missing_file(tmp_path):
     from aymurai.text.extractors.pdf import PdfExtractor
 
     assert PdfExtractor().page_count(tmp_path / "missing.pdf") is None
+
+
+SAMPLE_DIR = Path(__file__).resolve().parents[2] / "resources" / "data" / "sample"
+
+SAMPLE_DOCX_PAGE_COUNTS = {
+    "document-01.docx": 19,
+    "document-02.docx": 9,
+    "document-03.docx": 10,
+    "document-04.docx": 19,
+    "document-05.docx": 25,
+    "document-06.docx": 18,
+    "document-07.docx": 10,
+    "document-08.docx": 16,
+    "document-09.docx": 48,
+}
+
+APP_XML_WITHOUT_PAGES = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    "<Properties "
+    'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/'
+    'extended-properties">'
+    "<Template>Normal</Template>"
+    "<Words>120</Words>"
+    "<Application>python-docx</Application>"
+    "</Properties>"
+)
+
+
+def _build_docx_with_app_xml(path: Path, app_xml: str | None) -> Path:
+    """Write a minimal DOCX-shaped zip with an optional docProps/app.xml."""
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body/></w:document>',
+        )
+        if app_xml is not None:
+            archive.writestr("docProps/app.xml", app_xml)
+    return path
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"), sorted(SAMPLE_DOCX_PAGE_COUNTS.items())
+)
+def test_docx_extractor_reports_sample_page_counts(filename, expected):
+    """Every sample DOCX carries <Pages> in docProps/app.xml."""
+    from aymurai.text.extractors.docx import DocxExtractor
+
+    document = SAMPLE_DIR / filename
+    assert document.exists(), f"missing fixture: {document}"
+
+    assert DocxExtractor().page_count(document) == expected
+
+
+def test_docx_extractor_returns_none_when_pages_element_missing(tmp_path):
+    """An app.xml without <Pages> resolves to None."""
+    from aymurai.text.extractors.docx import DocxExtractor
+
+    document = _build_docx_with_app_xml(
+        tmp_path / "no-pages.docx", APP_XML_WITHOUT_PAGES
+    )
+
+    assert DocxExtractor().page_count(document) is None
+
+
+def test_docx_extractor_returns_none_when_app_xml_missing(tmp_path):
+    """A DOCX without docProps/app.xml resolves to None."""
+    from aymurai.text.extractors.docx import DocxExtractor
+
+    document = _build_docx_with_app_xml(tmp_path / "no-app-xml.docx", None)
+
+    assert DocxExtractor().page_count(document) is None
+
+
+def test_docx_extractor_returns_none_for_non_zip_file(tmp_path):
+    """A file that is not a valid zip resolves to None, not an exception."""
+    from aymurai.text.extractors.docx import DocxExtractor
+
+    document = tmp_path / "not-a-zip.docx"
+    document.write_bytes(b"plain text, definitely not a zip archive")
+
+    assert DocxExtractor().page_count(document) is None
+
+
+def test_docx_extractor_returns_none_for_missing_file(tmp_path):
+    """A missing file resolves to None instead of raising InvalidFile."""
+    from aymurai.text.extractors.docx import DocxExtractor
+
+    assert DocxExtractor().page_count(tmp_path / "missing.docx") is None
