@@ -278,3 +278,17 @@ def odt_to_text(path: Path) -> str:
         if child.tag in (_odt_qn("text:p"), _odt_qn("text:h")):
             lines.append(_odt_text_to_string(child))
     return "\n".join(lines)
+
+
+def get_pdf_page_count(path: Path) -> int:
+    """
+    Read the number of pages of a PDF document.
+
+    Args:
+        path (Path): PDF document path.
+
+    Returns:
+        int: Number of pages reported by the PDF.
+    """
+    with pymupdf.open(str(path)) as doc:
+        return doc.page_count
