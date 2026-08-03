@@ -35,3 +35,9 @@ from .meta.audio_transcription import (
     AudioTranscriptionCreate,
     AudioTranscriptionUpdate,
 )
+from .meta.summarization import (
+    Summarization,
+    SummarizationRead,
+    SummarizationCreate,
+    SummarizationUpdate,
+)
