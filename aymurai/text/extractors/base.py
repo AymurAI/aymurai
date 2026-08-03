@@ -46,6 +46,22 @@ class BaseExtractor(ABC):
             str: Cleaned textual content.
         """
 
+    def page_count(self, path: Path) -> int | None:
+        """
+        Number of pages in the document.
+
+        Extractors override this when the format carries page information.
+        Implementations must never raise: any failure resolves to None.
+
+        Args:
+            path (Path): Input document path.
+
+        Returns:
+            int | None: The page count, or None when the format carries no
+                page information or the file does not provide it.
+        """
+        return None
+
 
 _REGISTRY: dict[str, type[BaseExtractor]] = {}
 
