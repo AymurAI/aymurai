@@ -23,6 +23,7 @@ PDF_SKIP_BOX_CLASSES = frozenset({"picture", "formula", "table"})
 DOCX_EXTENDED_PROPERTIES_NS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
 )
+ODT_META_NS = "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
 
 
 def normalize_text(text: str) -> str:
@@ -326,3 +327,34 @@ def get_docx_page_count(path: Path) -> int | None:
         return None
 
     return int(value)
+
+
+def get_odt_page_count(path: Path) -> int | None:
+    """
+    Read the cached page count of an ODT document.
+
+    ODT has no intrinsic pagination: the value comes from ``meta.xml`` and is
+    written by whichever application last saved the file.
+
+    Args:
+        path (Path): ODT archive path.
+
+    Returns:
+        int | None: Number of pages, or None when the archive carries no
+            ``meta.xml`` or no ``meta:document-statistic`` page count.
+    """
+    with zipfile.ZipFile(path, "r") as archive:
+        if "meta.xml" not in archive.namelist():
+            return None
+        meta_xml = archive.read("meta.xml")
+
+    root = ET.fromstring(meta_xml)
+    statistic = root.find(f".//{{{ODT_META_NS}}}document-statistic")
+    if statistic is None:
+        return None
+
+    value = statistic.get(f"{{{ODT_META_NS}}}page-count")
+    if value is None or not value.strip():
+        return None
+
+    return int(value.strip())

@@ -167,3 +167,107 @@ def test_docx_extractor_returns_none_for_missing_file(tmp_path):
     from aymurai.text.extractors.docx import DocxExtractor
 
     assert DocxExtractor().page_count(tmp_path / "missing.docx") is None
+
+
+ODT_META_XML_TEMPLATE = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<office:document-meta "
+    'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+    'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" '
+    'office:version="1.2">'
+    "<office:meta>"
+    "<meta:generator>LibreOffice/7.4</meta:generator>"
+    '<meta:document-statistic meta:page-count="{pages}" '
+    'meta:word-count="120" meta:character-count="700"/>'
+    "</office:meta>"
+    "</office:document-meta>"
+)
+
+ODT_META_XML_WITHOUT_STATISTIC = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<office:document-meta "
+    'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+    'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" '
+    'office:version="1.2">'
+    "<office:meta>"
+    "<meta:generator>LibreOffice/7.4</meta:generator>"
+    "</office:meta>"
+    "</office:document-meta>"
+)
+
+ODT_CONTENT_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<office:document-content "
+    'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+    'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+    'office:version="1.2">'
+    "<office:body><office:text>"
+    "<text:p>hola</text:p>"
+    "</office:text></office:body>"
+    "</office:document-content>"
+)
+
+
+def _build_odt(path: Path, meta_xml: str | None) -> Path:
+    """Write a minimal ODT zip with an optional meta.xml."""
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        archive.writestr("content.xml", ODT_CONTENT_XML)
+        if meta_xml is not None:
+            archive.writestr("meta.xml", meta_xml)
+    return path
+
+
+def test_odt_extractor_reports_page_count_from_meta_xml(tmp_path):
+    """meta:document-statistic/@meta:page-count is read as the page count."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    document = _build_odt(tmp_path / "seven.odt", ODT_META_XML_TEMPLATE.format(pages=7))
+
+    assert OdtExtractor().page_count(document) == 7
+
+
+def test_odt_extractor_reports_single_page_count(tmp_path):
+    """A one-page ODT reports 1."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    document = _build_odt(tmp_path / "one.odt", ODT_META_XML_TEMPLATE.format(pages=1))
+
+    assert OdtExtractor().page_count(document) == 1
+
+
+def test_odt_extractor_returns_none_when_statistic_missing(tmp_path):
+    """A meta.xml without meta:document-statistic resolves to None."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    document = _build_odt(tmp_path / "no-statistic.odt", ODT_META_XML_WITHOUT_STATISTIC)
+
+    assert OdtExtractor().page_count(document) is None
+
+
+def test_odt_extractor_returns_none_when_meta_xml_missing(tmp_path):
+    """An ODT without meta.xml resolves to None."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    document = _build_odt(tmp_path / "no-meta.odt", None)
+
+    assert OdtExtractor().page_count(document) is None
+
+
+def test_odt_extractor_returns_none_for_non_zip_file(tmp_path):
+    """A file that is not a valid zip resolves to None, not an exception."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    document = tmp_path / "not-a-zip.odt"
+    document.write_bytes(b"plain text, definitely not a zip archive")
+
+    assert OdtExtractor().page_count(document) is None
+
+
+def test_odt_extractor_returns_none_for_missing_file(tmp_path):
+    """A missing file resolves to None instead of raising InvalidFile."""
+    from aymurai.text.extractors.odt import OdtExtractor
+
+    assert OdtExtractor().page_count(tmp_path / "missing.odt") is None
