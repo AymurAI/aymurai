@@ -295,6 +295,47 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
 
         self.assertEqual(pieces[0].text, "")
 
+    def test_sync_client_is_cached_across_calls(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client) as mock_openai:
+            provider.generate("Hola")
+            provider.generate("Mundo")
+
+        mock_openai.assert_called_once()
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+
+    def test_close_releases_the_cached_sync_client(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            provider.generate("Hola")
+            provider.close()
+
+        mock_client.close.assert_called_once()
+        self.assertIsNone(provider._client)
+
+    def test_close_is_a_safe_no_op_when_no_client_was_ever_created(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+
+        provider.close()  # must not raise
+
+    def test_close_recreates_a_fresh_client_on_next_use(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client) as mock_openai:
+            provider.generate("Hola")
+            provider.close()
+            provider.generate("Mundo")
+
+        self.assertEqual(mock_openai.call_count, 2)
+
 
 class AsyncOpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
     async def test_async_generate_builds_messages_and_maps_response(self):
@@ -382,6 +423,42 @@ class AsyncOpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("num_ctx", kwargs)
         self.assertEqual(kwargs["max_tokens"], 4096)
         self.assertTrue(kwargs["stream"])
+
+    async def test_async_client_is_cached_across_calls(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_fake_completion("ok")
+        )
+
+        with patch(
+            f"{MODULE}.AsyncOpenAI", return_value=mock_client
+        ) as mock_async_openai:
+            await provider.async_generate("Hola")
+            await provider.async_generate("Mundo")
+
+        mock_async_openai.assert_called_once()
+        self.assertEqual(mock_client.chat.completions.create.await_count, 2)
+
+    async def test_aclose_releases_the_cached_async_client(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_fake_completion("ok")
+        )
+        mock_client.close = AsyncMock()
+
+        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
+            await provider.async_generate("Hola")
+            await provider.aclose()
+
+        mock_client.close.assert_awaited_once()
+        self.assertIsNone(provider._async_client)
+
+    async def test_aclose_is_a_safe_no_op_when_no_client_was_ever_created(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+
+        await provider.aclose()  # must not raise
 
 
 if __name__ == "__main__":

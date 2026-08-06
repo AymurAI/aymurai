@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Sequence
+from typing import Any, AsyncIterator, Sequence
 
 from pydantic import BaseModel, Field
 
@@ -68,6 +68,58 @@ class LLMProvider(abc.ABC):
             NotImplementedError: If the provider does not support streaming.
         """
         raise NotImplementedError("This provider does not support streaming.")
+
+    @abc.abstractmethod
+    async def async_generate(self, prompt: str, **kwargs) -> LLMResponse:
+        """
+        Asynchronously generate a response from the model using the provided prompt.
+
+        Args:
+            prompt (str): The input prompt to generate a response for.
+            **kwargs: Additional provider-specific parameters.
+
+        Raises:
+            NotImplementedError: If the provider does not support async generation.
+
+        Returns:
+            LLMResponse: The generated response wrapped in an LLMResponse object.
+        """
+        raise NotImplementedError("This provider does not support async generation.")
+
+    @abc.abstractmethod
+    async def async_stream(self, prompt: str, **kwargs) -> AsyncIterator[LLMResponse]:
+        """
+        Asynchronously stream the response from the model using the provided prompt.
+
+        Args:
+            prompt (str): The input prompt to generate a response for.
+            **kwargs: Additional provider-specific parameters.
+
+        Raises:
+            NotImplementedError: If the provider does not support async streaming.
+
+        Yields:
+            AsyncIterator[LLMResponse]: Response chunks, never reached by the
+                default implementation.
+        """
+        raise NotImplementedError("This provider does not support async streaming.")
+        yield  # pragma: no cover -- unreachable; makes this an async generator
+
+    def close(self) -> None:
+        """
+        Release any resources held by this provider (e.g. HTTP clients).
+
+        Default no-op; providers that hold closeable resources override this.
+        """
+        return None
+
+    async def aclose(self) -> None:
+        """
+        Asynchronously release any resources held by this provider.
+
+        Default no-op; providers that hold closeable resources override this.
+        """
+        return None
 
     def count_tokens(self, text: str) -> int:
         """

@@ -63,6 +63,34 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         self.base_url = base_url
         self.api_key = api_key
         self.system_prompt = system_prompt
+        self._client: OpenAI | None = None
+        self._async_client: AsyncOpenAI | None = None
+
+    def close(self) -> None:
+        """
+        Close the cached synchronous client, if one was created.
+
+        Safe to call even if `_get_client` was never invoked, and safe to
+        call more than once. A later call still lazily recreates a fresh
+        client rather than raising, since `close()` only clears the cache.
+        """
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def aclose(self) -> None:
+        """
+        Close the cached asynchronous client, if one was created.
+
+        Safe to call even if `_get_async_client` was never invoked, and safe
+        to call more than once. Callers that build a provider per request
+        (e.g. `/llm/summarize`) should call this once the request completes,
+        in a `finally` block, so the underlying `httpx` connection pool is
+        released deterministically instead of relying on garbage collection.
+        """
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def generate(
         self,
@@ -256,21 +284,38 @@ class OpenAICompatibleLLMProvider(LLMProvider):
 
     def _get_client(self) -> OpenAI:
         """
-        Create a fresh synchronous OpenAI SDK client.
+        Return the cached synchronous OpenAI SDK client, creating it on first use.
+
+        `httpx.Client` (which `OpenAI` wraps) is safe to reuse across
+        multiple, even concurrent, calls — so one client per provider
+        instance replaces the previous one-client-per-call behavior. Call
+        `close()` to release its connection pool once the provider is done.
 
         Returns:
-            OpenAI: A new client pointed at the configured base URL.
+            OpenAI: The cached client pointed at the configured base URL.
         """
-        return OpenAI(base_url=self.base_url, api_key=self.api_key)
+        if self._client is None:
+            self._client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+        return self._client
 
     def _get_async_client(self) -> AsyncOpenAI:
         """
-        Create a fresh asynchronous OpenAI SDK client.
+        Return the cached asynchronous OpenAI SDK client, creating it on first use.
+
+        `httpx.AsyncClient` (which `AsyncOpenAI` wraps) is safe to reuse
+        across multiple, even concurrent, calls within the same event loop —
+        so one client per provider instance replaces the previous
+        one-client-per-call behavior. Call `aclose()` to release its
+        connection pool once the provider is done.
 
         Returns:
-            AsyncOpenAI: A new async client pointed at the configured base URL.
+            AsyncOpenAI: The cached client pointed at the configured base URL.
         """
-        return AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
+        if self._async_client is None:
+            self._async_client = AsyncOpenAI(
+                base_url=self.base_url, api_key=self.api_key
+            )
+        return self._async_client
 
     def _build_request_kwargs(  # ast-grep-ignore: no-dict-return-annotation
         self, kwargs: dict[str, Any]

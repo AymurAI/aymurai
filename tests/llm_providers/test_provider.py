@@ -15,6 +15,13 @@ class DummyProvider(LLMProvider):
     def stream(self, prompt, **kwargs):
         return super().stream(prompt, **kwargs)
 
+    async def async_generate(self, prompt: str, **kwargs) -> LLMResponse:
+        return await super().async_generate(prompt, **kwargs)
+
+    async def async_stream(self, prompt, **kwargs):
+        async for item in super().async_stream(prompt, **kwargs):
+            yield item
+
 
 class WhitespaceTokenizer:
     """Tokenizer exposing the `encode` interface expected by the provider."""
@@ -92,3 +99,33 @@ def test_stream_raises_not_implemented_by_default():
 
     with pytest.raises(NotImplementedError):
         provider.stream("hola")
+
+
+@pytest.mark.anyio
+async def test_async_stream_raises_not_implemented_by_default():
+    provider = DummyProvider()
+
+    with pytest.raises(NotImplementedError):
+        async for _ in provider.async_stream("hola"):
+            pass
+
+
+@pytest.mark.anyio
+async def test_async_generate_raises_not_implemented_by_default():
+    provider = DummyProvider()
+
+    with pytest.raises(NotImplementedError):
+        await provider.async_generate("hola")
+
+
+def test_close_is_a_no_op_by_default():
+    provider = DummyProvider()
+
+    provider.close()  # must not raise
+
+
+@pytest.mark.anyio
+async def test_aclose_is_a_no_op_by_default():
+    provider = DummyProvider()
+
+    await provider.aclose()  # must not raise

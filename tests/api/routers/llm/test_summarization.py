@@ -155,6 +155,7 @@ def test_summarize_end_to_end_under_llamacpp_default_provider(
     )
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(return_value=completion)
+    mock_client.close = AsyncMock()
 
     with patch(
         "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
@@ -169,6 +170,7 @@ def test_summarize_end_to_end_under_llamacpp_default_provider(
     body = response.json()
     assert body["summary"] == "Resumen llamacpp."
     assert body["model"] == settings.LLAMACPP_DEFAULT_MODEL
+    mock_client.close.assert_awaited_once()
     # The request body omitted `options`, so the router used its defaults.
     assert body["options"] == {"num_ctx": 16_384, "num_predict": 4096}
 
@@ -178,6 +180,69 @@ def test_summarize_end_to_end_under_llamacpp_default_provider(
     assert "num_ctx" not in kwargs
     assert kwargs["max_tokens"] == 4096
     assert kwargs["messages"][0]["role"] == "system"
+
+
+def test_summarize_closes_the_client_even_when_generation_raises(
+    llm_test_client, monkeypatch
+):
+    from unittest.mock import MagicMock
+
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(side_effect=RuntimeError("boom"))
+    mock_client.close = AsyncMock()
+
+    with patch(
+        "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
+        return_value=mock_client,
+    ):
+        response = llm_test_client.post(
+            "/llm/summarize",
+            json={"text": "Texto de entrada corto a resumir."},
+        )
+
+    assert response.status_code == 500
+    mock_client.close.assert_awaited_once()
+
+
+def test_summarize_stream_closes_the_client_after_the_stream_completes(
+    llm_test_client, monkeypatch
+):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    async def fake_stream():
+        yield SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    delta=SimpleNamespace(content="Resumen."),
+                    finish_reason="stop",
+                )
+            ]
+        )
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=fake_stream())
+    mock_client.close = AsyncMock()
+
+    with patch(
+        "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
+        return_value=mock_client,
+    ):
+        response = llm_test_client.post(
+            "/llm/summarize/stream",
+            json={"text": "Texto corto."},
+        )
+
+    assert response.status_code == 200
+    mock_client.close.assert_awaited_once()
 
 
 def test_summarize_fails_closed_when_llamacpp_base_url_unset(

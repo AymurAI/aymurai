@@ -357,6 +357,133 @@ def _build_sse_message(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
+async def _stream_summary_events(
+    provider: LLMProvider,
+    *,
+    payload: SummarizationRequest,
+    options: dict[str, Any],
+    system_prompt: str,
+) -> AsyncIterator[str]:
+    """
+    Yield SSE-formatted summarization events for a single request.
+
+    Args:
+        provider: Initialized LLMProvider instance.
+        payload: The incoming summarization request.
+        options: Provider options forwarded to the model.
+        system_prompt: System prompt used for this request.
+
+    Yields:
+        AsyncIterator[str]: SSE `data: ...` messages (`meta`, `token`, `summary`).
+    """
+    yield _build_sse_message(
+        {
+            "type": "meta",
+            "model": provider.model_name,
+            "system_prompt": system_prompt,
+            "options": options,
+        }
+    )
+
+    chunks = provider.chunk_text(
+        payload.text,
+        max_tokens=provider.max_context_tokens,
+    )
+
+    if not chunks:
+        yield _build_sse_message(
+            {
+                "type": "summary",
+                "summary": "",
+                "chunks_used": 0,
+                "steps": [],
+                "model": provider.model_name,
+            }
+        )
+        return
+
+    steps: list[dict[str, Any]] = []
+    summary = ""
+
+    for chunk in chunks:
+        source = "chunk" if not summary else "summary+chunk"
+        combined_text = f"{summary}\n\n{chunk.text}" if summary else chunk.text
+        combined_tokens = provider.count_tokens(combined_text)
+
+        if (
+            provider.max_context_tokens
+            and combined_tokens > provider.max_context_tokens
+            and summary
+        ):
+            chunk_summary = ""
+            async for resp in provider.async_stream(
+                prompt=chunk.text,
+                options=options,
+            ):
+                token = resp.text
+                if not token:
+                    continue
+                chunk_summary += token
+                yield _build_sse_message(
+                    {
+                        "type": "token",
+                        "chunk_index": chunk.index,
+                        "source": "chunk",
+                        "text": token,
+                    }
+                )
+
+            steps.append(
+                {
+                    "chunk_index": chunk.index,
+                    "input_tokens": chunk.token_count,
+                    "source": "chunk",
+                }
+            )
+
+            combined_text = f"{summary}\n\n{chunk_summary}"
+            combined_text = _trim_to_context(provider, combined_text)
+            source = "summary+chunk"
+            combined_tokens = provider.count_tokens(combined_text)
+
+        updated_summary = ""
+        async for resp in provider.async_stream(
+            prompt=combined_text,
+            options=options,
+        ):
+            token = resp.text
+            if not token:
+                continue
+            updated_summary += token
+            yield _build_sse_message(
+                {
+                    "type": "token",
+                    "chunk_index": chunk.index,
+                    "source": source,
+                    "text": token,
+                }
+            )
+
+        steps.append(
+            {
+                "chunk_index": chunk.index,
+                "input_tokens": combined_tokens,
+                "source": source,
+            }
+        )
+        summary = updated_summary
+
+    yield _build_sse_message(
+        {
+            "type": "summary",
+            "summary": summary,
+            "chunks_used": len(chunks),
+            "steps": steps,
+            "model": provider.model_name,
+        }
+    )
+
+
 def _trim_to_context(provider: LLMProvider, text: str) -> str:
     """
     Trim combined text to respect the provider's context window.
@@ -420,11 +547,14 @@ async def summarize_document(payload: SummarizationRequest) -> SummarizationResp
         context_limit=context_limit,
     )
 
-    summary, steps, chunk_count = await _rolling_summarize(
-        provider,
-        text=payload.text,
-        options=options,
-    )
+    try:
+        summary, steps, chunk_count = await _rolling_summarize(
+            provider,
+            text=payload.text,
+            options=options,
+        )
+    finally:
+        await provider.aclose()
 
     return SummarizationResponse(
         summary=summary,
@@ -476,111 +606,15 @@ async def stream_summarize_document(
     )
 
     async def event_stream() -> AsyncIterator[str]:
-        yield _build_sse_message(
-            {
-                "type": "meta",
-                "model": provider.model_name,
-                "system_prompt": system_prompt,
-                "options": options,
-            }
-        )
-
-        chunks = provider.chunk_text(
-            payload.text,
-            max_tokens=provider.max_context_tokens,
-        )
-
-        if not chunks:
-            yield _build_sse_message(
-                {
-                    "type": "summary",
-                    "summary": "",
-                    "chunks_used": 0,
-                    "steps": [],
-                    "model": provider.model_name,
-                }
-            )
-            return
-
-        steps: list[dict[str, Any]] = []
-        summary = ""
-
-        for chunk in chunks:
-            source = "chunk" if not summary else "summary+chunk"
-            combined_text = f"{summary}\n\n{chunk.text}" if summary else chunk.text
-            combined_tokens = provider.count_tokens(combined_text)
-
-            if (
-                provider.max_context_tokens
-                and combined_tokens > provider.max_context_tokens
-                and summary
-            ):
-                chunk_summary = ""
-                async for resp in provider.async_stream(
-                    prompt=chunk.text,
-                    options=options,
-                ):
-                    token = resp.text
-                    if not token:
-                        continue
-                    chunk_summary += token
-                    yield _build_sse_message(
-                        {
-                            "type": "token",
-                            "chunk_index": chunk.index,
-                            "source": "chunk",
-                            "text": token,
-                        }
-                    )
-
-                steps.append(
-                    {
-                        "chunk_index": chunk.index,
-                        "input_tokens": chunk.token_count,
-                        "source": "chunk",
-                    }
-                )
-
-                combined_text = f"{summary}\n\n{chunk_summary}"
-                combined_text = _trim_to_context(provider, combined_text)
-                source = "summary+chunk"
-                combined_tokens = provider.count_tokens(combined_text)
-
-            updated_summary = ""
-            async for resp in provider.async_stream(
-                prompt=combined_text,
+        try:
+            async for message in _stream_summary_events(
+                provider,
+                payload=payload,
                 options=options,
+                system_prompt=system_prompt,
             ):
-                token = resp.text
-                if not token:
-                    continue
-                updated_summary += token
-                yield _build_sse_message(
-                    {
-                        "type": "token",
-                        "chunk_index": chunk.index,
-                        "source": source,
-                        "text": token,
-                    }
-                )
-
-            steps.append(
-                {
-                    "chunk_index": chunk.index,
-                    "input_tokens": combined_tokens,
-                    "source": source,
-                }
-            )
-            summary = updated_summary
-
-        yield _build_sse_message(
-            {
-                "type": "summary",
-                "summary": summary,
-                "chunks_used": len(chunks),
-                "steps": steps,
-                "model": provider.model_name,
-            }
-        )
+                yield message
+        finally:
+            await provider.aclose()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
