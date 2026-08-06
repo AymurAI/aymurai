@@ -27,7 +27,10 @@ def test_summarize_rejects_non_positive_num_ctx(llm_test_client):
     assert response.status_code == 400
 
 
-def test_summarize_returns_summary_from_single_chunk(llm_test_client):
+def test_summarize_returns_summary_from_single_chunk(llm_test_client, monkeypatch):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
     fake_response = LLMResponse(text="Resumen generado.", metadata={})
 
     with patch(
@@ -42,12 +45,15 @@ def test_summarize_returns_summary_from_single_chunk(llm_test_client):
     assert response.status_code == 200
     body = response.json()
     assert body["summary"] == "Resumen generado."
-    assert body["model"] == "gpt-oss:20b"
+    assert body["model"] == settings.OLLAMA_DEFAULT_MODEL
     assert body["chunks_used"] == 1
     assert len(body["steps"]) == 1
 
 
-def test_summarize_uses_requested_model_and_options(llm_test_client):
+def test_summarize_uses_requested_model_and_options(llm_test_client, monkeypatch):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
     fake_response = LLMResponse(text="ok", metadata={})
 
     with patch(
@@ -70,7 +76,13 @@ def test_summarize_uses_requested_model_and_options(llm_test_client):
     assert kwargs["options"]["num_predict"] == 512
 
 
-def test_summarize_stream_emits_meta_token_and_summary_events(llm_test_client):
+def test_summarize_stream_emits_meta_token_and_summary_events(
+    llm_test_client, monkeypatch
+):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+
     async def fake_stream(self, prompt, **kwargs):
         for piece in ["Hola", " mundo"]:
             yield LLMResponse(text=piece, metadata={})
@@ -124,13 +136,17 @@ def test_build_provider_uses_the_configured_llm_provider(monkeypatch):
     assert llamacpp_provider.system_prompt == "Sistema"
 
 
-def test_summarize_end_to_end_under_llamacpp_provider(llm_test_client, monkeypatch):
+def test_summarize_end_to_end_under_llamacpp_default_provider(
+    llm_test_client, monkeypatch
+):
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
     from aymurai.settings import settings
 
-    monkeypatch.setattr(settings, "LLM_PROVIDER", "llamacpp")
+    # No LLM_PROVIDER override here on purpose: llamacpp is the true global
+    # default (see settings.LLM_PROVIDER), and only LLAMACPP_BASE_URL is
+    # configured, exactly like a fresh deployment.
     monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
 
     completion = SimpleNamespace(
@@ -152,6 +168,7 @@ def test_summarize_end_to_end_under_llamacpp_provider(llm_test_client, monkeypat
     assert response.status_code == 200
     body = response.json()
     assert body["summary"] == "Resumen llamacpp."
+    assert body["model"] == settings.LLAMACPP_DEFAULT_MODEL
     # The request body omitted `options`, so the router used its defaults.
     assert body["options"] == {"num_ctx": 16_384, "num_predict": 4096}
 
@@ -161,3 +178,21 @@ def test_summarize_end_to_end_under_llamacpp_provider(llm_test_client, monkeypat
     assert "num_ctx" not in kwargs
     assert kwargs["max_tokens"] == 4096
     assert kwargs["messages"][0]["role"] == "system"
+
+
+def test_summarize_fails_closed_when_llamacpp_base_url_unset(
+    llm_test_client, monkeypatch
+):
+    from aymurai.settings import settings
+
+    # Zero-config deployment: LLM_PROVIDER defaults to llamacpp, but nobody
+    # set LLAMACPP_BASE_URL. Without the guard in LlamaCppLLMProvider this
+    # would silently send the request body to https://api.openai.com.
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", None)
+
+    response = llm_test_client.post(
+        "/llm/summarize",
+        json={"text": "Texto de entrada corto a resumir."},
+    )
+
+    assert response.status_code == 500

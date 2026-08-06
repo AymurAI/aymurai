@@ -121,11 +121,22 @@ class Settings(BaseSettings):
     TRANSCRIBE_API_KEY: str = "not-needed"
 
     # LLM provider selection (global per deployment)
-    LLM_PROVIDER: Literal["ollama", "llamacpp"] = "ollama"
+    LLM_PROVIDER: Literal["ollama", "llamacpp"] = "llamacpp"
+
+    # LLM generation defaults (provider-agnostic; consumed by /llm/summarize)
+    LLM_DEFAULT_TOKENIZER: str = "o200k_harmony"
+    LLM_DEFAULT_NUM_CTX: int = 16_384
+    LLM_DEFAULT_NUM_PREDICT: int = 4096
+
+    # Ollama Config. OLLAMA_HOST also matches the native `ollama` SDK's own
+    # env var, so existing deployments that only set OLLAMA_HOST keep working.
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_DEFAULT_MODEL: str = "gpt-oss:20b"
 
     # llama.cpp Config (llama-server — OpenAI-compatible server)
     LLAMACPP_BASE_URL: str | None = None
     LLAMACPP_API_KEY: str = "not-needed"
+    LLAMACPP_DEFAULT_MODEL: str = "llamacpp"
 
 
 load_env()

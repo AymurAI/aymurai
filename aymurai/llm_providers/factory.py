@@ -5,10 +5,6 @@ from aymurai.llm_providers.ollama_provider import OllamaLLMProvider
 from aymurai.llm_providers.provider import LLMProvider
 from aymurai.settings import settings
 
-# Mirrors the historical default of the `/llm/summarize` endpoint, so callers
-# that do not name a model keep today's behavior on Ollama.
-DEFAULT_OLLAMA_MODEL = "gpt-oss:20b"
-
 SUPPORTED_PROVIDERS: tuple[str, ...] = ("ollama", "llamacpp")
 
 
@@ -18,8 +14,8 @@ def get_llm_provider(model: str | None = None, **kwargs) -> LLMProvider:
 
     Args:
         model (str | None): Model identifier. Defaults to None, which falls back
-            to `DEFAULT_OLLAMA_MODEL` for Ollama and to the llama.cpp provider's
-            own placeholder for llama.cpp.
+            to `settings.OLLAMA_DEFAULT_MODEL` for Ollama and to
+            `settings.LLAMACPP_DEFAULT_MODEL` for llama.cpp.
         **kwargs: Forwarded verbatim to the concrete provider (`tokenizer`,
             `system_prompt`, `max_context_tokens`, `chunk_overlap`, ...).
 
@@ -33,7 +29,7 @@ def get_llm_provider(model: str | None = None, **kwargs) -> LLMProvider:
     provider_name = settings.LLM_PROVIDER
 
     if provider_name == "ollama":
-        return OllamaLLMProvider(model=model or DEFAULT_OLLAMA_MODEL, **kwargs)
+        return OllamaLLMProvider(model=model or settings.OLLAMA_DEFAULT_MODEL, **kwargs)
 
     if provider_name == "llamacpp":
         return LlamaCppLLMProvider(model=model, **kwargs)
@@ -44,4 +40,4 @@ def get_llm_provider(model: str | None = None, **kwargs) -> LLMProvider:
     )
 
 
-__all__ = ["DEFAULT_OLLAMA_MODEL", "SUPPORTED_PROVIDERS", "get_llm_provider"]
+__all__ = ["SUPPORTED_PROVIDERS", "get_llm_provider"]

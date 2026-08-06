@@ -1,8 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from aymurai.llm_providers import LlamaCppLLMProvider
-from aymurai.llm_providers.llamacpp_provider import DEFAULT_LLAMACPP_MODEL
 from aymurai.settings import settings
 
 MODULE = "aymurai.llm_providers.openai_compatible_provider"
@@ -23,7 +24,7 @@ def test_defaults_resolve_from_settings(monkeypatch):
 
     assert provider.base_url == "http://llamacpp:8080/v1"
     assert provider.api_key == "secret"
-    assert provider.model_name == DEFAULT_LLAMACPP_MODEL
+    assert provider.model_name == settings.LLAMACPP_DEFAULT_MODEL
 
 
 def test_explicit_arguments_override_settings(monkeypatch):
@@ -67,4 +68,19 @@ def test_metadata_provider_is_llamacpp(monkeypatch):
 
     assert response.text == "ok"
     assert response.metadata["provider"] == "llamacpp"
-    assert response.metadata["model"] == DEFAULT_LLAMACPP_MODEL
+    assert response.metadata["model"] == settings.LLAMACPP_DEFAULT_MODEL
+
+
+def test_raises_without_base_url_configured(monkeypatch):
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", None)
+
+    with pytest.raises(ValueError, match="LLAMACPP_BASE_URL"):
+        LlamaCppLLMProvider()
+
+
+def test_explicit_base_url_satisfies_the_guard_even_without_settings(monkeypatch):
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", None)
+
+    provider = LlamaCppLLMProvider(base_url="http://other:9090/v1")
+
+    assert provider.base_url == "http://other:9090/v1"

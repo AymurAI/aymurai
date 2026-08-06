@@ -5,7 +5,7 @@ from aymurai.llm_providers import (
     OllamaLLMProvider,
     get_llm_provider,
 )
-from aymurai.llm_providers.factory import DEFAULT_OLLAMA_MODEL, SUPPORTED_PROVIDERS
+from aymurai.llm_providers.factory import SUPPORTED_PROVIDERS
 from aymurai.settings import settings
 
 
@@ -24,7 +24,7 @@ def test_ollama_provider_falls_back_to_default_model(monkeypatch):
     provider = get_llm_provider()
 
     assert isinstance(provider, OllamaLLMProvider)
-    assert provider.model_name == DEFAULT_OLLAMA_MODEL
+    assert provider.model_name == settings.OLLAMA_DEFAULT_MODEL
 
 
 def test_returns_llamacpp_provider_when_configured(monkeypatch):
@@ -63,6 +63,13 @@ def test_forwards_kwargs_to_llamacpp_provider(monkeypatch):
     assert provider.model_name == "qwen3"
     assert provider.system_prompt == "Sistema"
     assert provider.max_context_tokens == 4096
+
+
+def test_defaults_to_llamacpp_and_requires_base_url(monkeypatch):
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", None)
+
+    with pytest.raises(ValueError, match="LLAMACPP_BASE_URL"):
+        get_llm_provider()
 
 
 def test_raises_value_error_for_unknown_provider(monkeypatch):

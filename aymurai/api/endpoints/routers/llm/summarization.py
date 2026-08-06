@@ -18,9 +18,11 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-DEFAULT_MODEL = "gpt-oss:20b"
-DEFAULT_OPTIONS = {"num_ctx": 16_384, "num_predict": 4096}
-DEFAULT_TOKENIZER = "o200k_harmony"
+DEFAULT_TOKENIZER = settings.LLM_DEFAULT_TOKENIZER
+DEFAULT_OPTIONS = {
+    "num_ctx": settings.LLM_DEFAULT_NUM_CTX,
+    "num_predict": settings.LLM_DEFAULT_NUM_PREDICT,
+}
 PROMPT_TEMPLATE_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "summarization.yml"
 
 
@@ -58,7 +60,6 @@ class SummarizationRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "text": "Texto de entrada a resumir.",
-                "model": DEFAULT_MODEL,
                 "tokenizer": DEFAULT_TOKENIZER,
                 "options": DEFAULT_OPTIONS,
             }
@@ -66,9 +67,13 @@ class SummarizationRequest(BaseModel):
     )
 
     text: str = Field(..., description="Raw document to summarize.")
-    model: str = Field(
-        default=DEFAULT_MODEL,
-        description="Model name for Ollama. Defaults to gpt-oss:20b.",
+    model: str | None = Field(
+        default=None,
+        description=(
+            "Model name for the configured LLM_PROVIDER. Defaults to that "
+            "provider's own default model (OLLAMA_DEFAULT_MODEL / "
+            "LLAMACPP_DEFAULT_MODEL settings) when omitted."
+        ),
     )
     tokenizer: str | None = Field(
         default=DEFAULT_TOKENIZER,
@@ -88,7 +93,10 @@ class SummarizationRequest(BaseModel):
     )
     options: dict[str, Any] = Field(
         default_factory=lambda: DEFAULT_OPTIONS.copy(),
-        description="Ollama chat options. Defaults to num_ctx=16_384 and num_predict=4096.",
+        description=(
+            "Ollama-style chat options, translated per-provider. Defaults to "
+            "num_ctx=16_384 and num_predict=4096."
+        ),
     )
 
 
@@ -195,7 +203,7 @@ def _count_tokens(text: str, tokenizer: Any) -> int:
 
 
 def _build_provider(
-    model_name: str,
+    model_name: str | None,
     *,
     tokenizer_name: str | None,
     system_prompt: str,
@@ -205,7 +213,8 @@ def _build_provider(
     Build the configured LLM provider, adjusting available context for the system prompt.
 
     Args:
-        model_name (str): Name of the model to use.
+        model_name (str | None): Name of the model to use. None falls back to
+            the configured provider's own default model.
         tokenizer_name (str | None): Tokenizer name to attempt loading.
         system_prompt (str): System prompt to set and budget for.
         context_limit (int): Maximum number of context tokens.
@@ -377,7 +386,7 @@ def _trim_to_context(provider: LLMProvider, text: str) -> str:
 
 @router.post("/summarize", response_model=SummarizationResponse)
 async def summarize_document(payload: SummarizationRequest) -> SummarizationResponse:
-    """Summarize a document using a local Ollama model.
+    """Summarize a document using the configured LLM provider.
 
     Chunks inputs above the context limit and performs a rolling
     summarization that keeps the interim summary in context for subsequent
@@ -390,7 +399,7 @@ async def summarize_document(payload: SummarizationRequest) -> SummarizationResp
         information_to_extract=payload.information_to_extract,
         entities_to_identify=payload.entities_to_identify,
     )
-    model_name = payload.model or DEFAULT_MODEL
+    model_name = payload.model
     options = {**DEFAULT_OPTIONS, **(payload.options or {})}
 
     try:
@@ -445,7 +454,7 @@ async def stream_summarize_document(
         information_to_extract=payload.information_to_extract,
         entities_to_identify=payload.entities_to_identify,
     )
-    model_name = payload.model or DEFAULT_MODEL
+    model_name = payload.model
     options = {**DEFAULT_OPTIONS, **(payload.options or {})}
 
     try:
