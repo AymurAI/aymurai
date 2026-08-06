@@ -1,258 +1,75 @@
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterator
+from typing import Any
 
-import ollama
-from ollama import AsyncClient
-
-from aymurai.llm_providers.provider import LLMProvider, LLMResponse
+from aymurai.llm_providers.openai_compatible_provider import OpenAICompatibleLLMProvider
+from aymurai.settings import settings
 
 
-class OllamaLLMProvider(LLMProvider):
-    """Adapter that wraps `ollama.chat` preserving the common interface."""
+class OllamaLLMProvider(OpenAICompatibleLLMProvider):
+    """Provider for Ollama's own OpenAI-compatible `/v1` chat endpoint."""
+
+    provider_name: str = "ollama"
 
     def __init__(
         self,
         model: str,
         *,
-        system_prompt: str | None = None,
+        host: str | None = None,
+        api_key: str = "not-needed",
         keep_alive: int | str | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(model=model, **kwargs)
-        self.system_prompt = system_prompt
+        """
+        Initialize an Ollama provider against its OpenAI-compatible `/v1` endpoint.
+
+        Args:
+            model (str): Model identifier forwarded to Ollama.
+            host (str | None): Ollama server host (e.g. `http://ollama:11434`).
+                Defaults to `settings.OLLAMA_HOST`. The `/v1` suffix required
+                by Ollama's OpenAI-compatible endpoint is appended
+                automatically.
+            api_key (str): API key sent to the server. Ollama ignores it, but
+                the SDK requires a non-empty value. Defaults to "not-needed".
+            keep_alive (int | str | None): Optional model-residency TTL (e.g.
+                `"1h"` or a number of seconds), forwarded via `extra_body`
+                since the OpenAI chat-completions schema has no first-class
+                field for it. Defaults to None (server default).
+            **kwargs: Forwarded to `OpenAICompatibleLLMProvider`
+                (`system_prompt`, `tokenizer`, `max_context_tokens`,
+                `chunk_overlap`).
+        """
+        base_url = f"{(host or settings.OLLAMA_HOST).rstrip('/')}/v1"
+        super().__init__(model=model, base_url=base_url, api_key=api_key, **kwargs)
         self.keep_alive = keep_alive
 
-    def generate(
-        self,
-        prompt: str | None = None,
-        *,
-        messages: list[dict[str, str]] | None = None,
-        **kwargs,
-    ) -> LLMResponse:
+    def _build_request_kwargs(  # ast-grep-ignore: no-dict-return-annotation
+        self, kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
         """
-        Generate text using the configured Ollama model.
+        Extend the shared translation with Ollama's `keep_alive` residency TTL.
+
+        `keep_alive` has no first-class field in the OpenAI chat-completions
+        schema, so it rides in `extra_body` — the SDK-supported escape hatch
+        for server-specific extensions. An explicit `extra_body["keep_alive"]`
+        from the caller always wins over the constructor default.
 
         Args:
-            prompt (str | None, optional): Optional single prompt string to be
-                transformed into a chat message. Defaults to None.
-            messages (list[dict[str, str]] | None, optional): Optional list of
-                pre-formatted chat messages to send. Defaults to None.
+            kwargs (dict[str, Any]): Raw keyword arguments from the caller.
 
         Returns:
-            LLMResponse: Response containing the generated text, metadata
-                about the request, and the raw payload.
+            dict[str, Any]: Keyword arguments safe to forward to the SDK.
         """
-        payload = self._build_messages(prompt=prompt, messages=messages)
+        request_kwargs = super()._build_request_kwargs(kwargs)
 
-        response = ollama.chat(
-            model=self.model_name,
-            messages=payload,
-            keep_alive=self.keep_alive,
-            **kwargs,
-        )
+        if self.keep_alive is not None:
+            extra_body = {
+                "keep_alive": self.keep_alive,
+                **(request_kwargs.get("extra_body") or {}),
+            }
+            request_kwargs["extra_body"] = extra_body
 
-        return self._build_llm_response(
-            response,
-            extra_metadata={
-                "eval_count": response.get("eval_count"),
-                "eval_duration": response.get("eval_duration"),
-            },
-        )
-
-    async def async_generate(
-        self,
-        prompt: str | None = None,
-        *,
-        messages: list[dict[str, str]] | None = None,
-        **kwargs,
-    ) -> LLMResponse:
-        """
-        Asynchronously generate text using the configured Ollama model.
-
-        Args:
-            prompt (str | None): Optional single prompt string to be
-                transformed into a chat message. Defaults to None.
-            messages (list[dict[str, str]] | None): Optional list of
-                pre-formatted chat messages to send. Defaults to None.
-            **kwargs: Additional keyword arguments forwarded to the Ollama
-                AsyncClient chat endpoint.
-
-        Returns:
-            LLMResponse: Response containing the generated text, metadata
-                about the request, and the raw payload.
-        """
-        payload = self._build_messages(prompt=prompt, messages=messages)
-
-        client = self._get_async_client()
-        response = await client.chat(
-            model=self.model_name,
-            messages=payload,
-            keep_alive=self.keep_alive,
-            **kwargs,
-        )
-
-        return self._build_llm_response(
-            response,
-            extra_metadata={
-                "eval_count": response.get("eval_count"),
-                "eval_duration": response.get("eval_duration"),
-            },
-        )
-
-    def stream(
-        self,
-        prompt: str | None = None,
-        *,
-        messages: list[dict[str, str]] | None = None,
-        **kwargs,
-    ) -> Iterator[LLMResponse]:
-        """
-        Stream the response from the model using the provided prompt or messages.
-
-        Args:
-            prompt (str | None, optional): Optional single prompt string to be
-                transformed into a chat message. Defaults to None.
-            messages (list[dict[str, str]] | None, optional): Optional list of
-                pre-formatted chat messages to send. Defaults to None.
-
-        Yields:
-            Iterator[LLMResponse]: Response chunks containing generated text,
-                metadata, and raw payloads.
-        """
-        payload = self._build_messages(prompt=prompt, messages=messages)
-        stream_kwargs = {**kwargs, "stream": True}
-
-        for chunk in ollama.chat(
-            model=self.model_name,
-            messages=payload,
-            keep_alive=self.keep_alive,
-            **stream_kwargs,
-        ):
-            yield self._build_stream_response(chunk)
-
-    async def async_stream(
-        self,
-        prompt: str | None = None,
-        *,
-        messages: list[dict[str, str]] | None = None,
-        **kwargs,
-    ) -> AsyncIterator[LLMResponse]:
-        """
-        Asynchronously stream the response from the model using the provided prompt or messages.
-
-        Args:
-            prompt (str | None, optional): Optional single prompt string to be
-                transformed into a chat message. Defaults to None.
-            messages (list[dict[str, str]] | None, optional): Optional list of
-                pre-formatted chat messages to send. Defaults to None.
-
-        Yields:
-            AsyncIterator[LLMResponse]: Asynchronous iterator yielding response
-                chunks containing generated text, metadata, and raw payloads.
-        """
-        payload = self._build_messages(prompt=prompt, messages=messages)
-        stream_kwargs = {**kwargs, "stream": True}
-
-        client = self._get_async_client()
-        stream = await client.chat(
-            model=self.model_name,
-            messages=payload,
-            keep_alive=self.keep_alive,
-            **stream_kwargs,
-        )
-        async for chunk in stream:
-            yield self._build_stream_response(chunk)
-
-    def _build_messages(
-        self,
-        *,
-        prompt: str | None,
-        messages: list[dict[str, str]] | None = None,
-    ) -> list[dict[str, str]]:
-        """
-        Build the message payload for `ollama.chat`.
-
-        Args:
-            prompt (str | None): The user prompt to be sent to the model.
-            messages (list[dict[str, str]] | None, optional): A list of
-                message dictionaries to be sent to the model. Defaults to None.
-
-        Raises:
-            ValueError: If neither prompt nor messages are provided.
-
-        Returns:
-            list[dict[str, str]]: The message payload to be sent to
-                `ollama.chat`.
-        """
-        if messages is not None:
-            return list(messages)
-
-        if prompt is None:
-            raise ValueError("Either prompt or messages must be provided.")
-
-        payload = []
-
-        if self.system_prompt:
-            payload.append({"role": "system", "content": self.system_prompt})
-
-        payload.append({"role": "user", "content": prompt})
-
-        return payload
-
-    def _get_async_client(self) -> AsyncClient:
-        """
-        Create a fresh AsyncClient instance.
-
-        Returns:
-            AsyncClient: A new AsyncClient instance for making asynchronous
-                requests.
-        """
-        return AsyncClient()
-
-    def _build_llm_response(
-        self, response: dict[str, Any], *, extra_metadata: dict[str, Any] | None = None
-    ) -> LLMResponse:
-        """
-        Build an LLMResponse with consistent metadata from the response payload.
-
-        Args:
-            response (dict[str, Any]): The response payload from the Ollama
-                model.
-            extra_metadata (dict[str, Any] | None, optional): Additional
-                metadata to include in the response. Defaults to None.
-
-        Returns:
-            LLMResponse: The constructed LLMResponse object containing text,
-                metadata, and raw response.
-        """
-        text = response.get("message", {}).get("content", "")
-
-        metadata = {
-            "model": self.model_name,
-            "provider": "ollama",
-        }
-
-        if extra_metadata:
-            metadata.update(extra_metadata)
-
-        return LLMResponse(text=text, metadata=metadata, raw=response)
-
-    def _build_stream_response(self, chunk: dict[str, Any]) -> LLMResponse:
-        """
-        Build stream responses with consistent metadata from chunk payloads.
-
-        Args:
-            chunk (dict[str, Any]): The chunk payload from the Ollama model.
-
-        Returns:
-            LLMResponse: The constructed LLMResponse object containing text,
-                metadata, and raw chunk.
-        """
-        return self._build_llm_response(
-            chunk,
-            extra_metadata={"done": chunk.get("done")},
-        )
+        return request_kwargs
 
 
 __all__ = ["OllamaLLMProvider"]

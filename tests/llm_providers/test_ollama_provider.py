@@ -1,121 +1,168 @@
+import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from aymurai.llm_providers import OllamaLLMProvider
+from aymurai.settings import settings
+
+MODULE = "aymurai.llm_providers.openai_compatible_provider"
 
 
-@pytest.fixture
-def mock_chat():
-    """Patch the synchronous `ollama.chat` entrypoint used by the provider."""
-    with patch("aymurai.llm_providers.ollama_provider.ollama.chat") as mock:
-        yield mock
+def _fake_completion(content: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=2),
+    )
 
 
-@pytest.fixture
-def mock_async_chat():
-    """Patch `AsyncClient` and expose its awaitable `chat` mock."""
-    client = MagicMock()
-    client.chat = AsyncMock()
-    with patch(
-        "aymurai.llm_providers.ollama_provider.AsyncClient",
-        return_value=client,
-    ):
-        yield client.chat
-
-
-def test_generate_builds_messages(mock_chat):
-    provider = OllamaLLMProvider(model="llama3", system_prompt="Sistema")
-    mock_chat.return_value = {"message": {"content": "respuesta"}, "eval_count": 10}
-
-    response = provider.generate("Hola")
-
-    assert response.text == "respuesta"
-    _, kwargs = mock_chat.call_args
-    assert kwargs["model"] == "llama3"
-    assert kwargs["messages"][0]["role"] == "system"
-    assert response.metadata.get("model") == "llama3"
-    assert response.metadata.get("provider") == "ollama"
-    assert "eval_count" in response.metadata
-    assert "eval_duration" in response.metadata
-
-
-def test_generate_forwards_keep_alive(mock_chat):
-    provider = OllamaLLMProvider(model="llama3", keep_alive=30)
-    mock_chat.return_value = {"message": {"content": "ok"}}
-
-    provider.generate("Hola")
-
-    _, kwargs = mock_chat.call_args
-    assert kwargs["keep_alive"] == 30
-
-
-def test_stream_yields_chunks(mock_chat):
-    provider = OllamaLLMProvider(model="llama3")
-    mock_chat.return_value = iter(
-        [
-            {"message": {"content": "Hola"}, "done": False},
-            {"message": {"content": " Mundo"}, "done": True},
+def _fake_chunk(content: str | None, finish_reason: str | None = None):
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                delta=SimpleNamespace(content=content),
+                finish_reason=finish_reason,
+            )
         ]
     )
 
-    pieces = list(provider.stream("Hola"))
 
-    assert [piece.text for piece in pieces] == ["Hola", " Mundo"]
-    _, kwargs = mock_chat.call_args
-    assert kwargs["stream"] is True
-    assert pieces[-1].metadata.get("done") is True
+class OllamaProviderTests(unittest.TestCase):
+    def test_host_defaults_to_settings_and_appends_v1(self):
+        with patch.object(settings, "OLLAMA_HOST", "http://ollama:11434"):
+            provider = OllamaLLMProvider(model="llama3")
+
+        self.assertEqual(provider.base_url, "http://ollama:11434/v1")
+
+    def test_explicit_host_overrides_settings(self):
+        provider = OllamaLLMProvider(model="llama3", host="http://other:9999/")
+
+        self.assertEqual(provider.base_url, "http://other:9999/v1")
+
+    def test_generate_builds_messages_and_maps_response(self):
+        provider = OllamaLLMProvider(
+            model="llama3", host="http://ollama:11434", system_prompt="Sistema"
+        )
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("respuesta")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            response = provider.generate("Hola")
+
+        self.assertEqual(response.text, "respuesta")
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertEqual(kwargs["model"], "llama3")
+        self.assertEqual(kwargs["messages"][0]["role"], "system")
+        self.assertEqual(response.metadata.get("provider"), "ollama")
+        self.assertEqual(response.metadata.get("model"), "llama3")
+
+    def test_generate_raises_without_prompt_or_messages(self):
+        provider = OllamaLLMProvider(model="llama3")
+        with self.assertRaises(ValueError):
+            provider.generate(prompt=None, messages=None)
+
+    def test_keep_alive_is_forwarded_via_extra_body(self):
+        provider = OllamaLLMProvider(
+            model="llama3", host="http://ollama:11434", keep_alive="1h"
+        )
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            provider.generate("Hola")
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertEqual(kwargs["extra_body"], {"keep_alive": "1h"})
+
+    def test_explicit_extra_body_keep_alive_wins_over_constructor_default(self):
+        provider = OllamaLLMProvider(
+            model="llama3", host="http://ollama:11434", keep_alive="1h"
+        )
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            provider.generate("Hola", extra_body={"keep_alive": "30m"})
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertEqual(kwargs["extra_body"], {"keep_alive": "30m"})
+
+    def test_no_keep_alive_means_no_extra_body(self):
+        provider = OllamaLLMProvider(model="llama3", host="http://ollama:11434")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            provider.generate("Hola")
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertNotIn("extra_body", kwargs)
+
+    def test_options_translation_is_inherited(self):
+        provider = OllamaLLMProvider(model="llama3", host="http://ollama:11434")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _fake_completion("ok")
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            provider.generate("Hola", options={"num_ctx": 16_384, "num_predict": 4096})
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertNotIn("options", kwargs)
+        self.assertNotIn("num_ctx", kwargs)
+        self.assertEqual(kwargs["max_tokens"], 4096)
+
+    def test_stream_yields_chunks_and_flags_done(self):
+        provider = OllamaLLMProvider(model="llama3", host="http://ollama:11434")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = iter(
+            [
+                _fake_chunk("Hola"),
+                _fake_chunk(" Mundo", finish_reason="stop"),
+            ]
+        )
+
+        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
+            pieces = list(provider.stream("Hola"))
+
+        self.assertEqual([piece.text for piece in pieces], ["Hola", " Mundo"])
+        self.assertTrue(pieces[-1].metadata.get("done"))
 
 
-def test_generate_raises_without_prompt_or_messages():
-    provider = OllamaLLMProvider(model="llama3")
+class AsyncOllamaProviderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_async_generate_builds_messages_and_maps_response(self):
+        provider = OllamaLLMProvider(
+            model="llama3", host="http://ollama:11434", system_prompt="Sistema"
+        )
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_fake_completion("respuesta")
+        )
 
-    with pytest.raises(ValueError):
-        provider.generate(prompt=None, messages=None)
+        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
+            response = await provider.async_generate("Hola")
+
+        self.assertEqual(response.text, "respuesta")
+        mock_client.chat.completions.create.assert_awaited_once()
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertEqual(kwargs["messages"][0]["role"], "system")
+        self.assertEqual(response.metadata.get("provider"), "ollama")
+
+    async def test_async_stream_yields_chunks_and_flags_done(self):
+        provider = OllamaLLMProvider(model="llama3", host="http://ollama:11434")
+
+        async def fake_gen():
+            yield _fake_chunk("Hola")
+            yield _fake_chunk(" Mundo", finish_reason="stop")
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=fake_gen())
+
+        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
+            pieces = []
+            async for chunk in provider.async_stream("Hola"):
+                pieces.append(chunk.text)
+
+        self.assertEqual(pieces, ["Hola", " Mundo"])
 
 
-def test_generate_prefers_explicit_messages_over_prompt(mock_chat):
-    provider = OllamaLLMProvider(model="llama3", system_prompt="ignored")
-    mock_chat.return_value = {"message": {"content": "ok"}}
-
-    provider.generate(messages=[{"role": "user", "content": "explicit"}])
-
-    _, kwargs = mock_chat.call_args
-    assert kwargs["messages"] == [{"role": "user", "content": "explicit"}]
-
-
-@pytest.mark.anyio
-async def test_async_generate_builds_messages(mock_async_chat):
-    provider = OllamaLLMProvider(model="llama3", system_prompt="Sistema")
-    mock_async_chat.return_value = {
-        "message": {"content": "respuesta"},
-        "eval_count": 10,
-    }
-
-    response = await provider.async_generate("Hola")
-
-    assert response.text == "respuesta"
-    mock_async_chat.assert_awaited_once()
-    _, kwargs = mock_async_chat.call_args
-    assert kwargs["model"] == "llama3"
-    assert kwargs["messages"][0]["role"] == "system"
-    assert response.metadata.get("model") == "llama3"
-    assert response.metadata.get("provider") == "ollama"
-    assert "eval_count" in response.metadata
-
-
-@pytest.mark.anyio
-async def test_async_stream_yields_chunks(mock_async_chat):
-    provider = OllamaLLMProvider(model="llama3")
-
-    async def fake_stream():
-        yield {"message": {"content": "Hola"}, "done": False}
-        yield {"message": {"content": " Mundo"}, "done": True}
-
-    mock_async_chat.return_value = fake_stream()
-
-    chunks = [chunk async for chunk in provider.async_stream("Hola")]
-
-    assert [chunk.text for chunk in chunks] == ["Hola", " Mundo"]
-    mock_async_chat.assert_awaited()
-    assert chunks[-1].metadata.get("done") is True
+if __name__ == "__main__":
+    unittest.main()
