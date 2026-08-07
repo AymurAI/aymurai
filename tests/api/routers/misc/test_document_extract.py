@@ -1,7 +1,7 @@
 import concurrent.futures
 import io
 import sys
-from pathlib import Path
+import zipfile
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +18,27 @@ def _build_docx_bytes(paragraphs: list[str]) -> bytes:
 
     stream = io.BytesIO()
     document.save(stream)
+    return stream.getvalue()
+
+
+def _build_docx_with_page_count(page_count: int) -> bytes:
+    """Build a minimal DOCX-shaped archive with cached page metadata."""
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body/></w:document>',
+        )
+        archive.writestr(
+            "docProps/app.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Properties xmlns="http://schemas.openxmlformats.org/'
+            'officeDocument/2006/extended-properties">'
+            f"<Pages>{page_count}</Pages>"
+            "</Properties>",
+        )
     return stream.getvalue()
 
 
@@ -310,14 +331,6 @@ def test_should_return_500_when_extraction_fails(mock_extraction, client):
     assert response.status_code == 500
 
 
-SAMPLE_DOCX = (
-    Path(__file__).resolve().parents[4]
-    / "resources"
-    / "data"
-    / "sample"
-    / "document-01.docx"
-)
-
 DOCX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
@@ -326,11 +339,10 @@ DOCX_CONTENT_TYPE = (
 @pytest.mark.integration
 @patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
 def test_should_return_page_count_when_uploading_sample_docx(mock_extraction, client):
-    """Test that a real sample DOCX reports its cached page count."""
+    """Test that a DOCX upload reports its cached page count."""
     mock_extraction.return_value = "Para 1\nPara 2"
-    assert SAMPLE_DOCX.exists(), f"missing fixture: {SAMPLE_DOCX}"
 
-    file_content = SAMPLE_DOCX.read_bytes()
+    file_content = _build_docx_with_page_count(19)
     files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
     response = client.post("/api/document-extract", files=files)
 
@@ -360,9 +372,8 @@ def test_should_return_null_page_count_when_metadata_unreadable(
 def test_should_return_page_count_via_misc_prefix(mock_extraction, client):
     """Test that /misc/document-extract also reports page_count."""
     mock_extraction.return_value = "Para 1"
-    assert SAMPLE_DOCX.exists(), f"missing fixture: {SAMPLE_DOCX}"
 
-    file_content = SAMPLE_DOCX.read_bytes()
+    file_content = _build_docx_with_page_count(19)
     files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
     response = client.post("/api/misc/document-extract", files=files)
 
