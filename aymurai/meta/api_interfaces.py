@@ -96,6 +96,7 @@ class Document(BaseModel):
     document_id: UUID5
     header: list[str] | None = None
     footer: list[str] | None = None
+    page_count: int | None = None
 
 
 class ASRParagraph(BaseModel):
