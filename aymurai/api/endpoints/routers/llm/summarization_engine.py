@@ -16,16 +16,18 @@ import tiktoken
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from aymurai.llm_providers import OllamaLLMProvider
+from aymurai.llm_providers import LLMProvider, get_llm_provider
 from aymurai.logger import get_logger
 from aymurai.settings import settings
 from aymurai.utils.yaml_data import load_yaml
 
 logger = get_logger(__name__)
 
-DEFAULT_MODEL = "gpt-oss:20b"
-DEFAULT_OPTIONS = {"num_ctx": 16_384, "num_predict": 4096}
-DEFAULT_TOKENIZER = "o200k_harmony"
+DEFAULT_TOKENIZER = settings.LLM_DEFAULT_TOKENIZER
+DEFAULT_OPTIONS = {
+    "num_ctx": settings.LLM_DEFAULT_NUM_CTX,
+    "num_predict": settings.LLM_DEFAULT_NUM_PREDICT,
+}
 PROMPT_TEMPLATE_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "summarization.yml"
 
 
@@ -166,28 +168,30 @@ def _count_tokens(text: str, tokenizer: Any) -> int:
 
 
 def _build_provider(
-    model_name: str,
+    model_name: str | None,
     *,
     tokenizer_name: str | None,
     system_prompt: str,
     context_limit: int,
-) -> OllamaLLMProvider:
+) -> LLMProvider:
     """
-    Build an Ollama provider, adjusting available context for the system prompt.
+    Build the configured LLM provider, adjusting available context for the system prompt.
 
     Args:
-        model_name: Name of the model to use.
+        model_name: Name of the model to use. None falls back to the
+            configured provider's own default model.
         tokenizer_name: Tokenizer name to attempt loading.
         system_prompt: System prompt to set and budget for.
         context_limit: Maximum number of context tokens.
 
     Returns:
-        OllamaLLMProvider: Configured OllamaLLMProvider instance.
+        LLMProvider: Configured provider instance for the backend selected by
+            `settings.LLM_PROVIDER`.
     """
     encoding = _load_tokenizer(tokenizer_name)
     available_context = max(context_limit - _count_tokens(system_prompt, encoding), 1)
 
-    return OllamaLLMProvider(
+    return get_llm_provider(
         model=model_name,
         tokenizer=encoding,
         system_prompt=system_prompt,
@@ -196,7 +200,7 @@ def _build_provider(
 
 
 async def _summarize_once(
-    provider: OllamaLLMProvider,
+    provider: LLMProvider,
     *,
     text: str,
     options: dict[str, Any],
@@ -205,7 +209,7 @@ async def _summarize_once(
     Run a single summarization call on the provider.
 
     Args:
-        provider: Initialized OllamaLLMProvider instance.
+        provider: Initialized LLMProvider instance.
         text: Chunk or combined text to summarize.
         options: Provider options forwarded to the model.
 
@@ -217,7 +221,7 @@ async def _summarize_once(
 
 
 async def _rolling_summarize(
-    provider: OllamaLLMProvider,
+    provider: LLMProvider,
     *,
     text: str,
     options: dict[str, Any],
@@ -226,7 +230,7 @@ async def _rolling_summarize(
     Summarize potentially long text by chunking and rolling summaries forward.
 
     Args:
-        provider: Initialized OllamaLLMProvider instance.
+        provider: Initialized LLMProvider instance.
         text: Full document text to summarize.
         options: Provider options forwarded to the model.
 
@@ -318,7 +322,7 @@ def _build_sse_message(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-def _trim_to_context(provider: OllamaLLMProvider, text: str) -> str:
+def _trim_to_context(provider: LLMProvider, text: str) -> str:
     """
     Trim combined text to respect the provider's context window.
 
