@@ -83,69 +83,6 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             provider.generate(prompt=None, messages=None)
 
-    def test_format_schema_is_translated_to_response_format(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        schema = {
-            "title": "CanonicalEntities",
-            "type": "object",
-            "properties": {"canonical_entities": {"type": "array"}},
-        }
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("{}")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", format=schema)
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("format", kwargs)
-        self.assertEqual(
-            kwargs["response_format"],
-            {
-                "type": "json_schema",
-                "json_schema": {"name": "CanonicalEntities", "schema": schema},
-            },
-        )
-
-    def test_format_schema_without_title_falls_back_to_response_name(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        schema = {"type": "object", "properties": {}}
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("{}")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", format=schema)
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["response_format"]["json_schema"]["name"], "response")
-
-    def test_format_json_string_maps_to_json_object(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("{}")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", format="json")
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["response_format"], {"type": "json_object"})
-
-    def test_explicit_response_format_wins_and_is_forwarded_untouched(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        explicit = {"type": "json_object"}
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("{}")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate(
-                "Hola",
-                format={"title": "Ignored", "type": "object"},
-                response_format=explicit,
-            )
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["response_format"], explicit)
-        self.assertNotIn("format", kwargs)
-
     def test_generate_without_format_sends_no_response_format(self):
         provider = OpenAICompatibleLLMProvider(model="local-model")
         mock_client = MagicMock()
@@ -156,112 +93,6 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
 
         _, kwargs = mock_client.chat.completions.create.call_args
         self.assertNotIn("response_format", kwargs)
-
-    def test_options_num_predict_maps_to_max_tokens(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", options={"num_predict": 4096})
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("options", kwargs)
-        self.assertNotIn("num_predict", kwargs)
-        self.assertEqual(kwargs["max_tokens"], 4096)
-
-    def test_options_sampling_params_pass_through(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate(
-                "Hola",
-                options={
-                    "temperature": 0.0,
-                    "top_p": 0.9,
-                    "stop": ["\n\n"],
-                    "seed": 42,
-                },
-            )
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["temperature"], 0.0)
-        self.assertEqual(kwargs["top_p"], 0.9)
-        self.assertEqual(kwargs["stop"], ["\n\n"])
-        self.assertEqual(kwargs["seed"], 42)
-
-    def test_options_num_ctx_is_dropped(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", options={"num_ctx": 16_384, "num_predict": 4096})
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("num_ctx", kwargs)
-        self.assertEqual(kwargs["max_tokens"], 4096)
-
-    def test_options_unknown_key_is_dropped(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", options={"mirostat_tau": 5.0, "seed": 7})
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("mirostat_tau", kwargs)
-        self.assertEqual(kwargs["seed"], 7)
-
-    def test_options_none_or_absent_is_a_no_op(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", options=None)
-            provider.generate("Hola")
-
-        for call in mock_client.chat.completions.create.call_args_list:
-            _, kwargs = call
-            self.assertNotIn("options", kwargs)
-            self.assertNotIn("max_tokens", kwargs)
-            self.assertNotIn("temperature", kwargs)
-            self.assertEqual(set(kwargs), {"model", "messages"})
-
-    def test_explicit_kwarg_wins_over_translated_option(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _fake_completion("ok")
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            provider.generate("Hola", max_tokens=128, options={"num_predict": 4096})
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["max_tokens"], 128)
-
-    def test_stream_translates_options(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = iter(
-            [_fake_chunk("Hola", finish_reason="stop")]
-        )
-
-        with patch(f"{MODULE}.OpenAI", return_value=mock_client):
-            list(
-                provider.stream(
-                    "Hola", options={"num_ctx": 16_384, "num_predict": 4096}
-                )
-            )
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("options", kwargs)
-        self.assertNotIn("num_ctx", kwargs)
-        self.assertEqual(kwargs["max_tokens"], 4096)
-        self.assertTrue(kwargs["stream"])
 
     def test_stream_yields_chunks_and_flags_done(self):
         provider = OpenAICompatibleLLMProvider(model="local-model")
@@ -324,27 +155,6 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
 
         provider.close()  # must not raise
 
-    def test_count_prompt_tokens_includes_system_prompt(self):
-        provider = OpenAICompatibleLLMProvider(
-            model="local-model", system_prompt="Sistema completo"
-        )
-
-        with_system = provider.count_prompt_tokens(prompt="Hola mundo")
-        without_system = provider.count_tokens("Hola mundo")
-
-        # "Sistema completo" adds 2 whitespace-estimated tokens on top of the
-        # bare prompt estimate.
-        self.assertEqual(with_system, without_system + 2)
-
-    def test_count_prompt_tokens_flattens_explicit_messages(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-
-        count = provider.count_prompt_tokens(
-            messages=[{"role": "user", "content": "uno dos tres"}]
-        )
-
-        self.assertEqual(count, 3)
-
     def test_close_recreates_a_fresh_client_on_next_use(self):
         provider = OpenAICompatibleLLMProvider(model="local-model")
         mock_client = MagicMock()
@@ -356,6 +166,12 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
             provider.generate("Mundo")
 
         self.assertEqual(mock_openai.call_count, 2)
+
+    def test_model_kwarg_is_rejected_with_a_clear_error(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+
+        with self.assertRaises(ValueError):
+            provider._build_request_kwargs({"model": "other"})
 
 
 class AsyncOpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
@@ -403,47 +219,6 @@ class AsyncOpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
         _, kwargs = mock_client.chat.completions.create.call_args
         self.assertTrue(kwargs["stream"])
         self.assertTrue(last_chunk.metadata.get("done"))
-
-    async def test_async_generate_translates_options(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            return_value=_fake_completion("ok")
-        )
-
-        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
-            await provider.async_generate(
-                "Hola",
-                options={"num_ctx": 16_384, "num_predict": 4096, "temperature": 0.0},
-            )
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("options", kwargs)
-        self.assertNotIn("num_ctx", kwargs)
-        self.assertEqual(kwargs["max_tokens"], 4096)
-        self.assertEqual(kwargs["temperature"], 0.0)
-
-    async def test_async_stream_translates_options(self):
-        provider = OpenAICompatibleLLMProvider(model="local-model")
-
-        async def fake_gen():
-            yield _fake_chunk("Hola", finish_reason="stop")
-
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(return_value=fake_gen())
-
-        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
-            async for _ in provider.async_stream(
-                "Hola",
-                options={"num_ctx": 16_384, "num_predict": 4096},
-            ):
-                pass
-
-        _, kwargs = mock_client.chat.completions.create.call_args
-        self.assertNotIn("options", kwargs)
-        self.assertNotIn("num_ctx", kwargs)
-        self.assertEqual(kwargs["max_tokens"], 4096)
-        self.assertTrue(kwargs["stream"])
 
     async def test_async_client_is_cached_across_calls(self):
         provider = OpenAICompatibleLLMProvider(model="local-model")

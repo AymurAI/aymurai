@@ -3,38 +3,22 @@ from __future__ import annotations
 from typing import Any, AsyncIterator, Iterator
 
 from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel, Field
 
-from aymurai.llm_providers.provider import LLMProvider, LLMResponse
 from aymurai.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Ollama's native `options` dict -> OpenAI chat-completion parameters.
-# The OpenAI SDK's `create()` has no `**kwargs`, so anything not in this table
-# must be dropped rather than forwarded: forwarding an unknown key raises the
-# exact `TypeError` this translation exists to prevent.
-_OLLAMA_OPTION_TO_OPENAI_PARAM: dict[str, str] = {
-    "num_predict": "max_tokens",
-    # Identity entry: `GenerationOptions` (summarization.py) is already
-    # OpenAI-native and dumps `max_tokens` directly. Without this, that key
-    # is absent from `_OLLAMA_OPTION_TO_OPENAI_PARAM` and gets silently
-    # dropped as "unrecognized", losing the caller's output-token budget.
-    "max_tokens": "max_tokens",
-    "temperature": "temperature",
-    "top_p": "top_p",
-    "stop": "stop",
-    "seed": "seed",
-}
 
-# `num_ctx` has no per-request OpenAI equivalent: in llama.cpp the context
-# window is fixed when the server is launched (`-c`). Dropping it does NOT
-# affect chunking — chunking reads `max_context_tokens`, which the caller sets
-# on the constructor (e.g. summarization's `_build_provider`) and which this
-# translation never touches. Do not "restore" `num_ctx` as a request param.
-_DROPPED_OLLAMA_OPTIONS: frozenset[str] = frozenset({"num_ctx"})
+class LLMResponse(BaseModel):
+    """Standard response wrapper returned by every provider call."""
+
+    text: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    raw: Any | None = None
 
 
-class OpenAICompatibleLLMProvider(LLMProvider):
+class OpenAICompatibleLLMProvider:
     """Adapter for any server that speaks the OpenAI chat-completions protocol."""
 
     provider_name: str = "openai-compatible"
@@ -46,7 +30,6 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         base_url: str | None = None,
         api_key: str = "not-needed",
         system_prompt: str | None = None,
-        **kwargs,
     ) -> None:
         """
         Initialize an OpenAI-compatible provider.
@@ -61,10 +44,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 "not-needed".
             system_prompt (str | None): Optional system prompt prepended when a
                 bare `prompt` is supplied. Defaults to None.
-            **kwargs: Forwarded to `LLMProvider` (`tokenizer`,
-                `max_context_tokens`, `chunk_overlap`).
         """
-        super().__init__(model=model, **kwargs)
+        self.model_name = model
         self.base_url = base_url
         self.api_key = api_key
         self.system_prompt = system_prompt
@@ -112,10 +93,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 into a chat message. Defaults to None.
             messages (list[dict[str, str]] | None): Optional list of
                 pre-formatted chat messages to send. Defaults to None.
-            **kwargs: Additional chat-completion parameters. A `format` kwarg
-                (Ollama-style JSON schema dict or the literal `"json"`) is
-                translated into `response_format`; an Ollama-style `options`
-                dict is translated into OpenAI generation parameters.
+            **kwargs: Additional OpenAI-native chat-completion parameters
+                (e.g. `max_tokens`, `temperature`), forwarded as-is.
 
         Raises:
             ValueError: If neither `prompt` nor `messages` is provided.
@@ -151,10 +130,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 into a chat message. Defaults to None.
             messages (list[dict[str, str]] | None): Optional list of
                 pre-formatted chat messages to send. Defaults to None.
-            **kwargs: Additional chat-completion parameters. A `format` kwarg
-                (Ollama-style JSON schema dict or the literal `"json"`) is
-                translated into `response_format`; an Ollama-style `options`
-                dict is translated into OpenAI generation parameters.
+            **kwargs: Additional OpenAI-native chat-completion parameters
+                (e.g. `max_tokens`, `temperature`), forwarded as-is.
 
         Raises:
             ValueError: If neither `prompt` nor `messages` is provided.
@@ -190,10 +167,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 into a chat message. Defaults to None.
             messages (list[dict[str, str]] | None): Optional list of
                 pre-formatted chat messages to send. Defaults to None.
-            **kwargs: Additional chat-completion parameters. A `format` kwarg
-                (Ollama-style JSON schema dict or the literal `"json"`) is
-                translated into `response_format`; an Ollama-style `options`
-                dict is translated into OpenAI generation parameters.
+            **kwargs: Additional OpenAI-native chat-completion parameters
+                (e.g. `max_tokens`, `temperature`), forwarded as-is.
 
         Raises:
             ValueError: If neither `prompt` nor `messages` is provided.
@@ -233,10 +208,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 used when building a chat message from `prompt`. Lets a single
                 provider instance switch prompts across calls (e.g. rolling
                 summarization's first-pass vs. follow-up system prompt).
-            **kwargs: Additional chat-completion parameters. A `format` kwarg
-                (Ollama-style JSON schema dict or the literal `"json"`) is
-                translated into `response_format`; an Ollama-style `options`
-                dict is translated into OpenAI generation parameters.
+            **kwargs: Additional OpenAI-native chat-completion parameters
+                (e.g. `max_tokens`, `temperature`), forwarded as-is.
 
         Raises:
             ValueError: If neither `prompt` nor `messages` is provided.
@@ -302,34 +275,6 @@ class OpenAICompatibleLLMProvider(LLMProvider):
 
         return payload
 
-    def count_prompt_tokens(
-        self,
-        *,
-        prompt: str | None = None,
-        messages: list[dict[str, str]] | None = None,
-    ) -> int:
-        """
-        Estimate the prompt token count, including the system prompt.
-
-        Still an estimate (`count_tokens` under the hood, no chat-template
-        accounting) — but better than the base default, which can't see
-        `system_prompt` at all. `LlamaCppLLMProvider` overrides this further
-        with an exact, template-aware count.
-
-        Args:
-            prompt (str | None): Single prompt string, mutually exclusive with
-                `messages`.
-            messages (list[dict[str, str]] | None): Pre-formatted chat
-                messages.
-
-        Returns:
-            int: The estimated prompt token count.
-        """
-        built = self._build_messages(prompt=prompt, messages=messages)
-        return self.count_tokens(
-            self._flatten_for_counting(messages=built, prompt=None)
-        )
-
     def _get_client(self) -> OpenAI:
         """
         Return the cached synchronous OpenAI SDK client, creating it on first use.
@@ -369,110 +314,26 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         self, kwargs: dict[str, Any]
     ) -> dict[str, Any]:
         """
-        Normalize caller kwargs into OpenAI chat-completion parameters.
+        Normalize caller kwargs for the chat-completions call.
 
-        Pops the Ollama-style `options` and `format` kwargs and translates both.
-        Translated `options` are merged in with `setdefault`, so an explicit
-        top-level kwarg (e.g. `max_tokens=128`) always wins. Likewise an
-        explicit `response_format` always wins and is forwarded untouched.
+        Parameters are already OpenAI-native, so this only defends against the
+        one collision that would otherwise raise deep in the SDK.
 
         Args:
             kwargs (dict[str, Any]): Raw keyword arguments from the caller.
 
-        Returns:
-            dict[str, Any]: Keyword arguments safe to forward to the SDK.
-        """
-        request_kwargs = dict(kwargs)
-        options = request_kwargs.pop("options", None)
-        format_value = request_kwargs.pop("format", None)
-
-        for param, value in self._translate_options(options).items():
-            request_kwargs.setdefault(param, value)
-
-        if "response_format" not in request_kwargs:
-            response_format = self._translate_format(format_value)
-            if response_format is not None:
-                request_kwargs["response_format"] = response_format
-
-        return request_kwargs
-
-    @staticmethod
-    def _translate_options(  # ast-grep-ignore: no-dict-return-annotation
-        options: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        """
-        Translate an Ollama-style `options` dict into OpenAI generation params.
-
-        Maps `num_predict` to `max_tokens` and passes `temperature`, `top_p`,
-        `stop` and `seed` through unchanged. `num_ctx` is dropped (it has no
-        per-request OpenAI equivalent — llama.cpp fixes the context window at
-        server launch with `-c`), as is any key absent from
-        `_OLLAMA_OPTION_TO_OPENAI_PARAM`; both cases are logged at debug level.
-        Dropping `num_ctx` does not affect chunking, which reads
-        `max_context_tokens` from the constructor instead.
-
-        Args:
-            options (dict[str, Any] | None): Ollama-style generation options, or
-                None when the caller passed none.
+        Raises:
+            ValueError: If `model` is passed, which would collide with the
+                explicit `model=self.model_name` argument.
 
         Returns:
-            dict[str, Any]: OpenAI chat-completion parameters. Empty when
-                `options` is None or empty.
+            dict[str, Any]: Keyword arguments safe to forward.
         """
-        if not options:
-            return {}  # ast-grep-ignore: no-dict-literal-return
-
-        translated: dict[str, Any] = {}
-
-        for key, value in options.items():
-            if key in _DROPPED_OLLAMA_OPTIONS:
-                logger.debug(
-                    f"dropping option {key!r}: no per-request OpenAI equivalent"
-                )
-                continue
-
-            openai_param = _OLLAMA_OPTION_TO_OPENAI_PARAM.get(key)
-            if openai_param is None:
-                logger.debug(f"dropping unrecognized option {key!r}")
-                continue
-
-            translated[openai_param] = value
-
-        return translated
-
-    @staticmethod
-    def _translate_format(format_value: Any) -> dict[str, Any] | None:
-        """
-        Translate an Ollama-style `format` value into an OpenAI `response_format`.
-
-        Args:
-            format_value (Any): A JSON schema dict (as produced by pydantic's
-                `model_json_schema()`), the literal string `"json"`, or None.
-
-        Returns:
-            dict[str, Any] | None: The equivalent `response_format` payload, or
-                None when no structured output was requested.
-        """
-        if format_value is None:
-            return None
-
-        if isinstance(format_value, str):
-            if format_value == "json":
-                return {
-                    "type": "json_object"
-                }  # ast-grep-ignore: no-dict-literal-return
-            return None
-
-        if isinstance(format_value, dict):
-            return {  # ast-grep-ignore: no-dict-literal-return
-                "type": "json_schema",
-                "json_schema": {
-                    "name": format_value.get("title", "response"),
-                    "schema": format_value,
-                },
-            }
-
-        return None
+        if "model" in kwargs:
+            raise ValueError(
+                "pass the model to the constructor, not to generate()/stream()"
+            )
+        return dict(kwargs)
 
     def _build_llm_response(self, completion: Any) -> LLMResponse:
         """
@@ -533,4 +394,4 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         return LLMResponse(text=text, metadata=metadata, raw=chunk)
 
 
-__all__ = ["OpenAICompatibleLLMProvider"]
+__all__ = ["LLMResponse", "OpenAICompatibleLLMProvider"]

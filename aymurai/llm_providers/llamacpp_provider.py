@@ -12,15 +12,6 @@ from aymurai.settings import settings
 
 logger = get_logger(__name__)
 
-# Reserve for chat-template markup (turn/role markers, BOS) on top of raw
-# message content — measured ~14 tokens for a 2-turn (system+user) exchange
-# against a real llama-server; doubled for headroom across templates/turn
-# counts. Only used for the upfront chunk-sizing estimate in
-# `summarization_engine._build_provider` — the actual pre-generation check
-# uses `count_prompt_tokens`'s exact, real-template accounting instead.
-# TODO(Task 4): dies with `_build_provider` once `build_context_budget` lands.
-TEMPLATE_OVERHEAD_TOKENS = 32
-
 # `llama-server` serves whatever it was launched with and ignores the request's
 # `model` field, but the OpenAI SDK requires a non-empty string. This stands in
 # until `resolve_served_model()` supplies the real id.
@@ -48,7 +39,7 @@ class LlamaCppLLMProvider(OpenAICompatibleLLMProvider):
         *,
         base_url: str | None = None,
         api_key: str | None = None,
-        **kwargs,
+        system_prompt: str | None = None,
     ) -> None:
         """
         Initialize a llama.cpp provider, defaulting connection details from settings.
@@ -63,9 +54,8 @@ class LlamaCppLLMProvider(OpenAICompatibleLLMProvider):
                 `settings.LLAMACPP_BASE_URL`.
             api_key (str | None): API key override. Defaults to
                 `settings.LLAMACPP_API_KEY`.
-            **kwargs: Forwarded to `OpenAICompatibleLLMProvider`
-                (`system_prompt`, `tokenizer`, `max_context_tokens`,
-                `chunk_overlap`).
+            system_prompt (str | None): Optional system prompt prepended when a
+                bare `prompt` is supplied.
 
         Raises:
             ValueError: If neither `base_url` nor `settings.LLAMACPP_BASE_URL`
@@ -84,7 +74,7 @@ class LlamaCppLLMProvider(OpenAICompatibleLLMProvider):
             model=model or UNRESOLVED_MODEL,
             base_url=resolved_base_url,
             api_key=api_key or settings.LLAMACPP_API_KEY,
-            **kwargs,
+            system_prompt=system_prompt,
         )
         self._raw_client: httpx.Client | None = None
         self._raw_async_client: httpx.AsyncClient | None = None

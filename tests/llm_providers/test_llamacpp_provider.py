@@ -52,18 +52,12 @@ def test_explicit_arguments_override_settings(monkeypatch):
     assert provider.api_key == "override"
 
 
-def test_forwards_base_provider_kwargs(monkeypatch):
+def test_forwards_system_prompt_to_base_provider(monkeypatch):
     monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
 
-    provider = LlamaCppLLMProvider(
-        system_prompt="Sistema",
-        max_context_tokens=1234,
-        chunk_overlap=8,
-    )
+    provider = LlamaCppLLMProvider(system_prompt="Sistema")
 
     assert provider.system_prompt == "Sistema"
-    assert provider.max_context_tokens == 1234
-    assert provider.chunk_overlap == 8
 
 
 def test_metadata_provider_is_llamacpp(monkeypatch):
