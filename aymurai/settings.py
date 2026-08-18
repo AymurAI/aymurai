@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     LLM_DEFAULT_NUM_CTX: int = 16_384
     LLM_DEFAULT_NUM_PREDICT: int = 4096
     LLM_DEFAULT_MAX_TOKENS: int = 4096
+    # Optional cap on the server's own context window. None = use the server's
+    # n_ctx as-is; the request cannot raise it, since llama-server fixes the
+    # window at launch (-c).
+    LLM_MAX_CONTEXT_TOKENS: int | None = None
 
     # Ollama Config. OLLAMA_HOST also matches the native `ollama` SDK's own
     # env var, so existing deployments that only set OLLAMA_HOST keep working.

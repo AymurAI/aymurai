@@ -9,6 +9,7 @@ modules stay thin orchestration layers (CES-8). Imported by
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +122,128 @@ def _load_template_prompt(
         information_to_extract=info,
         entities_to_identify=entities,
     )
+
+
+# Slots are measured with a sentinel rather than an empty string: an empty slot
+# lets the surrounding newlines collapse into a run that tokenizes differently,
+# which silently under-measures the scaffold.
+SENTINEL = "X"
+
+ROLLING_USER_TEMPLATE = "[RESUMEN PARCIAL]\n{summary}\n\n[NUEVO FRAGMENTO]\n{chunk}"
+
+
+class ContextTooSmallError(Exception):
+    """The server's context cannot fit the prompt scaffolding plus any document."""
+
+
+@dataclass(frozen=True)
+class ContextBudget:
+    """Exact, server-authoritative token budget for one summarization run."""
+
+    effective_ctx: int
+    scaffold_first: int
+    scaffold_rolling: int
+    reserved_output: int
+
+    @property
+    def first_window_budget(self) -> int:
+        """Tokens available for document text in the first window."""
+        return self.effective_ctx - self.scaffold_first - self.reserved_output
+
+    def rolling_window_budget(self, summary_tokens: int) -> int:
+        """
+        Tokens available for document text in a follow-up window.
+
+        Args:
+            summary_tokens (int): Exact token count of the summary carried
+                forward. Measured rather than worst-cased at
+                `reserved_output`, which would waste a large slice of every
+                window.
+
+        Returns:
+            int: Remaining budget; may be non-positive, which callers treat as
+                "the carried summary no longer leaves room".
+        """
+        return (
+            self.effective_ctx
+            - self.scaffold_rolling
+            - self.reserved_output
+            - summary_tokens
+        )
+
+
+async def build_context_budget(
+    provider: LlamaCppLLMProvider,
+    *,
+    system_prompt: str,
+    rolling_system_prompt: str,
+    max_tokens: int,
+) -> ContextBudget:
+    """
+    Measure the exact context budget for a summarization run.
+
+    The scaffold costs are measured against the server's real chat template, so
+    the arithmetic matches `usage.prompt_tokens` exactly rather than
+    approximating it.
+
+    Args:
+        provider: A resolved llama.cpp provider.
+        system_prompt: System prompt for the first window.
+        rolling_system_prompt: System prompt for follow-up windows.
+        max_tokens: Output tokens reserved per generation.
+
+    Raises:
+        ContextTooSmallError: If no document tokens fit in either window shape.
+
+    Returns:
+        ContextBudget: The measured budget.
+    """
+    served = await provider.aresolve_served_model()
+    server_ctx = served.n_ctx or served.n_ctx_train
+    if not server_ctx:
+        raise ContextTooSmallError(
+            f"{provider.base_url} reported no context window (n_ctx/n_ctx_train)"
+        )
+
+    cap = settings.LLM_MAX_CONTEXT_TOKENS
+    effective_ctx = min(server_ctx, cap) if cap else server_ctx
+
+    sentinel_tokens = len(await provider.atokenize(SENTINEL))
+
+    first_probe = await provider.acount_prompt_tokens(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": SENTINEL},
+        ]
+    )
+    rolling_probe = await provider.acount_prompt_tokens(
+        messages=[
+            {"role": "system", "content": rolling_system_prompt},
+            {
+                "role": "user",
+                "content": ROLLING_USER_TEMPLATE.format(
+                    summary=SENTINEL, chunk=SENTINEL
+                ),
+            },
+        ]
+    )
+
+    budget = ContextBudget(
+        effective_ctx=effective_ctx,
+        scaffold_first=first_probe - sentinel_tokens,
+        scaffold_rolling=rolling_probe - 2 * sentinel_tokens,
+        reserved_output=max_tokens,
+    )
+
+    if budget.first_window_budget <= 0:
+        raise ContextTooSmallError(
+            f"context window {effective_ctx} leaves no room for document text "
+            f"after the system prompt ({budget.scaffold_first} tokens) and "
+            f"reserved output ({max_tokens} tokens) — lower max_tokens, shorten "
+            f"the system prompt, or raise the server's -c value"
+        )
+
+    return budget
 
 
 def _load_tokenizer(tokenizer_name: str | None) -> tiktoken.Encoding | None:
