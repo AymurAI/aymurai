@@ -218,6 +218,7 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         prompt: str | None = None,
         *,
         messages: list[dict[str, str]] | None = None,
+        system_prompt: str | None = None,
         **kwargs,
     ) -> AsyncIterator[LLMResponse]:
         """
@@ -228,6 +229,10 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 into a chat message. Defaults to None.
             messages (list[dict[str, str]] | None): Optional list of
                 pre-formatted chat messages to send. Defaults to None.
+            system_prompt (str | None): Per-call override of `self.system_prompt`,
+                used when building a chat message from `prompt`. Lets a single
+                provider instance switch prompts across calls (e.g. rolling
+                summarization's first-pass vs. follow-up system prompt).
             **kwargs: Additional chat-completion parameters. A `format` kwarg
                 (Ollama-style JSON schema dict or the literal `"json"`) is
                 translated into `response_format`; an Ollama-style `options`
@@ -240,7 +245,9 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             AsyncIterator[LLMResponse]: Asynchronous iterator yielding response
                 chunks containing generated text, metadata, and raw payloads.
         """
-        payload = self._build_messages(prompt=prompt, messages=messages)
+        payload = self._build_messages(
+            prompt=prompt, messages=messages, system_prompt=system_prompt
+        )
         request_kwargs = {**self._build_request_kwargs(kwargs), "stream": True}
 
         client = self._get_async_client()
@@ -257,6 +264,7 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         *,
         prompt: str | None,
         messages: list[dict[str, str]] | None = None,
+        system_prompt: str | None = None,
     ) -> list[dict[str, str]]:
         """
         Build the message payload for the chat-completions call.
@@ -265,6 +273,10 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             prompt (str | None): The user prompt to be sent to the model.
             messages (list[dict[str, str]] | None): A list of message
                 dictionaries to be sent to the model. Defaults to None.
+            system_prompt (str | None): Per-call override of
+                `self.system_prompt`. Ignored when `messages` is given —
+                callers building their own messages control the system turn
+                directly.
 
         Raises:
             ValueError: If neither prompt nor messages are provided.
@@ -280,8 +292,11 @@ class OpenAICompatibleLLMProvider(LLMProvider):
 
         payload = []
 
-        if self.system_prompt:
-            payload.append({"role": "system", "content": self.system_prompt})
+        active_system_prompt = (
+            system_prompt if system_prompt is not None else self.system_prompt
+        )
+        if active_system_prompt:
+            payload.append({"role": "system", "content": active_system_prompt})
 
         payload.append({"role": "user", "content": prompt})
 

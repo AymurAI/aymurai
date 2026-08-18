@@ -128,6 +128,7 @@ class Settings(BaseSettings):
     LLM_DEFAULT_NUM_CTX: int = 16_384
     LLM_DEFAULT_NUM_PREDICT: int = 4096
     LLM_DEFAULT_MAX_TOKENS: int = 4096
+    LLM_CHUNK_OVERLAP_TOKENS: int = 128
     # Optional cap on the server's own context window. None = use the server's
     # n_ctx as-is; the request cannot raise it, since llama-server fixes the
     # window at launch (-c).
