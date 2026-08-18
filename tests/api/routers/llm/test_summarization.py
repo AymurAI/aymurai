@@ -355,9 +355,9 @@ def test_summarize_fails_closed_when_llamacpp_base_url_unset(
 ):
     from aymurai.settings import settings
 
-    # Zero-config deployment: LLM_PROVIDER defaults to llamacpp, but nobody
-    # set LLAMACPP_BASE_URL. Without the guard in LlamaCppLLMProvider this
-    # would silently send the request body to https://api.openai.com.
+    # Zero-config deployment: llamacpp is the only backend, but nobody set
+    # LLAMACPP_BASE_URL. Without the guard in LlamaCppLLMProvider this would
+    # silently send the request body to https://api.openai.com.
     monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", None)
 
     response = llm_test_client.post(

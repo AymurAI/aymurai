@@ -2,7 +2,6 @@ import json
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import AliasChoices, ConfigDict, Field, FilePath, field_validator
@@ -120,13 +119,7 @@ class Settings(BaseSettings):
     TRANSCRIBE_BASE_URL: str | None = None
     TRANSCRIBE_API_KEY: str = "not-needed"
 
-    # LLM provider selection (global per deployment)
-    LLM_PROVIDER: Literal["ollama", "llamacpp"] = "llamacpp"
-
-    # LLM generation defaults (provider-agnostic; consumed by /llm/summarize)
-    LLM_DEFAULT_TOKENIZER: str = "o200k_harmony"
-    LLM_DEFAULT_NUM_CTX: int = 16_384
-    LLM_DEFAULT_NUM_PREDICT: int = 4096
+    # LLM generation defaults (consumed by /llm/summarize)
     LLM_DEFAULT_MAX_TOKENS: int = 4096
     LLM_CHUNK_OVERLAP_TOKENS: int = 128
     # Optional cap on the server's own context window. None = use the server's
@@ -134,15 +127,9 @@ class Settings(BaseSettings):
     # window at launch (-c).
     LLM_MAX_CONTEXT_TOKENS: int | None = None
 
-    # Ollama Config. OLLAMA_HOST also matches the native `ollama` SDK's own
-    # env var, so existing deployments that only set OLLAMA_HOST keep working.
-    OLLAMA_HOST: str = "http://localhost:11434"
-    OLLAMA_DEFAULT_MODEL: str = "gpt-oss:20b"
-
     # llama.cpp Config (llama-server — OpenAI-compatible server)
     LLAMACPP_BASE_URL: str | None = None
     LLAMACPP_API_KEY: str = "not-needed"
-    LLAMACPP_DEFAULT_MODEL: str = "llamacpp"
 
 
 load_env()
