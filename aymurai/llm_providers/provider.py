@@ -123,16 +123,99 @@ class LLMProvider(abc.ABC):
 
     def count_tokens(self, text: str) -> int:
         """
-        Count the number of tokens in the given text.
+        Count the number of tokens in raw text, using a fast, local estimate.
+
+        This is a chunk-sizing primitive: `chunk_text` below calls it once per
+        candidate word while growing a chunk, so it must stay cheap and
+        side-effect-free (no network I/O) regardless of provider. It does not
+        account for chat-template formatting — for an exact, request-shaped
+        prompt count, see `count_prompt_tokens`/`acount_prompt_tokens`.
 
         Args:
             text (str): The input text to count tokens for.
 
         Returns:
-            int: The number of tokens in the input text.
+            int: The estimated number of tokens in the input text.
         """
         tokens = self._tokenize(text)
         return len(tokens)
+
+    def count_prompt_tokens(
+        self,
+        *,
+        prompt: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+    ) -> int:
+        """
+        Count tokens for a chat request, as close to the real one as this
+        provider can manage without a network round-trip.
+
+        Default implementation just flattens `prompt`/`messages` into text and
+        estimates via `count_tokens` — no chat-template accounting. Providers
+        able to compute an exact, template-aware count (e.g.
+        `LlamaCppLLMProvider`, which renders the real server-side template and
+        tokenizes the result) should override this.
+
+        Args:
+            prompt (str | None): Single prompt string, mutually exclusive with
+                `messages`.
+            messages (list[dict[str, str]] | None): Pre-formatted chat
+                messages.
+
+        Returns:
+            int: The estimated (or, where overridden, exact) prompt token
+                count.
+        """
+        return self.count_tokens(
+            self._flatten_for_counting(prompt=prompt, messages=messages)
+        )
+
+    async def acount_prompt_tokens(
+        self,
+        *,
+        prompt: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+    ) -> int:
+        """
+        Async counterpart of `count_prompt_tokens`.
+
+        Default implementation just delegates to the sync version, since the
+        default estimate needs no I/O. Providers whose exact count requires a
+        network call (e.g. `LlamaCppLLMProvider`) override this directly
+        rather than wrapping the sync path in a thread.
+
+        Args:
+            prompt (str | None): Single prompt string, mutually exclusive with
+                `messages`.
+            messages (list[dict[str, str]] | None): Pre-formatted chat
+                messages.
+
+        Returns:
+            int: The estimated (or, where overridden, exact) prompt token
+                count.
+        """
+        return self.count_prompt_tokens(prompt=prompt, messages=messages)
+
+    @staticmethod
+    def _flatten_for_counting(
+        *,
+        prompt: str | None,
+        messages: list[dict[str, str]] | None,
+    ) -> str:
+        """
+        Flatten a prompt or message list into a single string for estimation.
+
+        Args:
+            prompt (str | None): Single prompt string.
+            messages (list[dict[str, str]] | None): Pre-formatted chat
+                messages.
+
+        Returns:
+            str: Message contents joined by newlines, or the bare prompt.
+        """
+        if messages is not None:
+            return "\n".join(message.get("content", "") for message in messages)
+        return prompt or ""
 
     def chunk_text(
         self,
@@ -143,6 +226,15 @@ class LLMProvider(abc.ABC):
     ) -> list[DocumentChunk]:
         """
         Chunk text ensuring every piece respects the token budget.
+
+        Sizing decisions use `count_tokens` (a fast, local estimate) — this
+        can call it once per word while growing a chunk, so it must never
+        become network-bound. `max_tokens` should already include headroom
+        for anything `count_tokens` can't see (chat-template overhead,
+        reserved output tokens, tokenizer estimation error) — callers
+        wanting an exact guarantee on the final rendered prompt should
+        additionally verify via `count_prompt_tokens`/`acount_prompt_tokens`
+        before sending it.
 
         Args:
             text (str): The input text to chunk.
