@@ -84,6 +84,33 @@ make api-logs
 # or make api-full-logs
 ```
 
+### LLM backend (llama.cpp)
+
+Summarization runs against a `llama-server` speaking the OpenAI-compatible API.
+Unlike the previous Ollama backend, the llama.cpp image ships **no weights** —
+you must supply a GGUF:
+
+```bash
+LLAMACPP_MODELS_DIR=/path/to/gguf/models
+LLAMACPP_MODEL_FILE=your-model.gguf
+LLAMACPP_CTX_SIZE=16384          # the server's context window (-c)
+```
+
+`docker compose up llamacpp` then serves it on `:8080`, and the API reaches it
+via `LLAMACPP_BASE_URL`.
+
+Reasoning ("thinking") is configured **at server launch**, not per request —
+per-request budgeting does not exist upstream, and `enable_thinking` is
+model-dependent:
+
+| Variable | Values | Effect |
+|---|---|---|
+| `LLM_REASONING` | `on` / `off` / `auto` | thinking on/off (default: detect from template) |
+| `LLM_THINK_BUDGET` | `-1` / `0` / `N` | unrestricted / immediate end / token budget |
+
+If summaries come back empty, the model is exhausting `max_tokens` on
+reasoning: raise `max_tokens`, or set `LLM_THINK_BUDGET=0`.
+
 ## Runtime Overview
 - Framework: `FastAPI`
 - Default API port: `8899`
