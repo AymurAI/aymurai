@@ -7,8 +7,10 @@ from aymurai.api.endpoints.routers.llm.summarization_engine import (
     ContextBudget,
     ContextTooSmallError,
     build_context_budget,
+    load_rolling_prompt,
+    prepare_run,
 )
-from aymurai.llm_providers import LLMProvider, LLMResponse
+from aymurai.llm_providers import LLMProvider, LLMResponse, LlamaCppLLMProvider
 from aymurai.llm_providers.llamacpp_provider import (
     TEMPLATE_OVERHEAD_TOKENS,
     ServedModel,
@@ -374,3 +376,67 @@ async def test_build_context_budget_rejects_an_unusable_window(monkeypatch):
         await build_context_budget(
             provider, system_prompt="S", rolling_system_prompt="R", max_tokens=50
         )
+
+
+@pytest.mark.anyio
+async def test_prepare_run_adopts_the_served_model_id(monkeypatch):
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+    monkeypatch.setattr(settings, "LLM_MAX_CONTEXT_TOKENS", None)
+    served = ServedModel(id="/models/real-model.gguf", n_ctx=4096, n_ctx_train=8192)
+
+    with (
+        patch.object(
+            LlamaCppLLMProvider,
+            "aresolve_served_model",
+            new=AsyncMock(return_value=served),
+        ),
+        patch.object(
+            LlamaCppLLMProvider,
+            "acount_prompt_tokens",
+            new=AsyncMock(side_effect=[50, 70]),
+        ),
+        patch.object(LlamaCppLLMProvider, "atokenize", new=AsyncMock(return_value=[1])),
+    ):
+        provider, budget = await prepare_run(
+            None, system_prompt="S", rolling_system_prompt="R", max_tokens=100
+        )
+
+    # The placeholder is replaced by the server's own identity.
+    assert provider.model_name == "/models/real-model.gguf"
+    assert budget.effective_ctx == 4096
+
+
+@pytest.mark.anyio
+async def test_prepare_run_lets_an_explicit_model_win(monkeypatch):
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+    monkeypatch.setattr(settings, "LLM_MAX_CONTEXT_TOKENS", None)
+    served = ServedModel(id="/models/real-model.gguf", n_ctx=4096, n_ctx_train=8192)
+
+    with (
+        patch.object(
+            LlamaCppLLMProvider,
+            "aresolve_served_model",
+            new=AsyncMock(return_value=served),
+        ),
+        patch.object(
+            LlamaCppLLMProvider,
+            "acount_prompt_tokens",
+            new=AsyncMock(side_effect=[50, 70]),
+        ),
+        patch.object(LlamaCppLLMProvider, "atokenize", new=AsyncMock(return_value=[1])),
+    ):
+        provider, _ = await prepare_run(
+            "override", system_prompt="S", rolling_system_prompt="R", max_tokens=100
+        )
+
+    assert provider.model_name == "override"
+
+
+def test_load_rolling_prompt_renders_the_template_variables():
+    prompt = load_rolling_prompt(
+        information_to_extract="INFO-X", entities_to_identify="ENT-Y"
+    )
+
+    assert "INFO-X" in prompt
+    assert "ENT-Y" in prompt
+    assert "{information_to_extract}" not in prompt

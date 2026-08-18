@@ -118,6 +118,40 @@ async def test_async_generate_raises_not_implemented_by_default():
         await provider.async_generate("hola")
 
 
+def test_count_prompt_tokens_default_flattens_messages():
+    provider = DummyProvider(tokenizer=WhitespaceTokenizer())
+
+    count = provider.count_prompt_tokens(
+        messages=[
+            {"role": "system", "content": "uno dos"},
+            {"role": "user", "content": "tres cuatro cinco"},
+        ]
+    )
+
+    assert count == 5
+
+
+def test_count_prompt_tokens_default_uses_prompt_when_no_messages():
+    provider = DummyProvider(tokenizer=WhitespaceTokenizer())
+
+    assert provider.count_prompt_tokens(prompt="uno dos tres") == 3
+
+
+def test_count_prompt_tokens_default_prompt_none_and_messages_none_is_empty():
+    provider = DummyProvider(tokenizer=WhitespaceTokenizer())
+
+    assert provider.count_prompt_tokens() == 0
+
+
+@pytest.mark.anyio
+async def test_acount_prompt_tokens_default_delegates_to_sync():
+    provider = DummyProvider(tokenizer=WhitespaceTokenizer())
+
+    count = await provider.acount_prompt_tokens(prompt="uno dos tres cuatro")
+
+    assert count == 4
+
+
 def test_close_is_a_no_op_by_default():
     provider = DummyProvider()
 

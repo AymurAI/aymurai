@@ -342,6 +342,26 @@ class AsyncLlamaCppProviderTests(unittest.IsolatedAsyncioTestCase):
             ServedModel(id="gemma-4-e4b", n_ctx=8192, capabilities=("completion",)),
         )
 
+    async def test_aresolve_served_model_is_memoized(self):
+        with patch.object(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1"):
+            provider = LlamaCppLLMProvider()
+
+        served = SimpleNamespace(id="m", model_extra={"meta": {"n_ctx": 8192}})
+
+        async def _page():
+            yield served
+
+        mock_client = MagicMock()
+        mock_client.models.list = AsyncMock(return_value=_page())
+        mock_client.get = AsyncMock(return_value={"models": []})
+
+        with patch(f"{MODULE}.AsyncOpenAI", return_value=mock_client):
+            first = await provider.aresolve_served_model()
+            second = await provider.aresolve_served_model()
+
+        self.assertIs(first, second)
+        mock_client.models.list.assert_awaited_once()
+
     async def test_resolve_served_model_reads_n_ctx_train(self):
         with patch.object(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1"):
             provider = LlamaCppLLMProvider()

@@ -246,6 +246,89 @@ async def build_context_budget(
     return budget
 
 
+def load_rolling_prompt(
+    *,
+    information_to_extract: str | None,
+    entities_to_identify: str | None,
+) -> str:
+    """
+    Load the rolling-pass system prompt.
+
+    Distinct from the first-pass prompt: this one instructs the model to
+    consolidate an existing partial summary with a new fragment rather than to
+    summarize a document from scratch.
+
+    Args:
+        information_to_extract: Template placeholder.
+        entities_to_identify: Template placeholder.
+
+    Raises:
+        HTTPException: If the template file is missing or unparseable.
+
+    Returns:
+        str: The formatted rolling system prompt.
+    """
+    try:
+        content = load_yaml(str(PROMPT_TEMPLATE_PATH))
+        template = content["system-prompts"]["rolling"]
+    except Exception as exc:
+        logger.exception("Error loading the rolling summarization prompt.")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load the rolling summarization prompt.",
+        ) from exc
+
+    return template.format(
+        information_to_extract=information_to_extract or DEFAULT_INFORMATION_TO_EXTRACT,
+        entities_to_identify=entities_to_identify or DEFAULT_ENTITIES_TO_IDENTIFY,
+    )
+
+
+async def prepare_run(
+    model: str | None,
+    *,
+    system_prompt: str,
+    rolling_system_prompt: str,
+    max_tokens: int,
+) -> tuple[LlamaCppLLMProvider, ContextBudget]:
+    """
+    Build a provider bound to the server's real model, and measure its budget.
+
+    `llama-server` ignores the request's `model` field and serves whatever it
+    was launched with, so the constructor's placeholder is replaced by the
+    server's own id — making the `model` we report and persist genuine
+    provenance instead of a constant.
+
+    Args:
+        model: Optional caller override. Inert on a single-model server, but
+            honoured if supplied.
+        system_prompt: First-pass system prompt.
+        rolling_system_prompt: Follow-up system prompt.
+        max_tokens: Output tokens reserved per generation.
+
+    Raises:
+        ContextTooSmallError: Propagated from `build_context_budget`.
+
+    Returns:
+        tuple[LlamaCppLLMProvider, ContextBudget]: The ready provider and its
+            measured budget. The caller owns closing the provider.
+    """
+    provider = LlamaCppLLMProvider(model=model, system_prompt=system_prompt)
+
+    budget = await build_context_budget(
+        provider,
+        system_prompt=system_prompt,
+        rolling_system_prompt=rolling_system_prompt,
+        max_tokens=max_tokens,
+    )
+
+    if not model:
+        served = await provider.aresolve_served_model()
+        provider.model_name = served.id
+
+    return provider, budget
+
+
 def _load_tokenizer(tokenizer_name: str | None) -> tiktoken.Encoding | None:
     """
     Load a tiktoken tokenizer by name.

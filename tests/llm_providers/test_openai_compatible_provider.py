@@ -324,6 +324,27 @@ class OpenAICompatibleProviderTests(unittest.TestCase):
 
         provider.close()  # must not raise
 
+    def test_count_prompt_tokens_includes_system_prompt(self):
+        provider = OpenAICompatibleLLMProvider(
+            model="local-model", system_prompt="Sistema completo"
+        )
+
+        with_system = provider.count_prompt_tokens(prompt="Hola mundo")
+        without_system = provider.count_tokens("Hola mundo")
+
+        # "Sistema completo" adds 2 whitespace-estimated tokens on top of the
+        # bare prompt estimate.
+        self.assertEqual(with_system, without_system + 2)
+
+    def test_count_prompt_tokens_flattens_explicit_messages(self):
+        provider = OpenAICompatibleLLMProvider(model="local-model")
+
+        count = provider.count_prompt_tokens(
+            messages=[{"role": "user", "content": "uno dos tres"}]
+        )
+
+        self.assertEqual(count, 3)
+
     def test_close_recreates_a_fresh_client_on_next_use(self):
         provider = OpenAICompatibleLLMProvider(model="local-model")
         mock_client = MagicMock()

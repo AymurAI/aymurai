@@ -88,6 +88,7 @@ class LlamaCppLLMProvider(OpenAICompatibleLLMProvider):
         )
         self._raw_client: httpx.Client | None = None
         self._raw_async_client: httpx.AsyncClient | None = None
+        self._served_model: ServedModel | None = None
 
     def close(self) -> None:
         """Release the cached OpenAI SDK client and the raw llama.cpp-endpoint client."""
@@ -266,12 +267,14 @@ class LlamaCppLLMProvider(OpenAICompatibleLLMProvider):
         return self._build_served_model(models, capabilities=self._fetch_capabilities())
 
     async def aresolve_served_model(self) -> ServedModel:
-        """Async counterpart of `resolve_served_model`."""
-        page = await self._get_async_client().models.list()
-        models = [model async for model in page]
-        return self._build_served_model(
-            models, capabilities=await self._afetch_capabilities()
-        )
+        """Async counterpart of `resolve_served_model`, memoized per instance."""
+        if self._served_model is None:
+            page = await self._get_async_client().models.list()
+            models = [model async for model in page]
+            self._served_model = self._build_served_model(
+                models, capabilities=await self._afetch_capabilities()
+            )
+        return self._served_model
 
     def _build_served_model(
         self, models: list[Any], *, capabilities: tuple[str, ...]
