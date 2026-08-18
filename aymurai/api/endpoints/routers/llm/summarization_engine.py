@@ -17,17 +17,16 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from aymurai.llm_providers import LLMProvider, get_llm_provider
+from aymurai.llm_providers.llamacpp_provider import (
+    TEMPLATE_OVERHEAD_TOKENS,
+    LlamaCppLLMProvider,
+)
 from aymurai.logger import get_logger
 from aymurai.settings import settings
 from aymurai.utils.yaml_data import load_yaml
 
 logger = get_logger(__name__)
 
-DEFAULT_TOKENIZER = settings.LLM_DEFAULT_TOKENIZER
-DEFAULT_OPTIONS = {
-    "num_ctx": settings.LLM_DEFAULT_NUM_CTX,
-    "num_predict": settings.LLM_DEFAULT_NUM_PREDICT,
-}
 PROMPT_TEMPLATE_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "summarization.yml"
 
 
@@ -76,7 +75,6 @@ class SummarizationConfig(BaseModel):
 
     model: str
     system_prompt: str
-    tokenizer: str | None = None
     options: dict[str, Any]
 
 
@@ -167,36 +165,128 @@ def _count_tokens(text: str, tokenizer: Any) -> int:
         return len(text.split())
 
 
-def _build_provider(
+async def _build_provider(
     model_name: str | None,
     *,
     tokenizer_name: str | None,
     system_prompt: str,
     context_limit: int,
-) -> LLMProvider:
+    options: dict[str, Any],
+) -> tuple[LLMProvider, int | None]:
     """
-    Build the configured LLM provider, adjusting available context for the system prompt.
+    Build the configured LLM provider and compute its effective context budget.
+
+    `context_limit` is the caller's *requested* `num_ctx` — for
+    `LlamaCppLLMProvider` this is capped at the server's actual configured
+    context window (`resolve_served_model().n_ctx`, falling back to
+    `n_ctx_train` if the server doesn't report `n_ctx`), since `llama-server`
+    fixes its context at launch and a request can't raise it. Ollama has no
+    equivalent server-fixed ceiling to discover (and, like llama.cpp, doesn't
+    receive `num_ctx` on the OpenAI-compatible request path either — see
+    `OpenAICompatibleLLMProvider._translate_options`), so no capping happens
+    there and no exact safety-net check is possible; `effective_ctx` is
+    `None` in that case.
+
+    From the (possibly capped) ceiling, this reserves the requested output
+    budget (`num_predict`), the system prompt's estimated tokens, and — for
+    llama.cpp — a fixed chat-template markup margin
+    (`TEMPLATE_OVERHEAD_TOKENS`). What's left becomes
+    `provider.max_context_tokens`, the budget `chunk_text` sizes chunks to.
 
     Args:
         model_name: Name of the model to use. None falls back to the
             configured provider's own default model.
         tokenizer_name: Tokenizer name to attempt loading.
         system_prompt: System prompt to set and budget for.
-        context_limit: Maximum number of context tokens.
+        context_limit: The request's `num_ctx` — an upper bound, not a
+            guarantee (see above).
+        options: Generation options; reads `num_predict`.
 
     Returns:
-        LLMProvider: Configured provider instance for the backend selected by
-            `settings.LLM_PROVIDER`.
+        tuple[LLMProvider, int | None]: The configured provider, and the
+            effective context ceiling used to derive its budget (`None` when
+            there's no server-fixed ceiling to check against). Callers use
+            the latter to run an exact pre-generation safety check via
+            `provider.acount_prompt_tokens`.
     """
     encoding = _load_tokenizer(tokenizer_name)
-    available_context = max(context_limit - _count_tokens(system_prompt, encoding), 1)
+    num_predict = int(options.get("num_predict", settings.LLM_DEFAULT_NUM_PREDICT))
 
-    return get_llm_provider(
+    provider = get_llm_provider(
         model=model_name,
         tokenizer=encoding,
         system_prompt=system_prompt,
-        max_context_tokens=available_context,
     )
+
+    effective_ctx: int | None = None
+    template_margin = 0
+
+    if isinstance(provider, LlamaCppLLMProvider):
+        effective_ctx = context_limit
+        template_margin = TEMPLATE_OVERHEAD_TOKENS
+        try:
+            served = await provider.aresolve_served_model()
+        except Exception:
+            logger.warning(
+                f"{provider.base_url}: could not resolve the served model to cap "
+                "num_ctx against the server's real context window — using the "
+                "requested value as-is.",
+                exc_info=True,
+            )
+        else:
+            server_ctx = served.n_ctx or served.n_ctx_train
+            if server_ctx:
+                effective_ctx = min(context_limit, server_ctx)
+
+    reserved_system = _count_tokens(system_prompt, encoding)
+    ctx_for_budget = effective_ctx if effective_ctx is not None else context_limit
+    provider.max_context_tokens = max(
+        ctx_for_budget - num_predict - reserved_system - template_margin, 1
+    )
+
+    return provider, effective_ctx
+
+
+async def _ensure_within_context(
+    provider: LLMProvider,
+    text: str,
+    *,
+    options: dict[str, Any],
+    effective_ctx: int | None,
+) -> str:
+    """
+    Verify a prompt's exact token count fits before generation, trimming further if not.
+
+    A no-op when `effective_ctx` is `None` (no server-fixed ceiling to check
+    against — see `_build_provider`). Otherwise this is the actual guarantee
+    that no request exceeds the effective context: `chunk_text`'s estimate-based
+    sizing already keeps this rare, but `count_prompt_tokens`/`acount_prompt_tokens`
+    can be exact (llama.cpp) where the chunking estimate can't be.
+
+    Args:
+        provider: The provider about to receive `text` as a prompt.
+        text: The prompt about to be sent.
+        options: Generation options forwarded to the model; reads `num_predict`.
+        effective_ctx: The effective context ceiling from `_build_provider`,
+            or `None`.
+
+    Returns:
+        str: `text` unchanged if it already fits, otherwise a trimmed version.
+    """
+    if effective_ctx is None:
+        return text
+
+    num_predict = int(options.get("num_predict", settings.LLM_DEFAULT_NUM_PREDICT))
+    prompt_tokens = await provider.acount_prompt_tokens(prompt=text)
+
+    if prompt_tokens + num_predict <= effective_ctx:
+        return text
+
+    logger.warning(
+        f"Prompt ({prompt_tokens} tokens) + reserved output ({num_predict}) "
+        f"exceeds the effective context ({effective_ctx}) — trimming further."
+    )
+    return _trim_to_context(provider, text)
 
 
 async def _summarize_once(
@@ -204,6 +294,7 @@ async def _summarize_once(
     *,
     text: str,
     options: dict[str, Any],
+    effective_ctx: int | None = None,
 ) -> str:
     """
     Run a single summarization call on the provider.
@@ -212,10 +303,15 @@ async def _summarize_once(
         provider: Initialized LLMProvider instance.
         text: Chunk or combined text to summarize.
         options: Provider options forwarded to the model.
+        effective_ctx: The effective context ceiling from `_build_provider`,
+            used for an exact pre-generation safety check. `None` skips it.
 
     Returns:
         str: The model's text output for the given input.
     """
+    text = await _ensure_within_context(
+        provider, text, options=options, effective_ctx=effective_ctx
+    )
     response = await provider.async_generate(prompt=text, options=options)
     return response.text
 
@@ -225,6 +321,7 @@ async def _rolling_summarize(
     *,
     text: str,
     options: dict[str, Any],
+    effective_ctx: int | None = None,
 ) -> tuple[str, list[SummarizationStep], int]:
     """
     Summarize potentially long text by chunking and rolling summaries forward.
@@ -233,6 +330,8 @@ async def _rolling_summarize(
         provider: Initialized LLMProvider instance.
         text: Full document text to summarize.
         options: Provider options forwarded to the model.
+        effective_ctx: The effective context ceiling from `_build_provider`,
+            forwarded to `_summarize_once`'s exact safety check. `None` skips it.
 
     Returns:
         tuple[str, list[SummarizationStep], int]: A tuple of (final_summary, steps_metadata, chunk_count).
@@ -242,7 +341,9 @@ async def _rolling_summarize(
         return "", [], 0
 
     steps = []
-    summary = await _summarize_once(provider, text=chunks[0].text, options=options)
+    summary = await _summarize_once(
+        provider, text=chunks[0].text, options=options, effective_ctx=effective_ctx
+    )
     steps.append(
         SummarizationStep(
             chunk_index=chunks[0].index,
@@ -263,6 +364,7 @@ async def _rolling_summarize(
                 provider,
                 text=chunk.text,
                 options=options,
+                effective_ctx=effective_ctx,
             )
             steps.append(
                 SummarizationStep(
@@ -297,6 +399,7 @@ async def _rolling_summarize(
             provider,
             text=combined_text,
             options=options,
+            effective_ctx=effective_ctx,
         )
         steps.append(
             SummarizationStep(

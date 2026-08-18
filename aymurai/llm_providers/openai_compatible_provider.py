@@ -15,6 +15,11 @@ logger = get_logger(__name__)
 # exact `TypeError` this translation exists to prevent.
 _OLLAMA_OPTION_TO_OPENAI_PARAM: dict[str, str] = {
     "num_predict": "max_tokens",
+    # Identity entry: `GenerationOptions` (summarization.py) is already
+    # OpenAI-native and dumps `max_tokens` directly. Without this, that key
+    # is absent from `_OLLAMA_OPTION_TO_OPENAI_PARAM` and gets silently
+    # dropped as "unrecognized", losing the caller's output-token budget.
+    "max_tokens": "max_tokens",
     "temperature": "temperature",
     "top_p": "top_p",
     "stop": "stop",
@@ -281,6 +286,34 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         payload.append({"role": "user", "content": prompt})
 
         return payload
+
+    def count_prompt_tokens(
+        self,
+        *,
+        prompt: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+    ) -> int:
+        """
+        Estimate the prompt token count, including the system prompt.
+
+        Still an estimate (`count_tokens` under the hood, no chat-template
+        accounting) — but better than the base default, which can't see
+        `system_prompt` at all. `LlamaCppLLMProvider` overrides this further
+        with an exact, template-aware count.
+
+        Args:
+            prompt (str | None): Single prompt string, mutually exclusive with
+                `messages`.
+            messages (list[dict[str, str]] | None): Pre-formatted chat
+                messages.
+
+        Returns:
+            int: The estimated prompt token count.
+        """
+        built = self._build_messages(prompt=prompt, messages=messages)
+        return self.count_tokens(
+            self._flatten_for_counting(messages=built, prompt=None)
+        )
 
     def _get_client(self) -> OpenAI:
         """

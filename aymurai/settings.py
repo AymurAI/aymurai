@@ -127,6 +127,7 @@ class Settings(BaseSettings):
     LLM_DEFAULT_TOKENIZER: str = "o200k_harmony"
     LLM_DEFAULT_NUM_CTX: int = 16_384
     LLM_DEFAULT_NUM_PREDICT: int = 4096
+    LLM_DEFAULT_MAX_TOKENS: int = 4096
 
     # Ollama Config. OLLAMA_HOST also matches the native `ollama` SDK's own
     # env var, so existing deployments that only set OLLAMA_HOST keep working.

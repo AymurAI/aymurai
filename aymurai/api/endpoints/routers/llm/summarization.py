@@ -11,12 +11,11 @@ from sqlmodel import Session
 from aymurai.api.endpoints.routers.llm.summarization_engine import (
     DEFAULT_ENTITIES_TO_IDENTIFY,
     DEFAULT_INFORMATION_TO_EXTRACT,
-    DEFAULT_OPTIONS,
-    DEFAULT_TOKENIZER,
     SummarizationConfig,
     SummarizationStep,
     _build_provider,
     _build_sse_message,
+    _ensure_within_context,
     _load_template_prompt,
     _rolling_summarize,
     _trim_to_context,
@@ -30,35 +29,54 @@ from aymurai.database.session import get_session
 from aymurai.database.utils import text_to_uuid
 from aymurai.llm_providers import LLMProvider
 from aymurai.logger import get_logger
+from aymurai.settings import settings
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
+class GenerationOptions(BaseModel):
+    """OpenAI-native chat-completion parameters forwarded to llama.cpp.
+
+    The context window is deliberately absent: it has no OpenAI equivalent and
+    is fixed when `llama-server` launches, so the server's own `n_ctx` is
+    authoritative (optionally capped by `settings.LLM_MAX_CONTEXT_TOKENS`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_tokens: int = Field(
+        default_factory=lambda: settings.LLM_DEFAULT_MAX_TOKENS,
+        gt=0,
+        description="Maximum tokens to generate. Must also cover reasoning "
+        "tokens when the server has thinking enabled.",
+    )
+    temperature: float | None = Field(default=None, ge=0.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    seed: int | None = None
+    stop: list[str] | None = None
+
+
 class SummarizationRequest(BaseModel):
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "text": "Texto de entrada a resumir.",
-                "tokenizer": DEFAULT_TOKENIZER,
-                "options": DEFAULT_OPTIONS,
+                "options": {"max_tokens": 4096},
             }
-        }
+        },
     )
 
     text: str = Field(..., description="Raw document to summarize.")
     model: str | None = Field(
         default=None,
         description=(
-            "Model name for the configured LLM_PROVIDER. Defaults to that "
-            "provider's own default model (OLLAMA_DEFAULT_MODEL / "
-            "LLAMACPP_DEFAULT_MODEL settings) when omitted."
+            "Optional model override. Inert on a single-model llama-server, "
+            "which ignores the field and serves whatever it was launched with; "
+            "when omitted the served model's own id is reported back."
         ),
-    )
-    tokenizer: str | None = Field(
-        default=DEFAULT_TOKENIZER,
-        description="Tokenizer name (tiktoken). Falls back to whitespace if unavailable.",
     )
     system_prompt: str | None = Field(
         default=None,
@@ -72,13 +90,7 @@ class SummarizationRequest(BaseModel):
         default=DEFAULT_ENTITIES_TO_IDENTIFY,
         description="Template variable entities_to_identify.",
     )
-    options: dict[str, Any] = Field(
-        default_factory=lambda: DEFAULT_OPTIONS.copy(),
-        description=(
-            "Ollama-style chat options, translated per-provider. Defaults to "
-            "num_ctx=16_384 and num_predict=4096."
-        ),
-    )
+    options: GenerationOptions = Field(default_factory=GenerationOptions)
 
 
 class SummarizationResponse(BaseModel):
@@ -141,7 +153,7 @@ async def summarize_document(
             Depends(get_session).
 
     Raises:
-        HTTPException: If the input text is empty or `num_ctx` is invalid.
+        HTTPException: If the input text is empty.
 
     Returns:
         SummarizationResponse: The summary, its document id and its config.
@@ -162,24 +174,14 @@ async def summarize_document(
         entities_to_identify=payload.entities_to_identify,
     )
     model_name = payload.model
-    options = {**DEFAULT_OPTIONS, **(payload.options or {})}
+    options = payload.options.model_dump(exclude_none=True)
 
-    try:
-        context_limit = int(options.get("num_ctx", DEFAULT_OPTIONS["num_ctx"]))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="num_ctx option must be an integer.",
-        ) from exc
-
-    if context_limit <= 0:
-        raise HTTPException(status_code=400, detail="num_ctx must be greater than 0.")
-
-    provider = _build_provider(
+    provider, effective_ctx = await _build_provider(
         model_name,
-        tokenizer_name=payload.tokenizer,
+        tokenizer_name=None,
         system_prompt=system_prompt,
-        context_limit=context_limit,
+        context_limit=settings.LLM_DEFAULT_NUM_CTX,
+        options=options,
     )
 
     try:
@@ -187,6 +189,7 @@ async def summarize_document(
             provider,
             text=payload.text,
             options=options,
+            effective_ctx=effective_ctx,
         )
     finally:
         await provider.aclose()
@@ -194,7 +197,6 @@ async def summarize_document(
     config = SummarizationConfig(
         model=provider.model_name,
         system_prompt=system_prompt,
-        tokenizer=payload.tokenizer,
         options=options,
     )
     record = summarization_create_or_update(
@@ -278,6 +280,7 @@ async def _stream_summary_events(
     document_id: uuid.UUID,
     cached_record: Summarization | None,
     session: Session,
+    effective_ctx: int | None = None,
 ) -> AsyncIterator[str]:
     """
     Yield SSE-formatted summarization events for a single request.
@@ -294,6 +297,8 @@ async def _stream_summary_events(
         document_id: The `text_to_uuid(payload.text)` identity for this request.
         cached_record: A stored summarization row, if `use_cache` found a hit.
         session: The database session used to persist a freshly generated summary.
+        effective_ctx: The effective context ceiling from `_build_provider`,
+            used for an exact pre-generation safety check. `None` skips it.
 
     Yields:
         AsyncIterator[str]: SSE `data: ...` messages (`meta`, `token`, `summary`).
@@ -345,8 +350,11 @@ async def _stream_summary_events(
             and summary
         ):
             chunk_summary = ""
+            chunk_prompt = await _ensure_within_context(
+                provider, chunk.text, options=options, effective_ctx=effective_ctx
+            )
             async for resp in provider.async_stream(
-                prompt=chunk.text,
+                prompt=chunk_prompt,
                 options=options,
             ):
                 token = resp.text
@@ -376,8 +384,11 @@ async def _stream_summary_events(
             combined_tokens = provider.count_tokens(combined_text)
 
         updated_summary = ""
+        combined_prompt = await _ensure_within_context(
+            provider, combined_text, options=options, effective_ctx=effective_ctx
+        )
         async for resp in provider.async_stream(
-            prompt=combined_text,
+            prompt=combined_prompt,
             options=options,
         ):
             token = resp.text
@@ -405,7 +416,6 @@ async def _stream_summary_events(
     config = SummarizationConfig(
         model=provider.model_name,
         system_prompt=system_prompt,
-        tokenizer=payload.tokenizer,
         options=options,
     )
     summarization_create_or_update(
@@ -458,7 +468,7 @@ async def stream_summarize_document(
             Depends(get_session).
 
     Raises:
-        HTTPException: If the input text is empty or `num_ctx` is invalid.
+        HTTPException: If the input text is empty.
 
     Returns:
         StreamingResponse: A text/event-stream of summarization progress events.
@@ -479,24 +489,14 @@ async def stream_summarize_document(
         entities_to_identify=payload.entities_to_identify,
     )
     model_name = payload.model
-    options = {**DEFAULT_OPTIONS, **(payload.options or {})}
+    options = payload.options.model_dump(exclude_none=True)
 
-    try:
-        context_limit = int(options.get("num_ctx", DEFAULT_OPTIONS["num_ctx"]))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="num_ctx option must be an integer.",
-        ) from exc
-
-    if context_limit <= 0:
-        raise HTTPException(status_code=400, detail="num_ctx must be greater than 0.")
-
-    provider = _build_provider(
+    provider, effective_ctx = await _build_provider(
         model_name,
-        tokenizer_name=payload.tokenizer,
+        tokenizer_name=None,
         system_prompt=system_prompt,
-        context_limit=context_limit,
+        context_limit=settings.LLM_DEFAULT_NUM_CTX,
+        options=options,
     )
 
     async def event_stream() -> AsyncIterator[str]:
@@ -509,6 +509,7 @@ async def stream_summarize_document(
                 document_id=document_id,
                 cached_record=cached_record,
                 session=session,
+                effective_ctx=effective_ctx,
             ):
                 yield message
         finally:

@@ -1,6 +1,8 @@
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from aymurai.llm_providers import LLMResponse
 
 
@@ -19,12 +21,12 @@ def test_summarize_rejects_empty_text(llm_test_client):
     assert response.status_code == 400
 
 
-def test_summarize_rejects_non_positive_num_ctx(llm_test_client):
+def test_summarize_rejects_non_positive_max_tokens(llm_test_client):
     response = llm_test_client.post(
         "/llm/summarize",
-        json={"text": "hola", "options": {"num_ctx": 0}},
+        json={"text": "hola", "options": {"max_tokens": 0}},
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_summarize_returns_summary_from_single_chunk(llm_test_client, monkeypatch):
@@ -65,15 +67,15 @@ def test_summarize_uses_requested_model_and_options(llm_test_client, monkeypatch
             json={
                 "text": "hola",
                 "model": "phi4:14b",
-                "options": {"num_ctx": 8192, "num_predict": 512},
+                "options": {"max_tokens": 512},
             },
         )
 
     assert response.status_code == 200
     assert response.json()["model"] == "phi4:14b"
-    assert response.json()["options"]["num_ctx"] == 8192
+    assert response.json()["options"]["max_tokens"] == 512
     _, kwargs = mock_generate.call_args
-    assert kwargs["options"]["num_predict"] == 512
+    assert kwargs["options"]["max_tokens"] == 512
 
 
 def test_summarize_stream_emits_meta_token_and_summary_events(
@@ -157,7 +159,7 @@ def test_summarize_persists_record_and_returns_document_id_and_config(
     assert body["document_id"] == str(document_id)
     assert body["summary"] == "Resumen persistido."
     assert body["config"]["model"] == "gpt-oss:20b"
-    assert body["config"]["options"]["num_ctx"] == 16384
+    assert body["config"]["options"]["max_tokens"] == 4096
     assert body["config"]["system_prompt"]
 
     with Session(llm_engine) as session:
@@ -455,34 +457,42 @@ def test_summarize_stream_use_cache_false_regenerates_and_clears_validation(
         assert record.config["model"] == "gpt-oss:20b"
 
 
-def test_build_provider_uses_the_configured_llm_provider(monkeypatch):
+@pytest.mark.anyio
+async def test_build_provider_uses_the_configured_llm_provider(monkeypatch):
     from aymurai.api.endpoints.routers.llm import summarization
     from aymurai.llm_providers import LlamaCppLLMProvider, OllamaLLMProvider
     from aymurai.settings import settings
 
     monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
-    ollama_provider = summarization._build_provider(
+    ollama_provider, ollama_effective_ctx = await summarization._build_provider(
         "llama3",
         tokenizer_name=None,
         system_prompt="Sistema",
         context_limit=4096,
+        options={"num_predict": 0},
     )
     assert isinstance(ollama_provider, OllamaLLMProvider)
     assert ollama_provider.model_name == "llama3"
     assert ollama_provider.system_prompt == "Sistema"
     assert ollama_provider.max_context_tokens == 4096 - len("Sistema".split())
+    # Ollama has no server-fixed context ceiling to discover.
+    assert ollama_effective_ctx is None
 
     monkeypatch.setattr(settings, "LLM_PROVIDER", "llamacpp")
     monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
-    llamacpp_provider = summarization._build_provider(
+    llamacpp_provider, llamacpp_effective_ctx = await summarization._build_provider(
         "llama3",
         tokenizer_name=None,
         system_prompt="Sistema",
         context_limit=4096,
+        options={"num_predict": 0},
     )
     assert isinstance(llamacpp_provider, LlamaCppLLMProvider)
     assert llamacpp_provider.base_url == "http://llamacpp:8080/v1"
     assert llamacpp_provider.system_prompt == "Sistema"
+    # aresolve_served_model() isn't mocked here, so it fails and falls back
+    # to the requested context_limit as-is (see _build_provider).
+    assert llamacpp_effective_ctx == 4096
 
 
 def test_summarize_end_to_end_under_llamacpp_default_provider(
@@ -506,9 +516,31 @@ def test_summarize_end_to_end_under_llamacpp_default_provider(
     mock_client.chat.completions.create = AsyncMock(return_value=completion)
     mock_client.close = AsyncMock()
 
-    with patch(
-        "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
-        return_value=mock_client,
+    # The exact preflight count (LlamaCppLLMProvider.acount_prompt_tokens) hits
+    # the raw httpx client, not the OpenAI SDK one — since Task 2 removed its
+    # fallback-to-estimate, that must be mocked too or the request 500s.
+    mock_raw_client = MagicMock()
+    mock_raw_client.post = AsyncMock(
+        side_effect=lambda url, **kwargs: SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: (
+                {"prompt": "<rendered>"}
+                if url == "/apply-template"
+                else {"tokens": [0, 1]}
+            ),
+        )
+    )
+    mock_raw_client.aclose = AsyncMock()
+
+    with (
+        patch(
+            "aymurai.llm_providers.openai_compatible_provider.AsyncOpenAI",
+            return_value=mock_client,
+        ),
+        patch(
+            "aymurai.llm_providers.llamacpp_provider.httpx.AsyncClient",
+            return_value=mock_raw_client,
+        ),
     ):
         response = llm_test_client.post(
             "/llm/summarize",
@@ -521,7 +553,7 @@ def test_summarize_end_to_end_under_llamacpp_default_provider(
     assert body["model"] == settings.LLAMACPP_DEFAULT_MODEL
     mock_client.close.assert_awaited_once()
     # The request body omitted `options`, so the router used its defaults.
-    assert body["options"] == {"num_ctx": 16_384, "num_predict": 4096}
+    assert body["options"] == {"max_tokens": 4096}
 
     mock_client.chat.completions.create.assert_awaited_once()
     _, kwargs = mock_client.chat.completions.create.call_args
@@ -592,6 +624,48 @@ def test_summarize_stream_closes_the_client_after_the_stream_completes(
 
     assert response.status_code == 200
     mock_client.close.assert_awaited_once()
+
+
+def test_summarize_rejects_unknown_option_keys(llm_test_client, monkeypatch):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    response = llm_test_client.post(
+        "/llm/summarize",
+        json={"text": "hola", "options": {"num_ctx": 8192}},
+    )
+
+    # `num_ctx` is Ollama vocabulary and no longer exists; extra="forbid".
+    assert response.status_code == 422
+
+
+def test_summarize_rejects_the_removed_tokenizer_field(llm_test_client, monkeypatch):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    response = llm_test_client.post(
+        "/llm/summarize",
+        json={"text": "hola", "tokenizer": "o200k_harmony"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_summarize_accepts_openai_native_options(llm_test_client, monkeypatch):
+    from aymurai.settings import settings
+
+    monkeypatch.setattr(settings, "LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    response = llm_test_client.post(
+        "/llm/summarize",
+        json={"text": "hola", "options": {"max_tokens": 256, "temperature": 0.0}},
+    )
+
+    # Reaches the provider (which is unreachable in tests) rather than 422-ing
+    # on the schema.
+    assert response.status_code != 422
 
 
 def test_summarize_fails_closed_when_llamacpp_base_url_unset(
