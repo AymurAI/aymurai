@@ -1,11 +1,3 @@
-"""Pure token-window slicing for document summarization.
-
-Consumes an already-tokenized piece list (from llama.cpp's `/tokenize` with
-`with_pieces=true`, whose pieces concatenate back to the source exactly) and
-yields one window at a time. Deliberately free of I/O so it can be unit-tested
-without a server or a mock.
-"""
-
 from __future__ import annotations
 
 import math
