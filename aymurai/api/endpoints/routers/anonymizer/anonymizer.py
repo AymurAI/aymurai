@@ -27,6 +27,7 @@ from aymurai.meta.api_interfaces import (
     DocumentAnnotations,
     DocumentInformation,
     LabelPolicy,
+    PromptLibrary,
     RenderPolicy,
     TextRequest,
 )
@@ -39,6 +40,8 @@ from aymurai.text.extraction import MIMETYPE_EXTENSION_MAPPER
 from aymurai.utils.entity_disambiguation import (
     build_canonical_entities,
     get_canonical_dates,
+    llm_canonical_entities_inference,
+    load_prompts_from_yaml,
     map_canonical_entities_ner_preds,
 )
 from aymurai.utils.misc import get_element
@@ -400,21 +403,42 @@ async def anonymizer_disambiguate(
             "List of per-paragraph predictions returned by /anonymizer/predict."
         ),
     ),
+    custom_prompts: PromptLibrary = Body(
+        default_factory=PromptLibrary,
+        description=(
+            "Optional per-label system/user prompt overrides for LLM refinement. "
+            "Falls back to resources/llm/entity_disambiguation.yml for any label "
+            "not present here."
+        ),
+    ),
     label_policies: dict[str, LabelPolicy] | None = Body(
         None,
         description=(
             "Optional per-label policy overrides for disambiguation/anonymization."
         ),
     ),
+    target_labels: list[str] | None = Query(
+        None,
+        description=(
+            "Optional label filter to opt a label into LLM refinement when it has "
+            "no explicit label_policies override (e.g. ?target_labels=PER). Has no "
+            "effect on a label whose policy already says fuzzy/llm/none explicitly. "
+            "Fuzzy clustering still runs across all detected labels regardless."
+        ),
+    ),
     session: Session = Depends(get_session),
 ) -> DocumentAnnotations:
     """
-    Performs canonical entity disambiguation using fuzzy matching.
+    Performs canonical entity disambiguation using fuzzy matching and, for
+    opted-in labels, LLM refinement.
 
     Args:
         paragraphs: A list of DocumentInformation objects containing the NER
             predictions per paragraph that need to be disambiguated.
+        custom_prompts: Optional per-label prompt overrides for LLM refinement.
         label_policies: Optional per-label disambiguation/anonymization policies.
+        target_labels: Optional label filter to opt into LLM refinement when no
+            explicit policy is set for that label.
         session: Database session dependency for caching results.
     Returns:
         DocumentAnnotations: The original annotations enriched with
@@ -429,6 +453,8 @@ async def anonymizer_disambiguate(
     effective_label_policies = _merge_label_policies(label_policies)
     logger.info("disambiguation labels: %d", len(labels))
 
+    prompt_library = load_prompts_from_yaml()
+
     all_detected_labels = {
         label.attrs.aymurai_label
         for label in labels
@@ -438,13 +464,34 @@ async def anonymizer_disambiguate(
         and effective_label_policies.get(label.attrs.aymurai_label).anonymize
     }
 
+    default_llm_labels = target_labels if target_labels else []
+
+    llm_labels: list[str] = []
     fuzzy_labels: set[str] = set()
 
     for label in all_detected_labels:
+        # An explicit request-level override always wins. `target_labels` only
+        # kicks in for a label the caller didn't explicitly set a policy for —
+        # the settings-level default (e.g. PER's default "fuzzy") doesn't count
+        # as an explicit override, so target_labels can still promote it to llm.
+        request_override = (label_policies or {}).get(label)
         policy = effective_label_policies.get(label)
-        if policy and policy.disambiguation == "fuzzy":
+
+        if request_override and request_override.disambiguation == "llm":
+            llm_labels.append(label)
             fuzzy_labels.add(label)
             continue
+        if request_override and request_override.disambiguation == "fuzzy":
+            fuzzy_labels.add(label)
+            continue
+        if request_override and request_override.disambiguation == "none":
+            continue
+
+        if label in default_llm_labels:
+            llm_labels.append(label)
+            fuzzy_labels.add(label)
+            continue
+
         if policy and policy.disambiguation == "none":
             continue
 
@@ -452,13 +499,16 @@ async def anonymizer_disambiguate(
 
     effective_disambiguation_by_label: dict[str, str] = {}
     for label in all_detected_labels:
-        if label in fuzzy_labels:
+        if label in llm_labels:
+            effective_disambiguation_by_label[label] = "llm"
+        elif label in fuzzy_labels:
             effective_disambiguation_by_label[label] = "fuzzy"
         else:
             effective_disambiguation_by_label[label] = "none"
     logger.info(
-        "disambiguation targets: detected=%s fuzzy=%s",
+        "disambiguation targets: detected=%s llm=%s fuzzy=%s",
         sorted(all_detected_labels),
+        llm_labels,
         sorted(fuzzy_labels),
     )
 
@@ -485,14 +535,72 @@ async def anonymizer_disambiguate(
         "fuzzy clustering produced %d canonical entities", len(canonical_entities)
     )
 
+    # --- LLM REFINEMENT (policy-driven) ---
+    canonical_entities_llm = []
+
+    for label in llm_labels:
+        logger.info("llm refinement: label=%s", label)
+        prompt_set = custom_prompts.get(label) or prompt_library.get(label)
+
+        if (
+            not prompt_set
+            or not prompt_set.system.strip()
+            or not prompt_set.user.strip()
+        ):
+            logger.info("llm refinement skipped: missing prompt for label=%s", label)
+            continue
+
+        entities_for_this_label = [
+            e for e in canonical_entities if e.aymurai_label == label
+        ]
+
+        if not entities_for_this_label:
+            logger.info("llm refinement skipped: no entities for label=%s", label)
+            continue
+        logger.info(
+            "llm refinement input: label=%s entities=%d",
+            label,
+            len(entities_for_this_label),
+        )
+
+        llm_response = llm_canonical_entities_inference(
+            paragraphs=paragraphs,
+            canonical_entities_pre_cluster=entities_for_this_label,
+            system_prompt=prompt_set.system,
+            user_prompt_template=prompt_set.user,
+            model=settings.MODEL,
+            context_window_length=settings.CONTEXT_WINDOW_LENGTH,
+            model_context=settings.MODEL_CONTEXT,
+            token_limit_frac=settings.TOKEN_LIMIT_FRAC,
+            tokenizer_model=settings.TOKENIZER_MODEL,
+            target_label=label,
+            temperature=settings.TEMPERATURE,
+            decompose_by=settings.DECOMPOSE_BY,
+        )
+
+        if llm_response:
+            canonical_entities_llm.extend(llm_response)
+            logger.info(
+                "llm refinement output: label=%s entities=%d",
+                label,
+                len(llm_response),
+            )
+
+    canonical_entities_merged = canonical_entities_llm + [
+        ce for ce in canonical_entities if ce.aymurai_label not in set(llm_labels)
+    ]
+
     logger.info(
-        "disambiguation merge: total=%d",
-        len(canonical_entities),
+        "disambiguation merge: llm=%d fuzzy_only=%d total=%d",
+        len(canonical_entities_llm),
+        len(canonical_entities_merged) - len(canonical_entities_llm),
+        len(canonical_entities_merged),
     )
 
     predictions = map_canonical_entities_ner_preds(
         predictions=paragraphs,
-        canonical_entities=canonical_entities,
+        canonical_entities=canonical_entities_merged,
+        force_labels=set(llm_labels),
     )
 
     for document in predictions:

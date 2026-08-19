@@ -45,8 +45,8 @@ def test_should_run_anonymizer_flow_end_to_end(
     mock_load_pipeline.return_value = build_mock_pipeline()
     mock_build_canonical_entities.return_value = []
     mock_get_canonical_dates.return_value = []
-    mock_map_canonical_entities.side_effect = lambda predictions, canonical_entities: (
-        predictions
+    mock_map_canonical_entities.side_effect = (
+        lambda predictions, canonical_entities, **kwargs: predictions
     )
 
     anonymized_path = str(tmp_path / "output.docx")

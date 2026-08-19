@@ -49,3 +49,16 @@ def load_json(json_file_path: str) -> dict | list[dict]:
     with open(json_file_path, "r") as f:
         content = json.loads(f.read())
         return content
+
+
+def get_pretty(data: dict | list) -> str:
+    """
+    Renders a JSON-serializable object as an indented, human-readable string.
+
+    Args:
+        data (dict | list): The data to render.
+
+    Returns:
+        str: The indented JSON string representation.
+    """
+    return json.dumps(data, indent=2, ensure_ascii=False, default=json_serial)

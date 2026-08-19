@@ -82,3 +82,25 @@ def test_transcribe_base_url_reads_from_env(monkeypatch):
     from aymurai.settings import Settings
 
     assert Settings().TRANSCRIBE_BASE_URL == "http://coro:8000/v1"
+
+
+def test_disambiguation_llm_settings_have_expected_defaults(monkeypatch):
+    for var in (
+        "MODEL",
+        "MODEL_CONTEXT",
+        "TEMPERATURE",
+        "CONTEXT_WINDOW_LENGTH",
+        "TOKEN_LIMIT_FRAC",
+        "TOKENIZER_MODEL",
+        "DECOMPOSE_BY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    fresh = Settings()
+    assert fresh.MODEL == "phi4:14b"
+    assert fresh.MODEL_CONTEXT == 9500
+    assert fresh.TEMPERATURE == 0.0
+    assert fresh.CONTEXT_WINDOW_LENGTH == 120
+    assert fresh.TOKEN_LIMIT_FRAC == pytest.approx(2 / 3)
+    assert fresh.TOKENIZER_MODEL == "microsoft/phi-4"
+    assert fresh.DECOMPOSE_BY is None
