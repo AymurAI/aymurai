@@ -38,6 +38,11 @@ import {
   stripEntityLabelSuffix,
 } from "@/utils/anonymizer/entity-similarity";
 import { findNormalizedOccurrenceRanges } from "@/utils/anonymizer/occurrences";
+import {
+  findOverlapConflict,
+  hasInternalOverlap,
+  rangesOverlap,
+} from "@/utils/anonymizer/prediction-overlaps";
 import { filterActivePredictions } from "@/utils/anonymizer/predictions";
 import { Check, WarningCircle } from "phosphor-react";
 import {
@@ -150,35 +155,6 @@ function compareAppearance(
     return a.paragraphIndex - b.paragraphIndex;
   }
   return a.start_char - b.start_char;
-}
-
-function rangesOverlap(
-  a: { start_char: number; end_char: number },
-  b: { start_char: number; end_char: number },
-) {
-  return a.start_char < b.end_char && b.start_char < a.end_char;
-}
-
-function hasInternalOverlap(predictions: PredictLabel[]) {
-  const byParagraph = new Map<string, PredictLabel[]>();
-  for (const prediction of predictions) {
-    const paragraphPredictions = byParagraph.get(prediction.paragraphId) ?? [];
-    paragraphPredictions.push(prediction);
-    byParagraph.set(prediction.paragraphId, paragraphPredictions);
-  }
-
-  for (const paragraphPredictions of byParagraph.values()) {
-    const sorted = [...paragraphPredictions].sort(
-      (a, b) => a.start_char - b.start_char,
-    );
-    for (let i = 1; i < sorted.length; i += 1) {
-      const previous = sorted[i - 1];
-      const current = sorted[i];
-      if (previous && current && rangesOverlap(previous, current)) return true;
-    }
-  }
-
-  return false;
 }
 
 export default function AnnotationProvider({
@@ -348,14 +324,16 @@ export default function AnnotationProvider({
         return;
       }
 
-      const overlappingPrediction = predictions.find((prediction) =>
-        (activePredictionsByParagraph.get(prediction.paragraphId) ?? []).some(
-          (activePrediction) => rangesOverlap(prediction, activePrediction),
-        ),
+      // Check against ALL predictions (also the ones hidden by excluded tags
+      // or terms): a latent overlap would block the export later with no
+      // visible counterpart in the document view.
+      const overlapConflict = findOverlapConflict(
+        file.predictions ?? [],
+        predictions,
       );
-      if (overlappingPrediction) {
+      if (overlapConflict) {
         showToast(
-          "La selección se solapa con una entidad activa. Eliminá o editá la entidad existente antes de crear otra.",
+          "La selección se solapa con una entidad existente (puede estar oculta por una categoría o término excluido). Eliminá o editá la entidad existente antes de crear otra.",
           "error",
           WarningCircle,
         );
@@ -406,7 +384,7 @@ export default function AnnotationProvider({
         selectedLabel: baseLabel,
       });
     },
-    [activePredictionsByParagraph, commitNewGroup, groups, tags, words],
+    [commitNewGroup, file.predictions, groups, tags, words],
   );
 
   const add = useCallback(

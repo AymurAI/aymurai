@@ -20,7 +20,11 @@ from aymurai.settings import Settings
 from aymurai.text.anonymization import DocxAnonymizer, PdfAnonymizer, get_anonymizer
 from aymurai.text.anonymization.alignment import index_paragraphs
 from aymurai.text.anonymization.pdf.images import _is_page_background_image
-from aymurai.text.anonymization.pdf.ops import _refine_signature_text_rect
+from aymurai.text.anonymization.pdf.ops import (
+    _collect_page_redactions,
+    _refine_signature_text_rect,
+)
+from aymurai.text.anonymization.pdf.redactions import _apply_redactions
 from aymurai.text.anonymization.pdf.widgets import _signature_background_rect
 from tests.api.conftest import build_label
 from tests.api.routers.conftest import build_mock_pipeline
@@ -839,6 +843,178 @@ def test_pdf_anonymizer_preserves_non_signature_widget_appearance_when_baking(
         assert "Visible Field Value" in page_text
         assert "Ana Perez" not in page_text
         assert "<PER>" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_footnote_text_overlapped_by_foreign_text_widget(
+    tmp_path,
+):
+    # GEDO-style PDFs place an oversized invisible footer form field over the
+    # footnote area; footnote entities must still be redacted as page text.
+    document = "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010."
+
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        page.insert_text((72, 770), document, fontsize=10)
+
+        footer_widget = pymupdf.Widget()
+        footer_widget.field_name = "Numero_1"
+        footer_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        footer_widget.field_value = "IF-2026-19469434"
+        footer_widget.text_font = "Helv"
+        footer_widget.text_fontsize = 10
+        footer_widget.rect = pymupdf.Rect(250, 764, 580, 800)
+        page.add_widget(footer_widget)
+
+    source_path = _write_pdf(tmp_path / "footnote-widget.pdf", configure)
+    labels = [_label_for_document_text(document, "Tomo:182 Folio:010")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182 Folio:010" not in page_text
+    assert "IF-2026-19469434" in page_text
+    assert "Contador Publico Nacional" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_spanning_multiple_text_widgets(tmp_path):
+    # GEDO-style signature blocks store the signer name and role in stacked
+    # AcroForm text fields; an entity spanning both fields must clear the
+    # sensitive field values.
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        name_widget = pymupdf.Widget()
+        name_widget.field_name = "usuario_0"
+        name_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        name_widget.field_value = "Monica Freda"
+        name_widget.text_font = "Helv"
+        name_widget.text_fontsize = 9
+        name_widget.rect = pymupdf.Rect(36, 358, 286, 369)
+        page.add_widget(name_widget)
+
+        role_widget = pymupdf.Widget()
+        role_widget.field_name = "cargo_0"
+        role_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        role_widget.field_value = "Sindico General"
+        role_widget.text_font = "Helv"
+        role_widget.text_fontsize = 9
+        role_widget.rect = pymupdf.Rect(36, 368, 286, 379)
+        page.add_widget(role_widget)
+
+    source_path = _write_pdf(tmp_path / "signature-block-widgets.pdf", configure)
+    document = "Monica Freda Sindico General"
+    labels = [_label_for_document_text(document, "Monica Freda Sindico")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Monica Freda" not in page_text
+    assert "General" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_when_extraction_added_spurious_space(tmp_path):
+    # Text extraction sometimes inserts a space that is absent from the real
+    # PDF glyph stream (e.g. "SGC BA" for "SGCBA"); the label must still map.
+    page_line = "Numero: IF-2026-19469434-GCABA-SGCBA"
+    source_path = _write_pdf(
+        tmp_path / "spurious-space.pdf",
+        lambda _doc, page: page.insert_text((72, 72), page_line),
+    )
+    document = "Numero: IF-2026-19469434-GCABA-SGC BA"
+    labels = [
+        _label_for_document_text(
+            document,
+            "IF-2026-19469434-GCABA-SGC BA",
+            label="NUM_EXPEDIENTE",
+        )
+    ]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "IF-2026-19469434-GCABA-SGCBA" not in page_text
+    assert "Numero:" in page_text
+
+
+@pytest.mark.integration
+def test_pdf_redactions_cover_wrapped_tail_declared_inside_one_layout_line(tmp_path):
+    # The layout parser sometimes reports a wrapped footnote as one logical
+    # line whose char range includes the tail rendered on the next physical
+    # line (the tail is then duplicated as a second line entry). The redaction
+    # must still cover the wrapped tail glyphs.
+    line1 = (
+        "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010. "
+        "Estudio: Price Waterhouse & Co."
+    )
+    tail = "S.R.L."
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 760), line1, fontsize=8)
+    page.insert_text((72, 772), tail, fontsize=8)
+
+    rect1 = page.search_for(line1)[0]
+    rect2 = page.search_for(tail)[0]
+    document = f"{line1} {tail}"
+    entity = "Tomo:182 Folio:010. Estudio: Price Waterhouse & Co. S.R.L"
+    label = _label_for_document_text(document, entity, label="TEXTO_ANONIMIZAR")
+
+    def line_entry(index: int, rect, start: int, end: int, text: str) -> dict:
+        return {
+            "page_index": 0,
+            "box_index": 0,
+            "line_index": index,
+            "bbox": tuple(rect),
+            "font_size": 8.0,
+            "start": start,
+            "end": end,
+            "text": text,
+            "style": None,
+            "spans_detail": [],
+            "strip_offset": 0,
+        }
+
+    box_bbox = pymupdf.Rect(rect1)
+    box_bbox.include_rect(rect2)
+    paragraph = {
+        "document": document,
+        "labels": [label],
+        "metadata": {
+            "page_index": 0,
+            "page_number": 1,
+            "box_index": 0,
+            "box_bbox": tuple(box_bbox),
+            "line_text": f"{document}\n{tail}",
+            "lines": [
+                line_entry(0, rect1, 0, len(document), document),
+                line_entry(
+                    1, rect2, len(document) + 1, len(document) + 1 + len(tail), tail
+                ),
+            ],
+        },
+    }
+
+    page_ops, widget_ops, signature_ops = _collect_page_redactions(
+        doc, [paragraph], None
+    )
+    _apply_redactions(doc, page_ops, widget_ops, signature_ops)
+    output_path = tmp_path / "wrapped-tail.pdf"
+    doc.save(output_path)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182" not in page_text
+    assert "S.R.L" not in page_text
+    assert "Contador Publico Nacional" in page_text
 
 
 @pytest.mark.integration
