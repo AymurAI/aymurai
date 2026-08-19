@@ -29,3 +29,15 @@ from .meta.anonymization.document import (
 from .meta.datapublic.document_paragraph import (
     DataPublicDocumentParagraph,
 )
+from .meta.audio_transcription import (
+    AudioTranscription,
+    AudioTranscriptionRead,
+    AudioTranscriptionCreate,
+    AudioTranscriptionUpdate,
+)
+from .meta.summarization import (
+    Summarization,
+    SummarizationRead,
+    SummarizationCreate,
+    SummarizationUpdate,
+)

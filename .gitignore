@@ -129,7 +129,6 @@ resources
 
 aymurai/version.py
 
-.agents
 .opencode.json
 .sisyphus
 notebooks/**
@@ -141,8 +140,11 @@ frontend-dist/
 
 # pnpm local package store
 .pnpm-store/
+
 !.env.schema
 .tmp/
 .scratch/
 .worktrees/
 .journals/
+.superpowers/
+docs/superpowers/

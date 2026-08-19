@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # Alembic Config for running migrations
     ALEMBIC_INI_PATH: FilePath = PARENT / "alembic.ini"
 
+    # API server bind address (used by the `aymurai-api` console entrypoint)
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8899
+
     ENV: str | None = None
 
     # In-memory pipeline cache (see aymurai.api.utils.mem_cache). There are
@@ -110,6 +114,22 @@ class Settings(BaseSettings):
         default="frontend-dist",
         validation_alias=AliasChoices("AYMURAI_FRONTEND_DIST_DIR", "FRONTEND_DIST_DIR"),
     )
+
+    # ASR Config (coro — OpenAI-compatible server)
+    TRANSCRIBE_BASE_URL: str | None = None
+    TRANSCRIBE_API_KEY: str = "not-needed"
+
+    # LLM generation defaults (consumed by /llm/summarize)
+    LLM_DEFAULT_MAX_TOKENS: int = 4096
+    LLM_CHUNK_OVERLAP_TOKENS: int = 128
+    # Optional cap on the server's own context window. None = use the server's
+    # n_ctx as-is; the request cannot raise it, since llama-server fixes the
+    # window at launch (-c).
+    LLM_MAX_CONTEXT_TOKENS: int | None = None
+
+    # llama.cpp Config (llama-server — OpenAI-compatible server)
+    LLAMACPP_BASE_URL: str | None = None
+    LLAMACPP_API_KEY: str = "not-needed"
 
 
 load_env()

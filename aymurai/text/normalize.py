@@ -1,10 +1,23 @@
 import re
 import unicodedata
 
+# Zero-width characters that flair.data.Sentence silently deletes before
+# tokenizing (flair 0.15.1, Sentence.__remove_zero_width_characters):
+# ZERO WIDTH SPACE, ZERO WIDTH NON-JOINER, VARIATION SELECTOR-16,
+# ZERO WIDTH NO-BREAK SPACE (BOM). The predict pipeline strips these
+# (FlairTextNormalize), so extracted text must strip them too or every
+# label offset after such a character is shifted relative to the text the
+# frontend stores and validates against.
+ZERO_WIDTH_CHARS_PATTERN = r"[\u200b\u200c\ufe0f\ufeff]"
+
 
 def _normalize_document_characters(text: str) -> str:
     """
     Apply character-level normalization without changing document structure.
+
+    Keeps paragraph text aligned with the predict pipeline normalization
+    (FlairTextNormalize): zero-width chars removed, tabs mapped to spaces,
+    space runs collapsed.
 
     Args:
         text (str): Raw extracted document text.
@@ -14,9 +27,11 @@ def _normalize_document_characters(text: str) -> str:
     """
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = unicodedata.normalize("NFKC", text)
+    text = re.sub(ZERO_WIDTH_CHARS_PATTERN, "", text)
     text = re.sub(r"(“|”)", '"', text)
     text = text.replace("\\/", "/")
-    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = text.replace("\t", " ")
+    text = re.sub(r" {2,}", " ", text)
     return text
 
 
