@@ -8,6 +8,9 @@ API_SERVICE ?= aymurai-api
 # Select which full API service to control (override with API_FULL_SERVICE=aymurai-api-full-gpu)
 API_FULL_SERVICE ?= aymurai-api-full
 
+# Select which coro (ASR) service to control (override with CORO_SERVICE=coro-gpu)
+CORO_SERVICE ?= coro
+
 
 api-build:
 	docker compose build $(API_SERVICE)
@@ -34,6 +37,19 @@ api-full-logs:
 	docker compose logs -f $(API_FULL_SERVICE)
 api-full-pull:
 	docker compose pull $(API_FULL_SERVICE)
+
+coro-build:
+	docker compose build $(CORO_SERVICE)
+coro-run:
+	docker compose --profile asr run --service-ports $(CORO_SERVICE)
+coro-up:
+	docker compose --profile asr up -d $(CORO_SERVICE)
+coro-stop:
+	docker compose stop $(CORO_SERVICE)
+coro-logs:
+	docker compose logs -f $(CORO_SERVICE)
+coro-pull:
+	docker compose pull $(CORO_SERVICE)
 
 stress-test:
 	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899

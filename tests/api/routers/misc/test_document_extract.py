@@ -1,6 +1,7 @@
 import concurrent.futures
 import io
 import sys
+import zipfile
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +18,27 @@ def _build_docx_bytes(paragraphs: list[str]) -> bytes:
 
     stream = io.BytesIO()
     document.save(stream)
+    return stream.getvalue()
+
+
+def _build_docx_with_page_count(page_count: int) -> bytes:
+    """Build a minimal DOCX-shaped archive with cached page metadata."""
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body/></w:document>',
+        )
+        archive.writestr(
+            "docProps/app.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Properties xmlns="http://schemas.openxmlformats.org/'
+            'officeDocument/2006/extended-properties">'
+            f"<Pages>{page_count}</Pages>"
+            "</Properties>",
+        )
     return stream.getvalue()
 
 
@@ -309,6 +331,11 @@ def test_should_return_500_when_extraction_fails(mock_extraction, client):
     assert response.status_code == 500
 
 
+DOCX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
+
 @pytest.mark.integration
 @patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
 def test_should_strip_zero_width_chars_so_predict_offsets_match(
@@ -351,6 +378,51 @@ def test_should_strip_zero_width_chars_so_predict_offsets_match(
 
 
 @pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_when_uploading_sample_docx(mock_extraction, client):
+    """Test that a DOCX upload reports its cached page count."""
+    mock_extraction.return_value = "Para 1\nPara 2"
+
+    file_content = _build_docx_with_page_count(19)
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] == 19
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_null_page_count_when_metadata_unreadable(
+    mock_extraction, client
+):
+    """Test that unreadable metadata yields page_count null with HTTP 200."""
+    mock_extraction.return_value = "Para 1"
+
+    files = {"file": ("test.docx", b"not a zip archive at all", DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] is None
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_via_misc_prefix(mock_extraction, client):
+    """Test that /misc/document-extract also reports page_count."""
+    mock_extraction.return_value = "Para 1"
+
+    file_content = _build_docx_with_page_count(19)
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/misc/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 19
+
+
+@pytest.mark.integration
 @pytest.mark.slow
 def test_repro_docx_paragraphs_are_fixed_points_of_predict_normalization(client):
     """Same contract as above, without mocking: a synthetic DOCX whose raw
@@ -390,3 +462,25 @@ def test_repro_docx_paragraphs_are_fixed_points_of_predict_normalization(client)
         f"{len(misaligned)} extracted paragraph(s) are not aligned with the "
         f"predict pipeline normalization; first: {misaligned[0]!r}"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_should_return_page_count_for_generated_pdf(client):
+    """Test that a generated 3-page PDF reports page_count 3."""
+    import pymupdf
+
+    pdf_document = pymupdf.open()
+    try:
+        for index in range(3):
+            page = pdf_document.new_page()  # type: ignore[attr-defined]
+            page.insert_text((72, 72), f"page {index + 1}")
+        file_content = pdf_document.tobytes()
+    finally:
+        pdf_document.close()
+
+    files = {"file": ("sample.pdf", file_content, "application/pdf")}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 3

@@ -264,9 +264,7 @@ def _build_render_context(
     for p_idx, paragraph in enumerate(annotations):
         for label in paragraph.labels or []:
             label_policy = label_policies.get(
-                label.attrs.aymurai_label
-                if label.attrs and label.attrs.aymurai_label
-                else None,
+                label.attrs.aymurai_label if label.attrs else "",
                 LabelPolicy(),
             )
             base = _resolve_token_base(label, label_policy)

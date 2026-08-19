@@ -144,3 +144,36 @@ def extract_document(
             raise
         logger.warning("Skipping (unexpected): %s (%s)", filename, exc)
         return None
+
+
+def get_page_count(path: str) -> int | None:
+    """
+    Read the number of pages of a document without extracting its text.
+
+    Unlike :func:`extract_document`, this function never raises. Any failure —
+    unsupported extension, missing file, corrupt archive, absent metadata —
+    resolves to None and logs a warning. The asymmetry is intentional: text is
+    the reason the caller exists, the page count is a nicety and must never
+    fail the request.
+
+    Args:
+        path (str): Document path.
+
+    Returns:
+        int | None: Number of pages, or None when unavailable.
+    """
+    filename = str(path)
+
+    try:
+        ext = get_extension(filename)
+
+        if ext not in SUPPORTED_EXTENSIONS:
+            logger.warning("Skipping page count (unsupported %s): %s", ext, filename)
+            return None
+
+        extractor = get_extractor(ext)
+        return extractor.page_count(Path(filename))
+
+    except Exception as exc:  # noqa: BLE001 - page count must never raise
+        logger.warning("Cannot read page count from '%s': %s", filename, exc)
+        return None

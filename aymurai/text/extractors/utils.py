@@ -20,6 +20,10 @@ logger = get_logger(__file__)
 
 ODT_NS = {"text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0"}
 PDF_SKIP_BOX_CLASSES = frozenset({"picture", "formula", "table"})
+DOCX_EXTENDED_PROPERTIES_NS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+)
+ODT_META_NS = "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
 
 
 def normalize_text(text: str) -> str:
@@ -278,3 +282,79 @@ def odt_to_text(path: Path) -> str:
         if child.tag in (_odt_qn("text:p"), _odt_qn("text:h")):
             lines.append(_odt_text_to_string(child))
     return "\n".join(lines)
+
+
+def get_pdf_page_count(path: Path) -> int:
+    """
+    Read the number of pages of a PDF document.
+
+    Args:
+        path (Path): PDF document path.
+
+    Returns:
+        int: Number of pages reported by the PDF.
+    """
+    with pymupdf.open(str(path)) as doc:
+        return doc.page_count
+
+
+def get_docx_page_count(path: Path) -> int | None:
+    """
+    Read the cached page count of a DOCX document.
+
+    DOCX has no intrinsic pagination: the value comes from ``docProps/app.xml``
+    and is written by whichever application last saved the file.
+
+    Args:
+        path (Path): DOCX archive path.
+
+    Returns:
+        int | None: Number of pages, or None when the archive carries no
+            ``docProps/app.xml`` or no ``<Pages>`` element.
+    """
+    with zipfile.ZipFile(path, "r") as archive:
+        if "docProps/app.xml" not in archive.namelist():
+            return None
+        app_xml = archive.read("docProps/app.xml")
+
+    root = ET.fromstring(app_xml)
+    pages = root.find(f"{{{DOCX_EXTENDED_PROPERTIES_NS}}}Pages")
+    if pages is None:
+        return None
+
+    value = (pages.text or "").strip()
+    if not value:
+        return None
+
+    return int(value)
+
+
+def get_odt_page_count(path: Path) -> int | None:
+    """
+    Read the cached page count of an ODT document.
+
+    ODT has no intrinsic pagination: the value comes from ``meta.xml`` and is
+    written by whichever application last saved the file.
+
+    Args:
+        path (Path): ODT archive path.
+
+    Returns:
+        int | None: Number of pages, or None when the archive carries no
+            ``meta.xml`` or no ``meta:document-statistic`` page count.
+    """
+    with zipfile.ZipFile(path, "r") as archive:
+        if "meta.xml" not in archive.namelist():
+            return None
+        meta_xml = archive.read("meta.xml")
+
+    root = ET.fromstring(meta_xml)
+    statistic = root.find(f".//{{{ODT_META_NS}}}document-statistic")
+    if statistic is None:
+        return None
+
+    value = statistic.get(f"{{{ODT_META_NS}}}page-count")
+    if value is None or not value.strip():
+        return None
+
+    return int(value.strip())
