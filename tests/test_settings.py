@@ -82,3 +82,45 @@ def test_transcribe_base_url_reads_from_env(monkeypatch):
     from aymurai.settings import Settings
 
     assert Settings().TRANSCRIBE_BASE_URL == "http://coro:8000/v1"
+
+
+def test_llamacpp_base_url_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("LLAMACPP_BASE_URL", raising=False)
+
+    assert Settings().LLAMACPP_BASE_URL is None
+
+
+def test_llamacpp_base_url_reads_from_env(monkeypatch):
+    monkeypatch.setenv("LLAMACPP_BASE_URL", "http://llamacpp:8080/v1")
+
+    assert Settings().LLAMACPP_BASE_URL == "http://llamacpp:8080/v1"
+
+
+def test_llamacpp_api_key_defaults_to_not_needed(monkeypatch):
+    monkeypatch.delenv("LLAMACPP_API_KEY", raising=False)
+
+    assert Settings().LLAMACPP_API_KEY == "not-needed"
+
+
+def test_llm_max_context_tokens_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("LLM_MAX_CONTEXT_TOKENS", raising=False)
+
+    assert Settings().LLM_MAX_CONTEXT_TOKENS is None
+
+
+def test_llm_max_context_tokens_reads_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_MAX_CONTEXT_TOKENS", "8192")
+
+    assert Settings().LLM_MAX_CONTEXT_TOKENS == 8192
+
+
+def test_llm_default_max_tokens_defaults_to_4096(monkeypatch):
+    monkeypatch.delenv("LLM_DEFAULT_MAX_TOKENS", raising=False)
+
+    assert Settings().LLM_DEFAULT_MAX_TOKENS == 4096
+
+
+def test_llm_chunk_overlap_tokens_defaults_to_128(monkeypatch):
+    monkeypatch.delenv("LLM_CHUNK_OVERLAP_TOKENS", raising=False)
+
+    assert Settings().LLM_CHUNK_OVERLAP_TOKENS == 128

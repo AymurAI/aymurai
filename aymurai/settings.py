@@ -119,6 +119,18 @@ class Settings(BaseSettings):
     TRANSCRIBE_BASE_URL: str | None = None
     TRANSCRIBE_API_KEY: str = "not-needed"
 
+    # LLM generation defaults (consumed by /llm/summarize)
+    LLM_DEFAULT_MAX_TOKENS: int = 4096
+    LLM_CHUNK_OVERLAP_TOKENS: int = 128
+    # Optional cap on the server's own context window. None = use the server's
+    # n_ctx as-is; the request cannot raise it, since llama-server fixes the
+    # window at launch (-c).
+    LLM_MAX_CONTEXT_TOKENS: int | None = None
+
+    # llama.cpp Config (llama-server — OpenAI-compatible server)
+    LLAMACPP_BASE_URL: str | None = None
+    LLAMACPP_API_KEY: str = "not-needed"
+
 
 load_env()
 settings = Settings()

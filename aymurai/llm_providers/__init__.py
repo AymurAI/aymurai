@@ -1,9 +1,17 @@
-from aymurai.llm_providers.ollama_provider import OllamaLLMProvider
-from aymurai.llm_providers.provider import DocumentChunk, LLMProvider, LLMResponse
+from aymurai.llm_providers.llamacpp_provider import (
+    UNRESOLVED_MODEL,
+    LlamaCppLLMProvider,
+    ServedModel,
+)
+from aymurai.llm_providers.openai_compatible_provider import (
+    LLMResponse,
+    OpenAICompatibleLLMProvider,
+)
 
 __all__ = [
-    "DocumentChunk",
-    "LLMProvider",
     "LLMResponse",
-    "OllamaLLMProvider",
+    "LlamaCppLLMProvider",
+    "OpenAICompatibleLLMProvider",
+    "ServedModel",
+    "UNRESOLVED_MODEL",
 ]

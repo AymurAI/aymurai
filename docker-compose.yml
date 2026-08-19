@@ -29,12 +29,22 @@ x-api-full: &api-full
                 memory: 4g
                 cpus: "4.0"
 
-x-ollama: &ollama-base
-    image: ollama/ollama
+x-llamacpp: &llamacpp-base
+    image: ghcr.io/ggml-org/llama.cpp:server
     ports:
-        - "11434:11434"
+        - "8080:8080"
     volumes:
-        - ollama:/root/.ollama
+        - ${LLAMACPP_MODELS_DIR:-~/.llama.cpp/models}:/models:ro
+    command: >
+        -m /models/${LLAMACPP_MODEL_FILE}
+        --host 0.0.0.0 --port 8080
+        -c ${LLAMACPP_CTX_SIZE:-16384}
+    environment:
+        # Reasoning is a server-launch concern: it cannot be set per request
+        # (llama.cpp discussion #21445), and chat_template_kwargs.enable_thinking
+        # is model-dependent (issue #20182).
+        LLAMA_ARG_REASONING: ${LLM_REASONING:-auto}
+        LLAMA_ARG_THINK_BUDGET: ${LLM_THINK_BUDGET:--1}
     restart: always
     shm_size: "2gb"
 
@@ -50,13 +60,14 @@ x-coro: &coro-base
             aliases: ["coro"]
 
 services:
-    ollama:
-        <<: *ollama-base
-        container_name: ollama
+    llamacpp:
+        <<: *llamacpp-base
+        container_name: llamacpp
 
-    ollama-gpu:
-        <<: *ollama-base
-        container_name: ollama-gpu
+    llamacpp-gpu:
+        <<: *llamacpp-base
+        image: ghcr.io/ggml-org/llama.cpp:server-cuda
+        container_name: llamacpp-gpu
         deploy:
             resources:
                 reservations:
@@ -69,19 +80,19 @@ services:
         <<: *api-lite
         container_name: aymurai-api
         depends_on:
-            - ollama
+            - llamacpp
         environment:
             TORCH_DEVICE: cpu
-            OLLAMA_HOST: http://ollama:11434
+            LLAMACPP_BASE_URL: http://llamacpp:8080/v1
 
     aymurai-api-gpu:
         <<: *api-lite
         container_name: aymurai-api-gpu
         depends_on:
-            - ollama-gpu
+            - llamacpp-gpu
         environment:
             TORCH_DEVICE: cuda
-            OLLAMA_HOST: http://ollama-gpu:11434
+            LLAMACPP_BASE_URL: http://llamacpp-gpu:8080/v1
         deploy:
             resources:
                 reservations:
@@ -94,19 +105,19 @@ services:
         <<: *api-full
         container_name: aymurai-api-full
         depends_on:
-            - ollama
+            - llamacpp
         environment:
             TORCH_DEVICE: cpu
-            OLLAMA_HOST: http://ollama:11434
+            LLAMACPP_BASE_URL: http://llamacpp:8080/v1
 
     aymurai-api-full-gpu:
         <<: *api-full
         container_name: aymurai-api-full-gpu
         depends_on:
-            - ollama-gpu
+            - llamacpp-gpu
         environment:
             TORCH_DEVICE: cuda
-            OLLAMA_HOST: http://ollama-gpu:11434
+            LLAMACPP_BASE_URL: http://llamacpp-gpu:8080/v1
         deploy:
             resources:
                 reservations:
@@ -150,5 +161,4 @@ services:
                           capabilities: [gpu]
 
 volumes:
-    ollama:
     coro-hf-cache:

@@ -84,6 +84,32 @@ make api-logs
 # o make api-full-logs
 ```
 
+### Backend de LLM (llama.cpp)
+
+La sumarización corre contra un `llama-server` que habla la API compatible con
+OpenAI. La imagen de llama.cpp no incluye pesos — hay que proveer un GGUF:
+
+```bash
+LLAMACPP_MODELS_DIR=/ruta/a/modelos/gguf
+LLAMACPP_MODEL_FILE=tu-modelo.gguf
+LLAMACPP_CTX_SIZE=16384          # ventana de contexto del server (-c)
+```
+
+`docker compose up llamacpp` lo sirve en `:8080`, y la API lo alcanza vía
+`LLAMACPP_BASE_URL`.
+
+El razonamiento ("thinking") se configura **al iniciar el server**, no por
+request — el budgeting por request no existe upstream, y `enable_thinking`
+depende del modelo:
+
+| Variable | Valores | Efecto |
+|---|---|---|
+| `LLM_REASONING` | `on` / `off` / `auto` | razonamiento activado/desactivado (default: se detecta según el template) |
+| `LLM_THINK_BUDGET` | `-1` / `0` / `N` | sin límite / corte inmediato / presupuesto de tokens |
+
+Si los resúmenes vuelven vacíos, el modelo está agotando `max_tokens` en el
+razonamiento: subí `max_tokens`, o poné `LLM_THINK_BUDGET=0`.
+
 ## Resumen de runtime
 - Framework: `FastAPI`
 - Puerto por defecto: `8899`

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,16 +11,19 @@ from sqlmodel import Session
 from aymurai.api.endpoints.routers.llm.summarization_engine import (
     DEFAULT_ENTITIES_TO_IDENTIFY,
     DEFAULT_INFORMATION_TO_EXTRACT,
-    DEFAULT_MODEL,
-    DEFAULT_OPTIONS,
-    DEFAULT_TOKENIZER,
+    ContextBudget,
+    ContextTooSmallError,
+    DoneEvent,
+    EmptyCompletionError,
+    StepEvent,
     SummarizationConfig,
     SummarizationStep,
-    _build_provider,
+    TokenEvent,
     _build_sse_message,
     _load_template_prompt,
-    _rolling_summarize,
-    _trim_to_context,
+    load_rolling_prompt,
+    prepare_run,
+    summarize_events,
 )
 from aymurai.database.crud.summarization import (
     summarization_create_or_update,
@@ -28,33 +32,56 @@ from aymurai.database.crud.summarization import (
 from aymurai.database.schema import Summarization
 from aymurai.database.session import get_session
 from aymurai.database.utils import text_to_uuid
+from aymurai.llm_providers import LlamaCppLLMProvider
 from aymurai.logger import get_logger
+from aymurai.settings import settings
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
+class GenerationOptions(BaseModel):
+    """OpenAI-native chat-completion parameters forwarded to llama.cpp.
+
+    The context window is deliberately absent: it has no OpenAI equivalent and
+    is fixed when `llama-server` launches, so the server's own `n_ctx` is
+    authoritative (optionally capped by `settings.LLM_MAX_CONTEXT_TOKENS`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_tokens: int = Field(
+        default_factory=lambda: settings.LLM_DEFAULT_MAX_TOKENS,
+        gt=0,
+        description="Maximum tokens to generate. Must also cover reasoning "
+        "tokens when the server has thinking enabled.",
+    )
+    temperature: float | None = Field(default=None, ge=0.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    seed: int | None = None
+    stop: list[str] | None = None
+
+
 class SummarizationRequest(BaseModel):
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "text": "Texto de entrada a resumir.",
-                "model": DEFAULT_MODEL,
-                "tokenizer": DEFAULT_TOKENIZER,
-                "options": DEFAULT_OPTIONS,
+                "options": {"max_tokens": 4096},
             }
-        }
+        },
     )
 
     text: str = Field(..., description="Raw document to summarize.")
-    model: str = Field(
-        default=DEFAULT_MODEL,
-        description="Model name for Ollama. Defaults to gpt-oss:20b.",
-    )
-    tokenizer: str | None = Field(
-        default=DEFAULT_TOKENIZER,
-        description="Tokenizer name (tiktoken). Falls back to whitespace if unavailable.",
+    model: str | None = Field(
+        default=None,
+        description=(
+            "Optional model override. Inert on a single-model llama-server, "
+            "which ignores the field and serves whatever it was launched with; "
+            "when omitted the served model's own id is reported back."
+        ),
     )
     system_prompt: str | None = Field(
         default=None,
@@ -68,10 +95,7 @@ class SummarizationRequest(BaseModel):
         default=DEFAULT_ENTITIES_TO_IDENTIFY,
         description="Template variable entities_to_identify.",
     )
-    options: dict[str, Any] = Field(
-        default_factory=lambda: DEFAULT_OPTIONS.copy(),
-        description="Ollama chat options. Defaults to num_ctx=16_384 and num_predict=4096.",
-    )
+    options: GenerationOptions = Field(default_factory=GenerationOptions)
 
 
 class SummarizationResponse(BaseModel):
@@ -116,7 +140,7 @@ async def summarize_document(
     session: Session = Depends(get_session),
 ) -> SummarizationResponse:
     """
-    Summarize a document using a local Ollama model, persisting the result.
+    Summarize a document using the configured LLM provider, persisting the result.
 
     Chunks inputs above the context limit and performs a rolling summarization
     that keeps the interim summary in context for subsequent chunks. The result
@@ -134,7 +158,7 @@ async def summarize_document(
             Depends(get_session).
 
     Raises:
-        HTTPException: If the input text is empty or `num_ctx` is invalid.
+        HTTPException: If the input text is empty.
 
     Returns:
         SummarizationResponse: The summary, its document id and its config.
@@ -154,38 +178,45 @@ async def summarize_document(
         information_to_extract=payload.information_to_extract,
         entities_to_identify=payload.entities_to_identify,
     )
-    model_name = payload.model or DEFAULT_MODEL
-    options = {**DEFAULT_OPTIONS, **(payload.options or {})}
+    options = payload.options
+    rolling_system_prompt = load_rolling_prompt(
+        information_to_extract=payload.information_to_extract,
+        entities_to_identify=payload.entities_to_identify,
+    )
 
     try:
-        context_limit = int(options.get("num_ctx", DEFAULT_OPTIONS["num_ctx"]))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="num_ctx option must be an integer.",
-        ) from exc
+        provider, budget = await prepare_run(
+            payload.model,
+            system_prompt=system_prompt,
+            rolling_system_prompt=rolling_system_prompt,
+            max_tokens=options.max_tokens,
+        )
+    except ContextTooSmallError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    if context_limit <= 0:
-        raise HTTPException(status_code=400, detail="num_ctx must be greater than 0.")
-
-    provider = _build_provider(
-        model_name,
-        tokenizer_name=payload.tokenizer,
-        system_prompt=system_prompt,
-        context_limit=context_limit,
-    )
-
-    summary, steps, chunk_count = await _rolling_summarize(
-        provider,
-        text=payload.text,
-        options=options,
-    )
+    summary, steps, chunk_count = "", [], 0
+    try:
+        async for event in summarize_events(
+            provider,
+            text=payload.text,
+            budget=budget,
+            options=options.model_dump(exclude_none=True),
+            system_prompt=system_prompt,
+            rolling_system_prompt=rolling_system_prompt,
+        ):
+            if isinstance(event, StepEvent):
+                steps.append(event.step)
+            elif isinstance(event, DoneEvent):
+                summary, chunk_count = event.summary, event.chunks_used
+    except (ContextTooSmallError, EmptyCompletionError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        await provider.aclose()
 
     config = SummarizationConfig(
         model=provider.model_name,
         system_prompt=system_prompt,
-        tokenizer=payload.tokenizer,
-        options=options,
+        options=options.model_dump(exclude_none=True),
     )
     record = summarization_create_or_update(
         summarization_id=document_id,
@@ -259,6 +290,115 @@ def _cache_hit_events(record: Summarization) -> list[str]:
     return frames
 
 
+async def _stream_summary_events(
+    provider: LlamaCppLLMProvider,
+    *,
+    payload: SummarizationRequest,
+    options: GenerationOptions,
+    budget: ContextBudget,
+    system_prompt: str,
+    rolling_system_prompt: str,
+    document_id: uuid.UUID,
+    cached_record: Summarization | None,
+    session: Session,
+) -> AsyncIterator[str]:
+    """
+    Yield SSE-formatted summarization events for a single request.
+
+    On a cache hit, replays the stored summary without ever touching
+    `provider`. Otherwise generates, streams tokens, and persists the result
+    on the terminal `summary` event.
+
+    Args:
+        provider: A resolved llama.cpp provider.
+        payload: The incoming summarization request.
+        options: Generation options forwarded to the model.
+        budget: The measured context budget from `prepare_run`.
+        system_prompt: System prompt for the first window.
+        rolling_system_prompt: System prompt for follow-up windows.
+        document_id: The `text_to_uuid(payload.text)` identity for this request.
+        cached_record: A stored summarization row, if `use_cache` found a hit.
+        session: The database session used to persist a freshly generated summary.
+
+    Yields:
+        AsyncIterator[str]: SSE `data: ...` messages (`meta`, `token`, `summary`).
+    """
+    if cached_record is not None:
+        logger.debug("Summarization stream cache hit for %s", document_id)
+        for frame in _cache_hit_events(cached_record):
+            yield frame
+        return
+
+    reported_options = options.model_dump(exclude_none=True)
+
+    yield _build_sse_message(
+        {
+            "type": "meta",
+            "document_id": str(document_id),
+            "model": provider.model_name,
+            "system_prompt": system_prompt,
+            "options": reported_options,
+        }
+    )
+
+    steps: list[dict[str, Any]] = []
+    summary = ""
+    chunks_used = 0
+
+    try:
+        async for event in summarize_events(
+            provider,
+            text=payload.text,
+            budget=budget,
+            options=reported_options,
+            system_prompt=system_prompt,
+            rolling_system_prompt=rolling_system_prompt,
+        ):
+            if isinstance(event, TokenEvent):
+                yield _build_sse_message(
+                    {
+                        "type": "token",
+                        "chunk_index": event.chunk_index,
+                        "source": event.source,
+                        "text": event.text,
+                    }
+                )
+            elif isinstance(event, StepEvent):
+                steps.append(event.step.model_dump(mode="json"))
+            elif isinstance(event, DoneEvent):
+                summary, chunks_used = event.summary, event.chunks_used
+    except EmptyCompletionError as exc:
+        logger.warning(f"summarization stream aborted: {exc}")
+        yield _build_sse_message({"type": "error", "message": str(exc)})
+        return
+
+    config = SummarizationConfig(
+        model=provider.model_name,
+        system_prompt=system_prompt,
+        options=reported_options,
+    )
+    summarization_create_or_update(
+        summarization_id=document_id,
+        text=payload.text,
+        summary=summary,
+        config=config.model_dump(mode="json"),
+        steps=steps,
+        chunks_used=chunks_used,
+        session=session,
+    )
+    logger.debug("Summarization stored in DB (stream) for %s", document_id)
+
+    yield _build_sse_message(
+        {
+            "type": "summary",
+            "summary": summary,
+            "chunks_used": chunks_used,
+            "steps": steps,
+            "model": provider.model_name,
+        }
+    )
+
+
 @router.post("/summarize/stream")
 async def stream_summarize_document(
     payload: SummarizationRequest,
@@ -287,7 +427,7 @@ async def stream_summarize_document(
             Depends(get_session).
 
     Raises:
-        HTTPException: If the input text is empty or `num_ctx` is invalid.
+        HTTPException: If the input text is empty.
 
     Returns:
         StreamingResponse: A text/event-stream of summarization progress events.
@@ -307,157 +447,37 @@ async def stream_summarize_document(
         information_to_extract=payload.information_to_extract,
         entities_to_identify=payload.entities_to_identify,
     )
-    model_name = payload.model or DEFAULT_MODEL
-    options = {**DEFAULT_OPTIONS, **(payload.options or {})}
-
-    try:
-        context_limit = int(options.get("num_ctx", DEFAULT_OPTIONS["num_ctx"]))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="num_ctx option must be an integer.",
-        ) from exc
-
-    if context_limit <= 0:
-        raise HTTPException(status_code=400, detail="num_ctx must be greater than 0.")
-
-    provider = _build_provider(
-        model_name,
-        tokenizer_name=payload.tokenizer,
-        system_prompt=system_prompt,
-        context_limit=context_limit,
+    options = payload.options
+    rolling_system_prompt = load_rolling_prompt(
+        information_to_extract=payload.information_to_extract,
+        entities_to_identify=payload.entities_to_identify,
     )
 
-    async def event_stream() -> AsyncIterator[str]:
-        if cached_record is not None:
-            logger.debug("Summarization stream cache hit for %s", document_id)
-            for frame in _cache_hit_events(cached_record):
-                yield frame
-            return
-
-        yield _build_sse_message(
-            {
-                "type": "meta",
-                "document_id": str(document_id),
-                "model": provider.model_name,
-                "system_prompt": system_prompt,
-                "options": options,
-            }
-        )
-
-        chunks = provider.chunk_text(
-            payload.text,
-            max_tokens=provider.max_context_tokens,
-        )
-
-        if not chunks:
-            yield _build_sse_message(
-                {
-                    "type": "summary",
-                    "summary": "",
-                    "chunks_used": 0,
-                    "steps": [],
-                    "model": provider.model_name,
-                }
-            )
-            return
-
-        steps: list[dict[str, Any]] = []
-        summary = ""
-
-        for chunk in chunks:
-            source = "chunk" if not summary else "summary+chunk"
-            combined_text = f"{summary}\n\n{chunk.text}" if summary else chunk.text
-            combined_tokens = provider.count_tokens(combined_text)
-
-            if (
-                provider.max_context_tokens
-                and combined_tokens > provider.max_context_tokens
-                and summary
-            ):
-                chunk_summary = ""
-                async for resp in provider.async_stream(
-                    prompt=chunk.text,
-                    options=options,
-                ):
-                    token = resp.text
-                    if not token:
-                        continue
-                    chunk_summary += token
-                    yield _build_sse_message(
-                        {
-                            "type": "token",
-                            "chunk_index": chunk.index,
-                            "source": "chunk",
-                            "text": token,
-                        }
-                    )
-
-                steps.append(
-                    {
-                        "chunk_index": chunk.index,
-                        "input_tokens": chunk.token_count,
-                        "source": "chunk",
-                    }
-                )
-
-                combined_text = f"{summary}\n\n{chunk_summary}"
-                combined_text = _trim_to_context(provider, combined_text)
-                source = "summary+chunk"
-                combined_tokens = provider.count_tokens(combined_text)
-
-            updated_summary = ""
-            async for resp in provider.async_stream(
-                prompt=combined_text,
-                options=options,
-            ):
-                token = resp.text
-                if not token:
-                    continue
-                updated_summary += token
-                yield _build_sse_message(
-                    {
-                        "type": "token",
-                        "chunk_index": chunk.index,
-                        "source": source,
-                        "text": token,
-                    }
-                )
-
-            steps.append(
-                {
-                    "chunk_index": chunk.index,
-                    "input_tokens": combined_tokens,
-                    "source": source,
-                }
-            )
-            summary = updated_summary
-
-        config = SummarizationConfig(
-            model=provider.model_name,
+    try:
+        provider, budget = await prepare_run(
+            payload.model,
             system_prompt=system_prompt,
-            tokenizer=payload.tokenizer,
-            options=options,
+            rolling_system_prompt=rolling_system_prompt,
+            max_tokens=options.max_tokens,
         )
-        summarization_create_or_update(
-            summarization_id=document_id,
-            text=payload.text,
-            summary=summary,
-            config=config.model_dump(mode="json"),
-            steps=steps,
-            chunks_used=len(chunks),
-            session=session,
-        )
-        logger.debug("Summarization stored in DB (stream) for %s", document_id)
+    except ContextTooSmallError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-        yield _build_sse_message(
-            {
-                "type": "summary",
-                "summary": summary,
-                "chunks_used": len(chunks),
-                "steps": steps,
-                "model": provider.model_name,
-            }
-        )
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for message in _stream_summary_events(
+                provider,
+                payload=payload,
+                options=options,
+                budget=budget,
+                system_prompt=system_prompt,
+                rolling_system_prompt=rolling_system_prompt,
+                document_id=document_id,
+                cached_record=cached_record,
+                session=session,
+            ):
+                yield message
+        finally:
+            await provider.aclose()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

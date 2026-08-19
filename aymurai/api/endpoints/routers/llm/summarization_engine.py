@@ -9,23 +9,21 @@ modules stay thin orchestration layers (CES-8). Imported by
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
-import tiktoken
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from aymurai.llm_providers import OllamaLLMProvider
+from aymurai.api.endpoints.routers.llm.chunking import take_window
+from aymurai.llm_providers.llamacpp_provider import LlamaCppLLMProvider
 from aymurai.logger import get_logger
 from aymurai.settings import settings
 from aymurai.utils.yaml_data import load_yaml
 
 logger = get_logger(__name__)
 
-DEFAULT_MODEL = "gpt-oss:20b"
-DEFAULT_OPTIONS = {"num_ctx": 16_384, "num_predict": 4096}
-DEFAULT_TOKENIZER = "o200k_harmony"
 PROMPT_TEMPLATE_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "summarization.yml"
 
 
@@ -74,7 +72,6 @@ class SummarizationConfig(BaseModel):
 
     model: str
     system_prompt: str
-    tokenizer: str | None = None
     options: dict[str, Any]
 
 
@@ -123,186 +120,350 @@ def _load_template_prompt(
     )
 
 
-def _load_tokenizer(tokenizer_name: str | None) -> tiktoken.Encoding | None:
-    """
-    Load a tiktoken tokenizer by name.
+# Slots are measured with a sentinel rather than an empty string: an empty slot
+# lets the surrounding newlines collapse into a run that tokenizes differently,
+# which silently under-measures the scaffold.
+SENTINEL = "X"
 
-    Args:
-        tokenizer_name (str | None): Name of the tokenizer to load.
+ROLLING_USER_TEMPLATE = "[RESUMEN PARCIAL]\n{summary}\n\n[NUEVO FRAGMENTO]\n{chunk}"
 
-    Returns:
-        tiktoken.Encoding | None: The loaded tokenizer encoding or None if unavailable.
-    """
-    if not tokenizer_name:
-        return None
 
-    try:
-        return tiktoken.get_encoding(tokenizer_name)
+class ContextTooSmallError(Exception):
+    """The server's context cannot fit the prompt scaffolding plus any document."""
 
-    except Exception:
-        logger.warning(
-            f"Tokenizer {tokenizer_name} is not available. Falling back to whitespace."
+
+@dataclass(frozen=True)
+class ContextBudget:
+    """Exact, server-authoritative token budget for one summarization run."""
+
+    effective_ctx: int
+    scaffold_first: int
+    scaffold_rolling: int
+    reserved_output: int
+
+    @property
+    def first_window_budget(self) -> int:
+        """Tokens available for document text in the first window."""
+        return self.effective_ctx - self.scaffold_first - self.reserved_output
+
+    def rolling_window_budget(self, summary_tokens: int) -> int:
+        """
+        Tokens available for document text in a follow-up window.
+
+        Args:
+            summary_tokens (int): Exact token count of the summary carried
+                forward. Measured rather than worst-cased at
+                `reserved_output`, which would waste a large slice of every
+                window.
+
+        Returns:
+            int: Remaining budget; may be non-positive, which callers treat as
+                "the carried summary no longer leaves room".
+        """
+        return (
+            self.effective_ctx
+            - self.scaffold_rolling
+            - self.reserved_output
+            - summary_tokens
         )
-        return None
 
 
-def _count_tokens(text: str, tokenizer: Any) -> int:
-    """
-    Count the number of tokens in the given text using the provided tokenizer.
-
-    Args:
-        text (str): The input text to count tokens for.
-        tokenizer (Any): The tokenizer to use for counting tokens.
-
-    Returns:
-        int: The number of tokens in the input text.
-    """
-    if tokenizer is None:
-        return len(text.split())
-    try:
-        return len(tokenizer.encode(text))
-    except Exception:
-        return len(text.split())
-
-
-def _build_provider(
-    model_name: str,
+async def build_context_budget(
+    provider: LlamaCppLLMProvider,
     *,
-    tokenizer_name: str | None,
     system_prompt: str,
-    context_limit: int,
-) -> OllamaLLMProvider:
+    rolling_system_prompt: str,
+    max_tokens: int,
+) -> ContextBudget:
     """
-    Build an Ollama provider, adjusting available context for the system prompt.
+    Measure the exact context budget for a summarization run.
+
+    The scaffold costs are measured against the server's real chat template, so
+    the arithmetic matches `usage.prompt_tokens` exactly rather than
+    approximating it.
 
     Args:
-        model_name: Name of the model to use.
-        tokenizer_name: Tokenizer name to attempt loading.
-        system_prompt: System prompt to set and budget for.
-        context_limit: Maximum number of context tokens.
+        provider: A resolved llama.cpp provider.
+        system_prompt: System prompt for the first window.
+        rolling_system_prompt: System prompt for follow-up windows.
+        max_tokens: Output tokens reserved per generation.
+
+    Raises:
+        ContextTooSmallError: If no document tokens fit in either window shape.
 
     Returns:
-        OllamaLLMProvider: Configured OllamaLLMProvider instance.
+        ContextBudget: The measured budget.
     """
-    encoding = _load_tokenizer(tokenizer_name)
-    available_context = max(context_limit - _count_tokens(system_prompt, encoding), 1)
+    served = await provider.aresolve_served_model()
+    server_ctx = served.n_ctx or served.n_ctx_train
+    if not server_ctx:
+        raise ContextTooSmallError(
+            f"{provider.base_url} reported no context window (n_ctx/n_ctx_train)"
+        )
 
-    return OllamaLLMProvider(
-        model=model_name,
-        tokenizer=encoding,
-        system_prompt=system_prompt,
-        max_context_tokens=available_context,
+    cap = settings.LLM_MAX_CONTEXT_TOKENS
+    effective_ctx = min(server_ctx, cap) if cap else server_ctx
+
+    sentinel_tokens = len(await provider.atokenize(SENTINEL))
+
+    first_probe = await provider.acount_prompt_tokens(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": SENTINEL},
+        ]
+    )
+    rolling_probe = await provider.acount_prompt_tokens(
+        messages=[
+            {"role": "system", "content": rolling_system_prompt},
+            {
+                "role": "user",
+                "content": ROLLING_USER_TEMPLATE.format(
+                    summary=SENTINEL, chunk=SENTINEL
+                ),
+            },
+        ]
     )
 
+    budget = ContextBudget(
+        effective_ctx=effective_ctx,
+        scaffold_first=first_probe - sentinel_tokens,
+        scaffold_rolling=rolling_probe - 2 * sentinel_tokens,
+        reserved_output=max_tokens,
+    )
 
-async def _summarize_once(
-    provider: OllamaLLMProvider,
+    if budget.first_window_budget <= 0:
+        raise ContextTooSmallError(
+            f"context window {effective_ctx} leaves no room for document text "
+            f"after the system prompt ({budget.scaffold_first} tokens) and "
+            f"reserved output ({max_tokens} tokens) — lower max_tokens, shorten "
+            f"the system prompt, or raise the server's -c value"
+        )
+
+    return budget
+
+
+def load_rolling_prompt(
     *,
-    text: str,
-    options: dict[str, Any],
+    information_to_extract: str | None,
+    entities_to_identify: str | None,
 ) -> str:
     """
-    Run a single summarization call on the provider.
+    Load the rolling-pass system prompt.
+
+    Distinct from the first-pass prompt: this one instructs the model to
+    consolidate an existing partial summary with a new fragment rather than to
+    summarize a document from scratch.
 
     Args:
-        provider: Initialized OllamaLLMProvider instance.
-        text: Chunk or combined text to summarize.
-        options: Provider options forwarded to the model.
+        information_to_extract: Template placeholder.
+        entities_to_identify: Template placeholder.
+
+    Raises:
+        HTTPException: If the template file is missing or unparseable.
 
     Returns:
-        str: The model's text output for the given input.
+        str: The formatted rolling system prompt.
     """
-    response = await provider.async_generate(prompt=text, options=options)
-    return response.text
+    try:
+        content = load_yaml(str(PROMPT_TEMPLATE_PATH))
+        template = content["system-prompts"]["rolling"]
+    except Exception as exc:
+        logger.exception("Error loading the rolling summarization prompt.")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load the rolling summarization prompt.",
+        ) from exc
 
-
-async def _rolling_summarize(
-    provider: OllamaLLMProvider,
-    *,
-    text: str,
-    options: dict[str, Any],
-) -> tuple[str, list[SummarizationStep], int]:
-    """
-    Summarize potentially long text by chunking and rolling summaries forward.
-
-    Args:
-        provider: Initialized OllamaLLMProvider instance.
-        text: Full document text to summarize.
-        options: Provider options forwarded to the model.
-
-    Returns:
-        tuple[str, list[SummarizationStep], int]: A tuple of (final_summary, steps_metadata, chunk_count).
-    """
-    chunks = provider.chunk_text(text, max_tokens=provider.max_context_tokens)
-    if not chunks:
-        return "", [], 0
-
-    steps = []
-    summary = await _summarize_once(provider, text=chunks[0].text, options=options)
-    steps.append(
-        SummarizationStep(
-            chunk_index=chunks[0].index,
-            input_tokens=chunks[0].token_count,
-            source="chunk",
-        )
+    return template.format(
+        information_to_extract=information_to_extract or DEFAULT_INFORMATION_TO_EXTRACT,
+        entities_to_identify=entities_to_identify or DEFAULT_ENTITIES_TO_IDENTIFY,
     )
 
-    for chunk in chunks[1:]:
-        combined_text = f"{summary}\n\n{chunk.text}"
-        combined_tokens = provider.count_tokens(combined_text)
 
-        if (
-            provider.max_context_tokens
-            and combined_tokens > provider.max_context_tokens
+async def prepare_run(
+    model: str | None,
+    *,
+    system_prompt: str,
+    rolling_system_prompt: str,
+    max_tokens: int,
+) -> tuple[LlamaCppLLMProvider, ContextBudget]:
+    """
+    Build a provider bound to the server's real model, and measure its budget.
+
+    `llama-server` ignores the request's `model` field and serves whatever it
+    was launched with, so the constructor's placeholder is replaced by the
+    server's own id — making the `model` we report and persist genuine
+    provenance instead of a constant.
+
+    Args:
+        model: Optional caller override. Inert on a single-model server, but
+            honoured if supplied.
+        system_prompt: First-pass system prompt.
+        rolling_system_prompt: Follow-up system prompt.
+        max_tokens: Output tokens reserved per generation.
+
+    Raises:
+        ContextTooSmallError: Propagated from `build_context_budget`.
+
+    Returns:
+        tuple[LlamaCppLLMProvider, ContextBudget]: The ready provider and its
+            measured budget. The caller owns closing the provider.
+    """
+    provider = LlamaCppLLMProvider(model=model, system_prompt=system_prompt)
+
+    budget = await build_context_budget(
+        provider,
+        system_prompt=system_prompt,
+        rolling_system_prompt=rolling_system_prompt,
+        max_tokens=max_tokens,
+    )
+
+    if not model:
+        served = await provider.aresolve_served_model()
+        provider.model_name = served.id
+
+    return provider, budget
+
+
+@dataclass(frozen=True)
+class TokenEvent:
+    """One streamed token of the in-progress summary."""
+
+    chunk_index: int
+    source: str
+    text: str
+
+
+@dataclass(frozen=True)
+class StepEvent:
+    """A completed window's metadata."""
+
+    step: SummarizationStep
+
+
+@dataclass(frozen=True)
+class DoneEvent:
+    """Terminal event carrying the final summary."""
+
+    summary: str
+    chunks_used: int
+
+
+class EmptyCompletionError(Exception):
+    """The model returned no content, having spent its budget on reasoning."""
+
+
+async def summarize_events(
+    provider: LlamaCppLLMProvider,
+    *,
+    text: str,
+    budget: ContextBudget,
+    options: dict[str, Any],
+    system_prompt: str,
+    rolling_system_prompt: str,
+) -> AsyncIterator[TokenEvent | StepEvent | DoneEvent]:
+    """
+    Summarize a document, rolling the summary forward across windows.
+
+    Tokenizes once, then consumes the document adaptively: each window's budget
+    is computed from the *measured* prior summary, so a short summary leaves
+    more room for document text than a worst-case reservation would.
+
+    Args:
+        provider: A resolved llama.cpp provider.
+        text: Full document text.
+        budget: Measured context budget.
+        options: OpenAI generation parameters forwarded to the model.
+        system_prompt: System prompt for the first window.
+        rolling_system_prompt: System prompt for follow-up windows.
+
+    Raises:
+        ContextTooSmallError: If a window's budget collapses to nothing.
+        EmptyCompletionError: If the model returns empty content.
+
+    Yields:
+        TokenEvent | StepEvent | DoneEvent: Progress, then exactly one
+            terminal `DoneEvent`.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        yield DoneEvent(summary="", chunks_used=0)
+        return
+
+    pieces = await provider.atokenize_pieces(cleaned)
+    overlap = settings.LLM_CHUNK_OVERLAP_TOKENS
+
+    summary = ""
+    start = 0
+    index = 0
+
+    while start < len(pieces):
+        if index == 0:
+            window_budget = budget.first_window_budget
+            active_system_prompt = system_prompt
+        else:
+            summary_tokens = len(await provider.atokenize(summary))
+            window_budget = budget.rolling_window_budget(summary_tokens)
+            active_system_prompt = rolling_system_prompt
+
+        if window_budget <= 0:
+            raise ContextTooSmallError(
+                f"window {index} has no room left for document text — the "
+                f"carried summary is too long for context {budget.effective_ctx}"
+            )
+
+        window = take_window(pieces, start, max_tokens=window_budget, overlap=overlap)
+
+        user_content = (
+            window.text
+            if index == 0
+            else ROLLING_USER_TEMPLATE.format(summary=summary, chunk=window.text)
+        )
+        messages = [
+            {"role": "system", "content": active_system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+
+        prompt_tokens = await provider.acount_prompt_tokens(messages=messages)
+        if prompt_tokens + budget.reserved_output > budget.effective_ctx:
+            raise ContextTooSmallError(
+                f"assembled prompt ({prompt_tokens}) plus reserved output "
+                f"({budget.reserved_output}) exceeds context "
+                f"({budget.effective_ctx}) at window {index}"
+            )
+
+        source = "chunk" if index == 0 else "summary+chunk"
+        generated = ""
+        finish_reason = None
+        async for response in provider.async_stream(
+            prompt=user_content, system_prompt=active_system_prompt, **options
         ):
-            chunk_summary = await _summarize_once(
-                provider,
-                text=chunk.text,
-                options=options,
-            )
-            steps.append(
-                SummarizationStep(
-                    chunk_index=chunk.index,
-                    input_tokens=chunk.token_count,
-                    source="chunk",
-                )
-            )
-            combined_text = f"{summary}\n\n{chunk_summary}"
-            combined_tokens = provider.count_tokens(combined_text)
+            finish_reason = response.metadata.get("finish_reason") or finish_reason
+            if not response.text:
+                continue
+            generated += response.text
+            yield TokenEvent(chunk_index=index, source=source, text=response.text)
 
-            if (
-                provider.max_context_tokens
-                and combined_tokens > provider.max_context_tokens
-            ):
-                trimmed_parts = []
-                for part in provider.chunk_text(
-                    combined_text, max_tokens=provider.max_context_tokens
-                ):
-                    tentative = " ".join(trimmed_parts + [part.text])
-                    if (
-                        provider.max_context_tokens
-                        and provider.count_tokens(tentative)
-                        > provider.max_context_tokens
-                    ):
-                        break
-                    trimmed_parts.append(part.text)
-                combined_text = " ".join(trimmed_parts)
-                combined_tokens = provider.count_tokens(combined_text)
+        if not generated.strip():
+            raise EmptyCompletionError(
+                f"model returned no content at window {index} "
+                f"(finish_reason={finish_reason!r}) — it likely spent all "
+                f"{budget.reserved_output} max_tokens on reasoning; raise "
+                "max_tokens, or bound reasoning on the server via "
+                "LLAMA_ARG_THINK_BUDGET / LLAMA_ARG_REASONING=off"
+            )
 
-        summary = await _summarize_once(
-            provider,
-            text=combined_text,
-            options=options,
-        )
-        steps.append(
-            SummarizationStep(
-                chunk_index=chunk.index,
-                input_tokens=combined_tokens,
-                source="summary+chunk",
+        summary = generated.strip()
+        yield StepEvent(
+            step=SummarizationStep(
+                chunk_index=index, input_tokens=prompt_tokens, source=source
             )
         )
 
-    return summary, steps, len(chunks)
+        start = window.next_start
+        index += 1
+
+    yield DoneEvent(summary=summary, chunks_used=index)
 
 
 def _build_sse_message(payload: dict[str, Any]) -> str:
@@ -316,30 +477,3 @@ def _build_sse_message(payload: dict[str, Any]) -> str:
         str: Serialized SSE message string.
     """
     return f"data: {json.dumps(payload)}\n\n"
-
-
-def _trim_to_context(provider: OllamaLLMProvider, text: str) -> str:
-    """
-    Trim combined text to respect the provider's context window.
-
-    Args:
-        provider: Provider with a configured max_context_tokens.
-        text: Concatenated summary and chunk text.
-
-    Returns:
-        str: Text trimmed to fit within the context limit.
-    """
-    if not provider.max_context_tokens:
-        return text
-
-    trimmed_parts: list[str] = []
-    for part in provider.chunk_text(text, max_tokens=provider.max_context_tokens):
-        tentative = " ".join(trimmed_parts + [part.text])
-        if (
-            provider.max_context_tokens
-            and provider.count_tokens(tentative) > provider.max_context_tokens
-        ):
-            break
-        trimmed_parts.append(part.text)
-
-    return " ".join(trimmed_parts)
