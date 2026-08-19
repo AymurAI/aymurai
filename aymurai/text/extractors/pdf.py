@@ -99,6 +99,20 @@ def pdf_to_text(file_path: Path | str) -> str:
     return "\n\n".join(pdf_to_paragraphs(file_path))
 
 
+def get_pdf_page_count(path: Path) -> int:
+    """
+    Read the number of pages of a PDF document.
+
+    Args:
+        path (Path): PDF document path.
+
+    Returns:
+        int: Number of pages reported by the PDF.
+    """
+    with pymupdf.open(str(path)) as doc:
+        return doc.page_count
+
+
 @register_extractor
 class PdfExtractor(BaseExtractor):
     extension = "pdf"
@@ -112,3 +126,23 @@ class PdfExtractor(BaseExtractor):
             raise InvalidFile(str(exc)) from exc
         except Exception as exc:
             raise InvalidFile(str(exc)) from exc
+
+    def page_count(self, path: Path) -> int | None:
+        """
+        Read the number of pages of a PDF document.
+
+        Deliberately catches every exception: a missing page count must never
+        fail the caller.
+
+        Args:
+            path (Path): Input document path.
+
+        Returns:
+            int | None: Number of pages, or None when the file is missing or
+                unreadable.
+        """
+        try:
+            return get_pdf_page_count(self.ensure_file(path))
+        except Exception as exc:  # noqa: BLE001 - page count must never raise
+            logger.warning("Cannot read PDF page count from '%s': %s", path, exc)
+            return None

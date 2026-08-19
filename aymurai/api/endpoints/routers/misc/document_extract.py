@@ -11,7 +11,11 @@ from starlette import status
 from aymurai.database.utils import data_to_uuid
 from aymurai.logger import get_logger
 from aymurai.meta.api_interfaces import Document
-from aymurai.text.extraction import MIMETYPE_EXTENSION_MAPPER, extract_document
+from aymurai.text.extraction import (
+    MIMETYPE_EXTENSION_MAPPER,
+    extract_document,
+    get_page_count,
+)
 from aymurai.text.normalize import document_normalize
 
 logger = get_logger(__name__)
@@ -118,10 +122,19 @@ def plain_text_extractor(file: UploadFile) -> Document:
                 detail=str(e),
             )
 
+    # Read in the main process, while the temp file still exists. This never
+    # raises: any failure resolves to None (see get_page_count).
+    page_count = get_page_count(tmp_filename)
+    logger.info(f"detected page count => {page_count}")
+
     os.remove(tmp_filename)
     logger.info(f"removed temp file from local storage => {tmp_filename}")
 
     document_id = data_to_uuid(data)
     paragraphs = _split_document_paragraphs(document)
 
-    return Document(document=paragraphs, document_id=document_id)
+    return Document(
+        document=paragraphs,
+        document_id=document_id,
+        page_count=page_count,
+    )

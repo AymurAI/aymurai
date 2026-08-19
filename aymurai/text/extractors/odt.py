@@ -8,11 +8,15 @@ from zipfile import BadZipFile
 import xmltodict
 from more_itertools import flatten
 
+from aymurai.logger import get_logger
 from aymurai.text.extractors.base import BaseExtractor, InvalidFile, register_extractor
 from aymurai.text.extractors.normalization import normalize_text
 from aymurai.utils.misc import get_element, get_recursively
 
+logger = get_logger(__file__)
+
 ODT_NS = {"text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0"}
+ODT_META_NS = "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
 
 
 def load_xml_from_odt(path: Path, xmlfile: str = "styles.xml") -> str:
@@ -137,6 +141,37 @@ def odt_to_text(path: Path) -> str:
     return "\n".join(lines)
 
 
+def get_odt_page_count(path: Path) -> int | None:
+    """
+    Read the cached page count of an ODT document.
+
+    ODT has no intrinsic pagination: the value comes from ``meta.xml`` and is
+    written by whichever application last saved the file.
+
+    Args:
+        path (Path): ODT archive path.
+
+    Returns:
+        int | None: Number of pages, or None when the archive carries no
+            ``meta.xml`` or no ``meta:document-statistic`` page count.
+    """
+    with zipfile.ZipFile(path, "r") as archive:
+        if "meta.xml" not in archive.namelist():
+            return None
+        meta_xml = archive.read("meta.xml")
+
+    root = ET.fromstring(meta_xml)
+    statistic = root.find(f".//{{{ODT_META_NS}}}document-statistic")
+    if statistic is None:
+        return None
+
+    value = statistic.get(f"{{{ODT_META_NS}}}page-count")
+    if value is None or not value.strip():
+        return None
+
+    return int(value.strip())
+
+
 @register_extractor
 class OdtExtractor(BaseExtractor):
     extension = "odt"
@@ -154,3 +189,23 @@ class OdtExtractor(BaseExtractor):
             document_text = f"{header}\n\n{document_text}"
 
         return normalize_text(document_text)
+
+    def page_count(self, path: Path) -> int | None:
+        """
+        Read the cached page count of an ODT document.
+
+        Deliberately catches every exception: a missing page count must never
+        fail the caller.
+
+        Args:
+            path (Path): ODT document path.
+
+        Returns:
+            int | None: Number of pages, or None when the file is missing,
+                unreadable, or carries no ``meta:document-statistic`` entry.
+        """
+        try:
+            return get_odt_page_count(self.ensure_file(path))
+        except Exception as exc:  # noqa: BLE001 - page count must never raise
+            logger.warning("Cannot read ODT page count from '%s': %s", path, exc)
+            return None

@@ -22,7 +22,7 @@ RUN pnpm run build:web
 # -------------------
 # Build Stage
 # -------------------
-FROM python:3.10-slim-bullseye AS builder
+FROM python:3.13-slim-bullseye AS builder
 
 # Install Git
 RUN apt-get update && \
@@ -58,7 +58,7 @@ RUN --mount=type=bind,source=.git,target=.git \
 # -------------------
 # Base API Stage
 # -------------------
-FROM python:3.10-slim-bullseye AS aymurai-api
+FROM python:3.13-slim-bullseye AS aymurai-api
 
 # Set environment variables
 ENV LANG=C.UTF-8 \
@@ -77,13 +77,14 @@ RUN apt update && \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-# Install LibreOffice for document processing
+# Install LibreOffice for document processing and ffmpeg for audio probing
 RUN apt update && \
     apt-get install -y --no-install-recommends \
         libreoffice-writer \
         libreoffice-common \
         default-jre \
-        libmagic1 && \
+        libmagic1 \
+        ffmpeg && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /tmp/* /var/tmp/* && \
@@ -95,6 +96,7 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 
 # Copy static resources
 COPY resources/pipelines /resources/pipelines
+COPY resources/llm /resources/llm
 COPY --from=frontend-builder /frontend/out/renderer /app/frontend-dist
 
 # Set working directory
@@ -103,7 +105,7 @@ WORKDIR /app
 ENV FRONTEND_DIST_DIR=/app/frontend-dist
 
 # Define start command
-CMD uv run fastapi run --port 8899 .venv/lib/python3.10/site-packages/aymurai/api/main.py
+CMD ["/app/.venv/bin/aymurai-api"]
 
 
 # -----------------------------
@@ -116,6 +118,7 @@ ENV RESOURCES_BASEPATH=resources
 
 # Copy additional resources
 COPY ./resources/pipelines/production resources/pipelines/production
+COPY ./resources/llm resources/llm
 
 # Initialize application to download models
-RUN uv run python /app/.venv/lib/python3.10/site-packages/aymurai/api/main.py
+RUN /app/.venv/bin/pipeline-download
