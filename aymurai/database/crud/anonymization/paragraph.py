@@ -71,9 +71,9 @@ def anonymization_paragraph_create(
 
     Args:
         paragraph_in (AnonymizationParagraphCreate): Paragraph creation payload.
-        override (bool): If True, delete any existing paragraph with the same ID
-            before inserting (resets fields not present in the payload).
         session (Session): Database session.
+        override (bool): If True, delete any existing paragraph with the same ID
+            before inserting (resets fields not present in the payload). Defaults to False.
 
     Returns:
         AnonymizationParagraph: The persisted paragraph record.
