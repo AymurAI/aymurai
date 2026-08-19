@@ -129,7 +129,6 @@ resources
 
 aymurai/version.py
 
-.agents
 .opencode.json
 .sisyphus
 notebooks/**

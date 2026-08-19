@@ -13,6 +13,10 @@ def client(tmp_path, monkeypatch):
     (frontend_dir / "index.html").write_text("<html><body>SPA</body></html>")
     (frontend_dir / "logo.png").write_bytes(b"fakeimg")
     monkeypatch.setattr(settings, "FRONTEND_DIST_DIR", str(frontend_dir))
+
+    db_path = tmp_path / "test.db"
+    monkeypatch.setattr(settings, "SQLALCHEMY_DATABASE_URI", f"sqlite:///{db_path}")
+
     with TestClient(api) as c:
         yield c
 

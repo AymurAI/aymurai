@@ -338,6 +338,47 @@ DOCX_CONTENT_TYPE = (
 
 @pytest.mark.integration
 @patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_strip_zero_width_chars_so_predict_offsets_match(
+    mock_extraction, client
+):
+    """Regression: the frontend keeps /document-extract text as its source of
+    truth and validates /predict label offsets against it. The predict
+    pipeline strips zero-width chars (FlairTextNormalize), so any zero-width
+    char surviving extraction shifts every later offset and blocks export
+    ("El texto de la entidad no coincide con el texto original en sus
+    offsets"). Extracted paragraphs must therefore be fixed points of
+    FlairTextNormalize.normalize_text."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    mock_extraction.return_value = (
+        "A mayor abundamiento,\ufeff a fs. 123/456 la Sra. Mar\u00eda Gonz\u00e1lez.\n"
+        "Con\u200b espacios\tय tabulaciones\u200c raras\ufe0f aqu\u00ed."
+    )
+
+    response = client.post(
+        "/api/misc/document-extract",
+        files={
+            "file": (
+                "test.docx",
+                b"content",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    paragraphs = response.json()["document"]
+    assert paragraphs
+
+    for paragraph in paragraphs:
+        assert FlairTextNormalize.normalize_text(paragraph) == paragraph, (
+            f"extracted paragraph is not aligned with the predict pipeline "
+            f"normalization: {paragraph!r}"
+        )
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
 def test_should_return_page_count_when_uploading_sample_docx(mock_extraction, client):
     """Test that a DOCX upload reports its cached page count."""
     mock_extraction.return_value = "Para 1\nPara 2"
@@ -379,6 +420,48 @@ def test_should_return_page_count_via_misc_prefix(mock_extraction, client):
 
     assert response.status_code == 200
     assert response.json()["page_count"] == 19
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_repro_docx_paragraphs_are_fixed_points_of_predict_normalization(client):
+    """Same contract as above, without mocking: a synthetic DOCX whose raw
+    paragraphs carry zero-width characters and odd whitespace goes through the
+    real extraction path."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    file_content = _build_docx_bytes(
+        [
+            "A mayor abundamiento,\ufeff a fs. 123/456 la Sra. Mar\u00eda Gonz\u00e1lez.",
+            "Con\u200b espacios\ty tabulaciones\u200c raras\ufe0f aqu\u00ed.",
+            "P\u00e1rrafo final sin caracteres invisibles.",
+        ]
+    )
+
+    response = client.post(
+        "/api/misc/document-extract",
+        files={
+            "file": (
+                "repro.docx",
+                file_content,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    paragraphs = response.json()["document"]
+    assert paragraphs
+
+    misaligned = [
+        paragraph
+        for paragraph in paragraphs
+        if FlairTextNormalize.normalize_text(paragraph) != paragraph
+    ]
+    assert not misaligned, (
+        f"{len(misaligned)} extracted paragraph(s) are not aligned with the "
+        f"predict pipeline normalization; first: {misaligned[0]!r}"
+    )
 
 
 @pytest.mark.integration
