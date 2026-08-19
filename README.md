@@ -87,8 +87,7 @@ make api-logs
 ### LLM backend (llama.cpp)
 
 Summarization runs against a `llama-server` speaking the OpenAI-compatible API.
-Unlike the previous Ollama backend, the llama.cpp image ships **no weights** —
-you must supply a GGUF:
+The llama.cpp image ships **no weights** — you must supply a GGUF:
 
 ```bash
 LLAMACPP_MODELS_DIR=/path/to/gguf/models
