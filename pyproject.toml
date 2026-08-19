@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=83.0.0", "setuptools_scm>=8"]
+requires = ["setuptools>=83.0.0", "setuptools_scm>=10.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -79,6 +79,8 @@ dependencies = [
     "pypandoc>=1.15",
     "python-docx>=1.2.0",
     "docx2txt>=0.9",
+    "openai>=2.50.0",
+    "httpx>=0.28.1",
 ]
 
 [project.urls]
@@ -92,6 +94,10 @@ loadtest = [
     "lorem>=0.1.1",
 ]
 tests = ["pytest>=9.0.2"]
+notebooks = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+]
 
 [tool.setuptools.packages.find]
 include = ["aymurai"]

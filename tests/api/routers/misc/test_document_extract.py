@@ -1,6 +1,7 @@
 import concurrent.futures
 import io
 import sys
+import zipfile
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +18,27 @@ def _build_docx_bytes(paragraphs: list[str]) -> bytes:
 
     stream = io.BytesIO()
     document.save(stream)
+    return stream.getvalue()
+
+
+def _build_docx_with_page_count(page_count: int) -> bytes:
+    """Build a minimal DOCX-shaped archive with cached page metadata."""
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body/></w:document>',
+        )
+        archive.writestr(
+            "docProps/app.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Properties xmlns="http://schemas.openxmlformats.org/'
+            'officeDocument/2006/extended-properties">'
+            f"<Pages>{page_count}</Pages>"
+            "</Properties>",
+        )
     return stream.getvalue()
 
 
@@ -307,3 +329,193 @@ def test_should_return_500_when_extraction_fails(mock_extraction, client):
     response = client.post("/api/document-extract", files=files)
 
     assert response.status_code == 500
+
+
+def test_pdf_paragraph_extraction_includes_table_and_picture_boxes(
+    tmp_path, monkeypatch
+):
+    """Regression: text in table/picture boxes must reach anonymization.
+
+    Any text the extractor drops can never be labeled and leaks verbatim
+    into anonymized exports (e.g. personnel tables with names and DNIs).
+    Only formula boxes may be skipped.
+    """
+    from aymurai.text.extractors import pdf as pdf_extractor
+
+    pdf_path = tmp_path / "boxes.pdf"
+    pdf_path.write_bytes(_build_pdf_bytes(["placeholder"]))
+
+    page_text = "Parrafo normal.\nJuan Rios | DNI 12.345.678\nStamp Rivas\nE=mc2"
+    boxes = [
+        {"class": "text", "pos": (0, 15)},
+        {"class": "table", "pos": (16, 42)},
+        {"class": "picture", "pos": (43, 54)},
+        {"class": "formula", "pos": (55, 60)},
+    ]
+    monkeypatch.setattr(
+        pdf_extractor.pymupdf4llm,
+        "to_text",
+        lambda *args, **kwargs: [{"text": page_text, "page_boxes": boxes}],
+    )
+
+    paragraphs = pdf_extractor.pdf_to_paragraphs(pdf_path)
+
+    assert "Parrafo normal." in paragraphs
+    assert "Juan Rios | DNI 12.345.678" in paragraphs
+    assert "Stamp Rivas" in paragraphs
+    assert "E=mc2" not in paragraphs
+
+
+DOCX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_strip_zero_width_chars_so_predict_offsets_match(
+    mock_extraction, client
+):
+    """Regression: the frontend keeps /document-extract text as its source of
+    truth and validates /predict label offsets against it. The predict
+    pipeline strips zero-width chars (FlairTextNormalize), so any zero-width
+    char surviving extraction shifts every later offset and blocks export
+    ("El texto de la entidad no coincide con el texto original en sus
+    offsets"). Extracted paragraphs must therefore be fixed points of
+    FlairTextNormalize.normalize_text."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    mock_extraction.return_value = (
+        "A mayor abundamiento,\ufeff a fs. 123/456 la Sra. Mar\u00eda Gonz\u00e1lez.\n"
+        "Con\u200b espacios\tय tabulaciones\u200c raras\ufe0f aqu\u00ed."
+    )
+
+    response = client.post(
+        "/api/misc/document-extract",
+        files={
+            "file": (
+                "test.docx",
+                b"content",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    paragraphs = response.json()["document"]
+    assert paragraphs
+
+    for paragraph in paragraphs:
+        assert FlairTextNormalize.normalize_text(paragraph) == paragraph, (
+            f"extracted paragraph is not aligned with the predict pipeline "
+            f"normalization: {paragraph!r}"
+        )
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_when_uploading_sample_docx(mock_extraction, client):
+    """Test that a DOCX upload reports its cached page count."""
+    mock_extraction.return_value = "Para 1\nPara 2"
+
+    file_content = _build_docx_with_page_count(19)
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] == 19
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_null_page_count_when_metadata_unreadable(
+    mock_extraction, client
+):
+    """Test that unreadable metadata yields page_count null with HTTP 200."""
+    mock_extraction.return_value = "Para 1"
+
+    files = {"file": ("test.docx", b"not a zip archive at all", DOCX_CONTENT_TYPE)}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["page_count"] is None
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_page_count_via_misc_prefix(mock_extraction, client):
+    """Test that /misc/document-extract also reports page_count."""
+    mock_extraction.return_value = "Para 1"
+
+    file_content = _build_docx_with_page_count(19)
+    files = {"file": ("document-01.docx", file_content, DOCX_CONTENT_TYPE)}
+    response = client.post("/api/misc/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 19
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_repro_docx_paragraphs_are_fixed_points_of_predict_normalization(client):
+    """Same contract as above, without mocking: a synthetic DOCX whose raw
+    paragraphs carry zero-width characters and odd whitespace goes through the
+    real extraction path."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    file_content = _build_docx_bytes(
+        [
+            "A mayor abundamiento,\ufeff a fs. 123/456 la Sra. Mar\u00eda Gonz\u00e1lez.",
+            "Con\u200b espacios\ty tabulaciones\u200c raras\ufe0f aqu\u00ed.",
+            "P\u00e1rrafo final sin caracteres invisibles.",
+        ]
+    )
+
+    response = client.post(
+        "/api/misc/document-extract",
+        files={
+            "file": (
+                "repro.docx",
+                file_content,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    paragraphs = response.json()["document"]
+    assert paragraphs
+
+    misaligned = [
+        paragraph
+        for paragraph in paragraphs
+        if FlairTextNormalize.normalize_text(paragraph) != paragraph
+    ]
+    assert not misaligned, (
+        f"{len(misaligned)} extracted paragraph(s) are not aligned with the "
+        f"predict pipeline normalization; first: {misaligned[0]!r}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_should_return_page_count_for_generated_pdf(client):
+    """Test that a generated 3-page PDF reports page_count 3."""
+    import pymupdf
+
+    pdf_document = pymupdf.open()
+    try:
+        for index in range(3):
+            page = pdf_document.new_page()  # type: ignore[attr-defined]
+            page.insert_text((72, 72), f"page {index + 1}")
+        file_content = pdf_document.tobytes()
+    finally:
+        pdf_document.close()
+
+    files = {"file": ("sample.pdf", file_content, "application/pdf")}
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["page_count"] == 3

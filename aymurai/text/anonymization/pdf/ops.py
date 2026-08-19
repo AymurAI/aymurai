@@ -23,7 +23,11 @@ from aymurai.text.anonymization.pdf.common import (
     _fit_display_token,
     _get_base14_font,
     _group_adjacent_rects,
-    _rect_vertical_overlap,
+)
+from aymurai.text.anonymization.pdf.images import (
+    _entity_overlaps_image,
+    _image_rects_for_clip,
+    _try_image_entity,
 )
 from aymurai.text.anonymization.pdf.layout import (
     _find_line_char_span,
@@ -34,15 +38,12 @@ from aymurai.text.anonymization.pdf.layout import (
     _resolve_token,
 )
 from aymurai.text.anonymization.pdf.widgets import (
-    _apply_widget_ops,
     _entity_overlaps_widget,
     _page_widget_infos,
-    _prepare_signature_widget_ops,
+    _widget_value_contains,
 )
 
 logger = get_logger(__name__)
-
-_IMAGE_OVERLAP_THRESHOLD = 0.3
 
 
 def _padded_rect(rect: pymupdf.Rect, clip: pymupdf.Rect) -> pymupdf.Rect:
@@ -164,31 +165,6 @@ def _build_page_op(
     }
 
 
-def _image_rects_for_clip(
-    page: pymupdf.Page,
-    clip: pymupdf.Rect,
-) -> list[pymupdf.Rect]:
-    """
-    Collects image rectangles that overlap the given page region.
-
-    Args:
-        page (pymupdf.Page): The PDF page being processed.
-        clip (pymupdf.Rect): The clipping rectangle to constrain the operation.
-
-    Returns:
-        list[pymupdf.Rect]: The image rectangles that overlap the clip region.
-    """
-    rects: list[pymupdf.Rect] = []
-    for img_info in page.get_image_info():
-        bbox = img_info.get("bbox")
-        if bbox is None:
-            continue
-        img_rect = pymupdf.Rect(bbox)
-        if img_rect.intersects(clip) and img_rect.get_area() > 0:
-            rects.append(img_rect)
-    return rects
-
-
 def _squared_distance_between_rect_centers(
     left: pymupdf.Rect,
     right: pymupdf.Rect,
@@ -287,27 +263,39 @@ def _build_signature_page_op(
     return op
 
 
-def _entity_overlaps_image(
-    page: pymupdf.Page,
-    entity_rect: pymupdf.Rect,
-    image_rects: list[pymupdf.Rect],
-) -> pymupdf.Rect | None:
+def _append_blank_ops(
+    page_ops: dict[int, list[dict]],
+    page_index: int,
+    rects: list[pymupdf.Rect],
+    line: dict,
+    token: str,
+    entity_style: dict[str, Any] | None,
+) -> None:
     """
-    Checks whether an entity rectangle overlaps a detected image.
+    Appends token-less redaction ops covering additional entity rectangles.
+
+    Used for the extra physical lines of a wrapped entity: the token is
+    rendered on the primary rectangle only, the remaining glyphs are blanked.
 
     Args:
-        page (pymupdf.Page): The PDF page being processed.
-        entity_rect (pymupdf.Rect): The rectangle representing the entity on the page.
-        image_rects (list[pymupdf.Rect]): The image rectangles available for overlap checks.
-
-    Returns:
-        pymupdf.Rect | None: The overlapping image rectangle, if one exists.
+        page_ops (dict[int, list[dict]]): The page operations grouped by page index.
+        page_index (int): The page index receiving the operations.
+        rects (list[pymupdf.Rect]): The additional rectangles to blank.
+        line (dict): The parsed line metadata used for styling.
+        token (str): The logical replacement token being processed.
+        entity_style (dict[str, Any] | None): The entity style dictionary, if resolved.
     """
-    for img_rect in image_rects:
-        overlap = _rect_vertical_overlap(entity_rect, img_rect)
-        if overlap >= _IMAGE_OVERLAP_THRESHOLD and entity_rect.intersects(img_rect):
-            return img_rect
-    return None
+    for rect in rects:
+        op = _build_page_op(
+            rect,
+            line,
+            token,
+            is_image=False,
+            entity_style=entity_style,
+        )
+        op["text"] = None
+        op["fontsize"] = None
+        page_ops.setdefault(page_index, []).append(op)
 
 
 def _collect_page_redactions(
@@ -376,6 +364,12 @@ def _collect_page_redactions(
                     if rect.intersects(box_clip)
                 ]
 
+                # The matched layout paragraph may be wrong (e.g. CER match
+                # against re-split table text): retry without the box clip
+                # so real text hits are redacted where they actually are.
+                if not fallback_rects:
+                    fallback_rects = page.search_for(entity_text)
+
                 # Check if this is a widget-backed entity before falling back to images
                 if fallback_rects:
                     fallback_widget = _entity_overlaps_widget(
@@ -383,9 +377,10 @@ def _collect_page_redactions(
                         page_widgets[page_index],
                     )
                     if fallback_widget is not None:
-                        if (
-                            fallback_widget["field_type"]
-                            == pymupdf.PDF_WIDGET_TYPE_TEXT
+                        if fallback_widget[
+                            "field_type"
+                        ] == pymupdf.PDF_WIDGET_TYPE_TEXT and _widget_value_contains(
+                            fallback_widget, entity_text
                         ):
                             widget_ops.setdefault(page_index, []).append(
                                 {
@@ -416,7 +411,6 @@ def _collect_page_redactions(
                 if not fallback_rects:
                     img_match = _try_image_entity(
                         page,
-                        entity_text,
                         box_clip,
                         page_image_rects[page_index],
                     )
@@ -440,9 +434,7 @@ def _collect_page_redactions(
                     # Check if any of these rects overlap an image
                     for rect in grouped_rects:
                         img_rect = _entity_overlaps_image(
-                            page,
-                            rect,
-                            page_image_rects[page_index],
+                            rect, page_image_rects[page_index]
                         )
                         op = _build_page_op(
                             rect,
@@ -474,6 +466,7 @@ def _collect_page_redactions(
                     pymupdf.Rect | None,
                     dict,
                     dict[str, Any] | None,
+                    list[pymupdf.Rect],
                 ]
             ] = []
             for line in lines:
@@ -508,9 +501,35 @@ def _collect_page_redactions(
                     raw_text=line_char_text,
                 )
                 rect = None
+                extra_rects: list[pymupdf.Rect] = []
                 if raw_span is not None:
                     line_char_cursor[line_key] = raw_span[1]
                     rect = _rect_from_char_slice(line_chars, raw_span[0], raw_span[1])
+
+                if rect is None and raw_span is None:
+                    # The layout parser can declare a line range longer than the
+                    # physical glyphs on that line (wrapped tail reported inside
+                    # the same logical line). Search the whole box so the
+                    # remaining physical lines of the segment are covered too.
+                    declared_length = int(line["end"]) - int(line["start"])
+                    if declared_length > len(line_chars):
+                        wrap_rects = [
+                            wrap_rect
+                            for wrap_rect in page.search_for(
+                                segment_text, clip=box_clip
+                            )
+                            if wrap_rect.intersects(box_clip)
+                        ]
+                        if wrap_rects:
+                            grouped = sorted(
+                                _group_adjacent_rects(
+                                    wrap_rects, max_gap=PDF_TAG_RECT_GAP_MAX
+                                ),
+                                key=lambda group_rect: group_rect.width,
+                                reverse=True,
+                            )
+                            rect = grouped[0]
+                            extra_rects = grouped[1:]
 
                 if rect is None:
                     raw_start = (
@@ -534,11 +553,7 @@ def _collect_page_redactions(
                 )
 
                 # Check for image overlap
-                img_rect = _entity_overlaps_image(
-                    page,
-                    rect,
-                    page_image_rects[page_index],
-                )
+                img_rect = _entity_overlaps_image(rect, page_image_rects[page_index])
 
                 # Determine entity-specific style from the span that
                 # actually contains this text (not the line's dominant style)
@@ -546,7 +561,15 @@ def _collect_page_redactions(
                 ent_style = _entity_style_from_spans(line, offset_in_line)
 
                 segments.append(
-                    (line, segment_text, rect, img_rect, ent_style, widget_info)
+                    (
+                        line,
+                        segment_text,
+                        rect,
+                        img_rect,
+                        ent_style,
+                        widget_info,
+                        extra_rects,
+                    )
                 )
 
             if not segments:
@@ -554,9 +577,21 @@ def _collect_page_redactions(
 
             if len(segments) == 1:
                 # Single-line entity: route widget-backed content through the widget path.
-                line, _seg_text, rect, img_rect, ent_style, widget_info = segments[0]
+                (
+                    line,
+                    _seg_text,
+                    rect,
+                    img_rect,
+                    ent_style,
+                    widget_info,
+                    seg_extra_rects,
+                ) = segments[0]
                 if widget_info is not None:
-                    if widget_info["field_type"] == pymupdf.PDF_WIDGET_TYPE_TEXT:
+                    if widget_info[
+                        "field_type"
+                    ] == pymupdf.PDF_WIDGET_TYPE_TEXT and _widget_value_contains(
+                        widget_info, entity_text
+                    ):
                         widget_ops.setdefault(page_index, []).append(
                             {
                                 "widget_xref": widget_info["xref"],
@@ -589,6 +624,9 @@ def _collect_page_redactions(
                 if img_rect is not None:
                     op["image_rect"] = img_rect
                 page_ops.setdefault(page_index, []).append(op)
+                _append_blank_ops(
+                    page_ops, page_index, seg_extra_rects, line, token, ent_style
+                )
             else:
                 # Multi-line entity: write the token on the widest segment only; blank the others.
                 widest_idx = max(
@@ -617,6 +655,7 @@ def _collect_page_redactions(
                     seg_img,
                     seg_style,
                     seg_widget,
+                    seg_extra_rects,
                 ) in enumerate(segments):
                     if signature_widget is not None:
                         op = _build_signature_page_op(
@@ -631,6 +670,26 @@ def _collect_page_redactions(
                             op["text"] = None
                             op["fontsize"] = None
                         signature_widget_ops.setdefault(page_index, []).append(op)
+                        continue
+
+                    if (
+                        seg_widget is not None
+                        and seg_widget["field_type"] == pymupdf.PDF_WIDGET_TYPE_TEXT
+                        and _widget_value_contains(seg_widget, seg_text)
+                    ):
+                        # Segment text lives in a form field: blank or token the
+                        # field value instead of redacting page content.
+                        widget_ops.setdefault(page_index, []).append(
+                            {
+                                "widget_xref": seg_widget["xref"],
+                                "field_name": seg_widget["field_name"],
+                                "widget_info": seg_widget,
+                                "entity_text": seg_text,
+                                "logical_token": (
+                                    token if seg_idx == widest_idx else None
+                                ),
+                            }
+                        )
                         continue
 
                     if seg_idx == widest_idx:
@@ -657,311 +716,13 @@ def _collect_page_redactions(
                             op["image_rect"] = seg_img
 
                     page_ops.setdefault(page_index, []).append(op)
+                    _append_blank_ops(
+                        page_ops,
+                        page_index,
+                        seg_extra_rects,
+                        seg_line,
+                        token,
+                        seg_style,
+                    )
 
     return page_ops, widget_ops, signature_widget_ops
-
-
-def _try_image_entity(
-    page: pymupdf.Page,
-    entity_text: str,
-    clip: pymupdf.Rect,
-    image_rects: list[pymupdf.Rect],
-) -> pymupdf.Rect | None:
-    """
-    Finds the best image rectangle for an entity when text search fails.
-
-    Args:
-        page (pymupdf.Page): The PDF page being processed.
-        entity_text (str): The entity text being mapped.
-        clip (pymupdf.Rect): The clipping rectangle to constrain the operation.
-        image_rects (list[pymupdf.Rect]): The image rectangles available for overlap checks.
-
-    Returns:
-        pymupdf.Rect | None: The best image rectangle for the entity, if found.
-    """
-    if not image_rects:
-        return None
-
-    # Try unclipped text search — the entity might be rendered as real text
-    # on top of (or near) an image.
-    text_hits = page.search_for(entity_text)
-    if text_hits:
-        for hit_rect in text_hits:
-            for img_rect in image_rects:
-                if hit_rect.intersects(img_rect):
-                    return img_rect
-
-    # Fallback: pick the image whose intersection with *clip* is largest
-    best: pymupdf.Rect | None = None
-    best_area = 0.0
-    for img_rect in image_rects:
-        if not img_rect.intersects(clip) or img_rect.get_area() <= 0:
-            continue
-        intersection = img_rect & clip
-        area = intersection.get_area()
-        if area > best_area:
-            best_area = area
-            best = img_rect
-
-    return best
-
-
-def _render_text_op(page: pymupdf.Page, op: dict) -> None:
-    """
-    Renders a single anonymization token back onto a page.
-
-    Args:
-        page (pymupdf.Page): The PDF page being processed.
-        op (dict): The operation dictionary being processed.
-    """
-    canvas = pymupdf.Rect(op.get("background_rect") or op["canvas_rect"])
-    if not op.get("skip_background_fill"):
-        page.draw_rect(
-            canvas,
-            color=(1, 1, 1),
-            fill=(1, 1, 1),
-            width=0,
-            overlay=True,
-        )
-
-    if not op.get("text") or not op.get("fontsize"):
-        return
-
-    render = op["render_rect"]
-    line_rect = pymupdf.Rect(op.get("line_rect") or render)
-    style = op.get("style") or {}
-    base14_name = _base14_fontname_for_style(style)
-    font_obj = _get_base14_font(style)
-
-    fontsize = float(op["fontsize"])
-    descender = float(style.get("descender") or -0.2)
-    baseline_y = line_rect.y1 + (descender * fontsize)
-    baseline_y = min(
-        max(baseline_y, line_rect.y0 + (fontsize * 0.65)),
-        line_rect.y1 - 0.1,
-    )
-
-    text_width = font_obj.text_length(op["text"], fontsize=fontsize)
-    x_start = render.x0 + max((render.width - text_width) / 2.0, 0.0)
-
-    try:
-        page.insert_text(
-            (x_start, baseline_y),
-            op["text"],
-            fontname=base14_name,
-            fontsize=fontsize,
-            color=op["text_color"],
-            overlay=True,
-        )
-        return
-    except Exception as exc:
-        logger.debug("insert_text failed for '%s': %s", op["text"], exc)
-
-    try:
-        tw = pymupdf.TextWriter(page.rect, color=op["text_color"])
-        tw.fill_textbox(
-            render,
-            op["text"],
-            font=font_obj,
-            fontsize=fontsize,
-            align=op.get("text_align", pymupdf.TEXT_ALIGN_CENTER),
-        )
-        tw.write_text(page, overlay=True)
-        return
-    except Exception as exc:
-        logger.debug("TextWriter failed for '%s': %s", op["text"], exc)
-
-    try:
-        page.insert_textbox(
-            render,
-            op["text"],
-            fontname=base14_name,
-            fontsize=fontsize,
-            color=op["text_color"],
-            align=op.get("text_align", pymupdf.TEXT_ALIGN_CENTER),
-            overlay=True,
-        )
-    except Exception as exc:
-        logger.warning(
-            "All text insertion methods failed for '%s': %s",
-            op["text"],
-            exc,
-        )
-
-
-def _page_asset_rect(op: dict[str, Any]) -> pymupdf.Rect | None:
-    """
-    Resolves the asset rectangle associated with a page operation.
-
-    Args:
-        op (dict[str, Any]): The operation dictionary being processed.
-
-    Returns:
-        pymupdf.Rect | None: The asset rectangle associated with the operation, if any.
-    """
-    asset_rect = op.get("asset_rect") or op.get("image_rect")
-    if asset_rect is None:
-        return None
-    return pymupdf.Rect(asset_rect)
-
-
-def _partition_page_ops(
-    page_ops: dict[int, list[dict]],
-) -> tuple[dict[int, list[dict]], dict[int, list[dict]]]:
-    """
-    Splits page operations into text-only and asset-backed groups.
-
-    Args:
-        page_ops (dict[int, list[dict]]): The collected page operations grouped by page index.
-
-    Returns:
-        tuple[dict[int, list[dict]], dict[int, list[dict]]]: The text-only and asset-backed operations.
-    """
-    text_ops: dict[int, list[dict]] = {}
-    asset_ops: dict[int, list[dict]] = {}
-
-    for page_idx, ops in page_ops.items():
-        for op in ops:
-            if _page_asset_rect(op) is None:
-                text_ops.setdefault(page_idx, []).append(op)
-            else:
-                asset_ops.setdefault(page_idx, []).append(op)
-
-    return text_ops, asset_ops
-
-
-def _apply_text_redactions(
-    doc: pymupdf.Document,
-    text_page_ops: dict[int, list[dict]],
-) -> None:
-    """
-    Applies text-only redactions and re-renders replacement tokens.
-
-    Args:
-        doc (pymupdf.Document): The PDF document being processed.
-        text_page_ops (dict[int, list[dict]]): The text-only page operations grouped by page index.
-    """
-    for page_idx, ops in text_page_ops.items():
-        if not ops:
-            continue
-
-        page = doc[page_idx]
-        for op in ops:
-            page.add_redact_annot(
-                op["redact_rect"],
-                text=None,
-                fill=(1, 1, 1),
-                cross_out=False,
-            )
-
-        page.apply_redactions(
-            images=pymupdf.PDF_REDACT_IMAGE_NONE,
-            graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
-            text=pymupdf.PDF_REDACT_TEXT_REMOVE,
-        )
-
-        for op in ops:
-            _render_text_op(page, op)
-
-
-def _apply_asset_redactions(
-    doc: pymupdf.Document,
-    asset_page_ops: dict[int, list[dict]],
-) -> None:
-    """
-    Applies asset-backed redactions and re-renders replacement tokens.
-
-    Args:
-        doc (pymupdf.Document): The PDF document being processed.
-        asset_page_ops (dict[int, list[dict]]): The asset-backed page operations grouped by page index.
-    """
-    for page_idx, ops in asset_page_ops.items():
-        if not ops:
-            continue
-
-        page = doc[page_idx]
-        graphics_mode = pymupdf.PDF_REDACT_LINE_ART_NONE
-
-        for op in ops:
-            asset_rect = _page_asset_rect(op)
-            if asset_rect is None:
-                continue
-
-            page.add_redact_annot(
-                asset_rect,
-                text=None,
-                fill=(1, 1, 1),
-                cross_out=False,
-            )
-            graphics_mode = max(
-                graphics_mode,
-                int(op.get("graphics_mode") or pymupdf.PDF_REDACT_LINE_ART_NONE),
-            )
-
-        page.apply_redactions(
-            images=pymupdf.PDF_REDACT_IMAGE_REMOVE,
-            graphics=graphics_mode,
-            text=pymupdf.PDF_REDACT_TEXT_REMOVE,
-        )
-
-        for op in ops:
-            _render_text_op(page, op)
-
-
-def _apply_signature_redactions(
-    doc: pymupdf.Document,
-    signature_widget_ops: dict[int, list[dict]],
-) -> None:
-    """
-    Applies signer-name redactions without removing the full signature appearance.
-
-    Args:
-        doc (pymupdf.Document): The PDF document being processed.
-        signature_widget_ops (dict[int, list[dict]]): The signature operations grouped by page index.
-    """
-    for page_idx, ops in signature_widget_ops.items():
-        if not ops:
-            continue
-
-        page = doc[page_idx]
-        for op in ops:
-            page.add_redact_annot(
-                op["redact_rect"],
-                text=None,
-                fill=(1, 1, 1),
-                cross_out=False,
-            )
-
-        page.apply_redactions(
-            images=pymupdf.PDF_REDACT_IMAGE_PIXELS,
-            graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
-            text=pymupdf.PDF_REDACT_TEXT_REMOVE,
-        )
-
-        for op in ops:
-            _render_text_op(page, op)
-
-
-def _apply_redactions(
-    doc: pymupdf.Document,
-    page_ops: dict[int, list[dict]],
-    widget_ops: dict[int, list[dict]],
-    signature_widget_ops: dict[int, list[dict]],
-) -> None:
-    """
-    Applies all collected PDF redactions in the correct order.
-
-    Args:
-        doc (pymupdf.Document): The PDF document being processed.
-        page_ops (dict[int, list[dict]]): The collected page operations grouped by page index.
-        widget_ops (dict[int, list[dict]]): The collected text widget operations grouped by page index.
-        signature_widget_ops (dict[int, list[dict]]): The collected signature widget operations grouped by page index.
-    """
-    _apply_widget_ops(doc, widget_ops)
-    _prepare_signature_widget_ops(doc, signature_widget_ops)
-
-    text_page_ops, asset_page_ops = _partition_page_ops(page_ops)
-
-    _apply_text_redactions(doc, text_page_ops)
-    _apply_asset_redactions(doc, asset_page_ops)
-    _apply_signature_redactions(doc, signature_widget_ops)

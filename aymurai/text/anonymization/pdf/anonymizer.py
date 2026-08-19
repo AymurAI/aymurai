@@ -18,14 +18,14 @@ from aymurai.text.anonymization.pdf.layout import (
     _build_layout_paragraphs,
     _match_predictions_to_layout,
 )
-from aymurai.text.anonymization.pdf.ops import (
-    _apply_redactions,
-    _collect_page_redactions,
-)
+from aymurai.text.anonymization.pdf.ops import _collect_page_redactions
+from aymurai.text.anonymization.pdf.redactions import _apply_redactions
 from aymurai.text.anonymization.pdf.sanitize import (
     _collect_link_cleanup_rects,
     _sanitize_document,
 )
+from aymurai.text.anonymization.pdf.sweep import _collect_sweep_redactions
+from aymurai.text.anonymization.pdf.text_layer import _rebuild_scan_text_layers
 from aymurai.text.anonymization.pdf.watermark import add_pdf_footer_watermark
 
 
@@ -84,7 +84,18 @@ class PdfAnonymizer(BaseAnonymizer):
                 matched_paragraphs,
                 render_context,
             )
+            sweep_ops = _collect_sweep_redactions(
+                doc,
+                matched_paragraphs,
+                render_context,
+                page_ops,
+                widget_ops,
+                signature_widget_ops,
+            )
+            for page_index, ops in sweep_ops.items():
+                page_ops.setdefault(page_index, []).extend(ops)
             _apply_redactions(doc, page_ops, widget_ops, signature_widget_ops)
+            _rebuild_scan_text_layers(doc, page_ops, signature_widget_ops)
             cleanup_rects = _collect_link_cleanup_rects(
                 page_ops,
                 widget_ops,

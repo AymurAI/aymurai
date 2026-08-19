@@ -66,12 +66,14 @@ def anonymization_paragraph_create(
     override: bool = False,
 ) -> AnonymizationParagraph:
     """
-    Creates a new anonymization paragraph record.
+    Creates a new anonymization paragraph record, or updates the existing
+    record with the same content-hash ID (upsert).
 
     Args:
         paragraph_in (AnonymizationParagraphCreate): Paragraph creation payload.
         session (Session): Database session.
-        override (bool): If True, delete any existing paragraph with the same ID.
+        override (bool): If True, delete any existing paragraph with the same ID
+            before inserting (resets fields not present in the payload). Defaults to False.
 
     Returns:
         AnonymizationParagraph: The persisted paragraph record.
@@ -79,11 +81,20 @@ def anonymization_paragraph_create(
     payload = _normalize_paragraph_payload(paragraph_in.model_dump(exclude_none=True))
     new_paragraph = AnonymizationParagraph(**payload)
 
-    if override:
-        existing = session.get(AnonymizationParagraph, new_paragraph.id)
+    existing = session.get(AnonymizationParagraph, new_paragraph.id)
 
-        if existing:
-            session.delete(existing)
+    if existing and override:
+        session.delete(existing)
+        session.flush()
+        existing = None
+
+    if existing:
+        # Same text hashes to the same primary key: update in place instead
+        # of re-inserting (which raises IntegrityError on the PK).
+        payload.pop("id", None)
+        for field, value in payload.items():
+            setattr(existing, field, value)
+        new_paragraph = existing
 
     session.add(new_paragraph)
     session.commit()

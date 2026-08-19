@@ -11,8 +11,12 @@ from starlette import status
 from aymurai.database.utils import data_to_uuid
 from aymurai.logger import get_logger
 from aymurai.meta.api_interfaces import Document
-from aymurai.text.extraction import MIMETYPE_EXTENSION_MAPPER, extract_document
-from aymurai.text.normalize import document_normalize
+from aymurai.text.extraction import (
+    MIMETYPE_EXTENSION_MAPPER,
+    extract_document,
+    get_page_count,
+)
+from aymurai.text.normalize import ZERO_WIDTH_CHARS_PATTERN, document_normalize
 
 logger = get_logger(__name__)
 
@@ -61,13 +65,19 @@ def run_safe_text_extraction(path: str, timeout_s: float | None = 300) -> str:
 
 
 def _split_document_paragraphs(document: str) -> list[str]:
+    # The frontend stores these paragraphs as its source of truth and
+    # validates /predict label offsets against them, so each paragraph must
+    # be a fixed point of the predict pipeline normalization
+    # (FlairTextNormalize): no zero-width chars, no tabs, no space runs.
+    document = re.sub(ZERO_WIDTH_CHARS_PATTERN, "", document)
+
     if re.search(r"\n\s*\n+", document):
         raw_paragraphs = re.split(r"\n\s*\n+", document)
     else:
         raw_paragraphs = document.splitlines()
 
     paragraphs = [
-        re.sub(r"[ \t]{2,}", " ", paragraph.strip())
+        re.sub(r"[ \t]+", " ", paragraph.strip())
         for paragraph in raw_paragraphs
         if paragraph.strip()
     ]
@@ -118,10 +128,19 @@ def plain_text_extractor(file: UploadFile) -> Document:
                 detail=str(e),
             )
 
+    # Read in the main process, while the temp file still exists. This never
+    # raises: any failure resolves to None (see get_page_count).
+    page_count = get_page_count(tmp_filename)
+    logger.info(f"detected page count => {page_count}")
+
     os.remove(tmp_filename)
     logger.info(f"removed temp file from local storage => {tmp_filename}")
 
     document_id = data_to_uuid(data)
     paragraphs = _split_document_paragraphs(document)
 
-    return Document(document=paragraphs, document_id=document_id)
+    return Document(
+        document=paragraphs,
+        document_id=document_id,
+        page_count=page_count,
+    )

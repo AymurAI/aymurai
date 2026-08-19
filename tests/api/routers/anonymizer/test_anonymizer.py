@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pymupdf
 import pytest
 from docx import Document
+from sqlmodel import select as sqlmodel_select
 
 from aymurai.api.endpoints.routers.anonymizer import anonymizer as anonymizer_module
 from aymurai.database.schema import AnonymizationParagraph
@@ -18,7 +19,12 @@ from aymurai.meta.api_interfaces import LabelPolicy, RenderPolicy
 from aymurai.settings import Settings
 from aymurai.text.anonymization import DocxAnonymizer, PdfAnonymizer, get_anonymizer
 from aymurai.text.anonymization.alignment import index_paragraphs
-from aymurai.text.anonymization.pdf.ops import _refine_signature_text_rect
+from aymurai.text.anonymization.pdf.images import _is_page_background_image
+from aymurai.text.anonymization.pdf.ops import (
+    _collect_page_redactions,
+    _refine_signature_text_rect,
+)
+from aymurai.text.anonymization.pdf.redactions import _apply_redactions
 from aymurai.text.anonymization.pdf.widgets import _signature_background_rect
 from tests.api.conftest import build_label
 from tests.api.routers.conftest import build_mock_pipeline
@@ -42,6 +48,32 @@ def _write_pdf(path: Path, configure) -> Path:
     doc = pymupdf.open()
     page = doc.new_page()
     configure(doc, page)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def _write_ocr_scanned_pdf(path: Path, lines: list[str]) -> Path:
+    """Builds a PDF with the anatomy of a real scanned (OCR'd) document.
+
+    The visible content is a full-page raster of the text ("the scan"), and
+    the selectable OCR text layer is painted *underneath* the image
+    (image-over-text), exactly like scanner/OCR output. Real scanned
+    documents are private and only ever checked manually; this fixture
+    stands in for them in the suite.
+    """
+    with pymupdf.open() as render_doc:
+        render_page = render_doc.new_page()
+        for index, line in enumerate(lines):
+            render_page.insert_text((72, 100 + 40 * index), line)
+        scan_png = render_page.get_pixmap(matrix=pymupdf.Matrix(2, 2)).tobytes("png")
+        width, height = render_page.rect.width, render_page.rect.height
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=width, height=height)
+    for index, line in enumerate(lines):
+        page.insert_text((72, 100 + 40 * index), line)
+    page.insert_image(page.rect, stream=scan_png, overlay=True)
     doc.save(path)
     doc.close()
     return path
@@ -115,6 +147,36 @@ def _dark_pixel_ratio(page: pymupdf.Page, rect: pymupdf.Rect) -> float:
     for offset in range(0, len(samples), channels):
         if all(channel < 96 for channel in samples[offset : offset + 3]):
             dark_pixels += 1
+
+    return dark_pixels / max(total_pixels, 1)
+
+
+def _image_region_dark_ratio(
+    image_bytes: bytes,
+    page_rect: pymupdf.Rect,
+    region: pymupdf.Rect,
+    pad: float = 2.0,
+) -> float:
+    """Measures dark pixels of an embedded image inside a page-space region."""
+    pixmap = pymupdf.Pixmap(image_bytes)
+    if pixmap.n > 3:
+        pixmap = pymupdf.Pixmap(pymupdf.csRGB, pixmap)
+
+    scale_x = pixmap.width / page_rect.width
+    scale_y = pixmap.height / page_rect.height
+    x0 = max(int((region.x0 - pad) * scale_x), 0)
+    y0 = max(int((region.y0 - pad) * scale_y), 0)
+    x1 = min(int((region.x1 + pad) * scale_x), pixmap.width)
+    y1 = min(int((region.y1 + pad) * scale_y), pixmap.height)
+
+    dark_pixels = 0
+    total_pixels = 0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            offset = (y * pixmap.width + x) * pixmap.n
+            if all(channel < 96 for channel in pixmap.samples[offset : offset + 3]):
+                dark_pixels += 1
+            total_pixels += 1
 
     return dark_pixels / max(total_pixels, 1)
 
@@ -391,6 +453,184 @@ def test_pdf_anonymizer_removes_image_backed_entities(tmp_path):
         assert "<PER>" in page_text
 
 
+def test_page_background_image_detection_by_page_coverage():
+    with pymupdf.open() as doc:
+        page = doc.new_page()
+
+        assert _is_page_background_image(page, pymupdf.Rect(page.rect))
+        assert not _is_page_background_image(page, pymupdf.Rect(60, 60, 220, 110))
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_keeps_scanned_page_content_when_redacting(tmp_path):
+    """Regression: a page-sized scan image must not be removed wholesale.
+
+    Scanned (OCR'd) PDFs carry a full-page image plus a text layer. Removing
+    the image used to blank the whole page whenever any entity was redacted.
+    """
+    scan = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 120, 168))
+    scan.clear_with(230)
+    scan_png = scan.tobytes("png")
+
+    source_path = _write_pdf(
+        tmp_path / "scanned.pdf",
+        lambda _doc, page: (
+            page.insert_image(page.rect, stream=scan_png),
+            page.insert_text((72, 100), "Primera linea de contenido."),
+            page.insert_text((72, 140), "Ana Perez"),
+            page.insert_text((72, 180), "Otra linea que debe sobrevivir."),
+        ),
+    )
+    with pymupdf.open(source_path) as source_doc:
+        source_xref = source_doc[0].get_images(full=True)[0][0]
+        source_image = source_doc.extract_image(source_xref)["image"]
+
+    output_path = _run_pdf_anonymizer(
+        tmp_path,
+        source_path,
+        "Ana Perez",
+        [_label_dict("Ana Perez")],
+    )
+
+    with pymupdf.open(output_path) as output_doc:
+        page = output_doc[0]
+        page_text = page.get_text()
+
+        assert "Ana Perez" not in page_text
+        assert "<PER>" in page_text
+        # The rest of the page content must survive the redaction.
+        assert "Primera linea de contenido." in page_text
+        assert "Otra linea que debe sobrevivir." in page_text
+
+        # The scan image survives, but the entity pixels inside it are erased.
+        images = page.get_images(full=True)
+        assert images, "scanned background image must be preserved"
+        output_image = output_doc.extract_image(images[0][0])["image"]
+        assert output_image != source_image
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_erases_entity_pixels_inside_ocr_scan(tmp_path):
+    """Regression stand-in for real scanned judicial documents.
+
+    The fixture mirrors their exact anatomy: the visible content lives only
+    in the full-page scan image, with the OCR text layer hidden underneath.
+    The page must keep its scan (and every other line's pixels) while the
+    entity's pixels are destroyed inside the embedded image itself.
+    """
+    entity = "Ana Perez"
+    keeper = "Otra linea que debe sobrevivir."
+    source_path = _write_ocr_scanned_pdf(
+        tmp_path / "ocr-scan.pdf",
+        ["Primera linea de contenido.", entity, keeper],
+    )
+
+    with pymupdf.open(source_path) as source_doc:
+        source_page = source_doc[0]
+        page_rect = pymupdf.Rect(source_page.rect)
+        entity_rect = source_page.search_for(entity)[0]
+        keeper_rect = source_page.search_for(keeper)[0]
+        source_xref = source_page.get_images(full=True)[0][0]
+        source_image = source_doc.extract_image(source_xref)["image"]
+
+    # Sanity: the scan itself contains the printed pixels of both lines.
+    assert _image_region_dark_ratio(source_image, page_rect, entity_rect) > 0.02
+    assert _image_region_dark_ratio(source_image, page_rect, keeper_rect) > 0.02
+
+    output_path = _run_pdf_anonymizer(
+        tmp_path,
+        source_path,
+        entity,
+        [_label_dict(entity)],
+    )
+
+    with pymupdf.open(output_path) as output_doc:
+        page = output_doc[0]
+        page_text = page.get_text()
+
+        assert entity not in page_text
+        assert "<PER>" in page_text
+        assert "Primera linea de contenido." in page_text
+        assert keeper in page_text
+
+        # The token must sit inline in extraction order, not trail the page.
+        assert (
+            page_text.index("Primera linea de contenido.")
+            < page_text.index("<PER>")
+            < page_text.index(keeper)
+        )
+
+        images = page.get_images(full=True)
+        assert images, "scan image must be preserved"
+        output_image = output_doc.extract_image(images[0][0])["image"]
+
+        # Entity pixels are destroyed inside the scan; the rest is intact.
+        assert _image_region_dark_ratio(output_image, page_rect, entity_rect) < 0.005
+        assert _image_region_dark_ratio(output_image, page_rect, keeper_rect) > 0.02
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_sweeps_unlabeled_repeat_mentions(tmp_path):
+    """Regression: occurrences the model missed must still be redacted.
+
+    The model labels one mention; a repeated, differently-cased occurrence
+    elsewhere must be swept out of the export as well.
+    """
+    source_path = _write_pdf(
+        tmp_path / "repeat.pdf",
+        lambda _doc, page: (
+            page.insert_text((72, 100), "Firmado: Ana Perez"),
+            page.insert_text((72, 140), "Notifiquese a ANA PEREZ."),
+        ),
+    )
+
+    document = "Firmado: Ana Perez"
+    output_path = _run_pdf_anonymizer(
+        tmp_path,
+        source_path,
+        document,
+        [_label_for_document_text(document, "Ana Perez")],
+    )
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+        assert "Ana Perez" not in page_text
+        assert "ANA PEREZ" not in page_text
+        assert page_text.count("<PER>") >= 2
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_sweep_respects_word_boundaries(tmp_path):
+    """The sweep must not redact fragments inside larger words."""
+    source_path = _write_pdf(
+        tmp_path / "boundary.pdf",
+        lambda _doc, page: (
+            page.insert_text((72, 100), "Firmado: Juan Rios", fontsize=20),
+            page.insert_text((72, 140), "Los barrios del sur siguen igual."),
+        ),
+    )
+
+    document = "Firmado: Juan Rios"
+    output_path = _run_pdf_anonymizer(
+        tmp_path,
+        source_path,
+        document,
+        [_label_for_document_text(document, "Rios")],
+    )
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+        assert "Juan Rios" not in page_text
+        assert "<PER>" in page_text
+        assert "Los barrios del sur siguen igual." in page_text
+
+
 def test_signature_background_rect_stays_on_signer_name_line():
     background = _signature_background_rect(
         {
@@ -607,6 +847,178 @@ def test_pdf_anonymizer_preserves_non_signature_widget_appearance_when_baking(
 
 @pytest.mark.integration
 @WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_footnote_text_overlapped_by_foreign_text_widget(
+    tmp_path,
+):
+    # GEDO-style PDFs place an oversized invisible footer form field over the
+    # footnote area; footnote entities must still be redacted as page text.
+    document = "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010."
+
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        page.insert_text((72, 770), document, fontsize=10)
+
+        footer_widget = pymupdf.Widget()
+        footer_widget.field_name = "Numero_1"
+        footer_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        footer_widget.field_value = "IF-2026-19469434"
+        footer_widget.text_font = "Helv"
+        footer_widget.text_fontsize = 10
+        footer_widget.rect = pymupdf.Rect(250, 764, 580, 800)
+        page.add_widget(footer_widget)
+
+    source_path = _write_pdf(tmp_path / "footnote-widget.pdf", configure)
+    labels = [_label_for_document_text(document, "Tomo:182 Folio:010")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182 Folio:010" not in page_text
+    assert "IF-2026-19469434" in page_text
+    assert "Contador Publico Nacional" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_spanning_multiple_text_widgets(tmp_path):
+    # GEDO-style signature blocks store the signer name and role in stacked
+    # AcroForm text fields; an entity spanning both fields must clear the
+    # sensitive field values.
+    def configure(_doc: pymupdf.Document, page: pymupdf.Page) -> None:
+        name_widget = pymupdf.Widget()
+        name_widget.field_name = "usuario_0"
+        name_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        name_widget.field_value = "Monica Freda"
+        name_widget.text_font = "Helv"
+        name_widget.text_fontsize = 9
+        name_widget.rect = pymupdf.Rect(36, 358, 286, 369)
+        page.add_widget(name_widget)
+
+        role_widget = pymupdf.Widget()
+        role_widget.field_name = "cargo_0"
+        role_widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        role_widget.field_value = "Sindico General"
+        role_widget.text_font = "Helv"
+        role_widget.text_fontsize = 9
+        role_widget.rect = pymupdf.Rect(36, 368, 286, 379)
+        page.add_widget(role_widget)
+
+    source_path = _write_pdf(tmp_path / "signature-block-widgets.pdf", configure)
+    document = "Monica Freda Sindico General"
+    labels = [_label_for_document_text(document, "Monica Freda Sindico")]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Monica Freda" not in page_text
+    assert "General" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
+def test_pdf_anonymizer_redacts_entity_when_extraction_added_spurious_space(tmp_path):
+    # Text extraction sometimes inserts a space that is absent from the real
+    # PDF glyph stream (e.g. "SGC BA" for "SGCBA"); the label must still map.
+    page_line = "Numero: IF-2026-19469434-GCABA-SGCBA"
+    source_path = _write_pdf(
+        tmp_path / "spurious-space.pdf",
+        lambda _doc, page: page.insert_text((72, 72), page_line),
+    )
+    document = "Numero: IF-2026-19469434-GCABA-SGC BA"
+    labels = [
+        _label_for_document_text(
+            document,
+            "IF-2026-19469434-GCABA-SGC BA",
+            label="NUM_EXPEDIENTE",
+        )
+    ]
+
+    output_path = _run_pdf_anonymizer(tmp_path, source_path, document, labels)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "IF-2026-19469434-GCABA-SGCBA" not in page_text
+    assert "Numero:" in page_text
+
+
+@pytest.mark.integration
+def test_pdf_redactions_cover_wrapped_tail_declared_inside_one_layout_line(tmp_path):
+    # The layout parser sometimes reports a wrapped footnote as one logical
+    # line whose char range includes the tail rendered on the next physical
+    # line (the tail is then duplicated as a second line entry). The redaction
+    # must still cover the wrapped tail glyphs.
+    line1 = (
+        "1 Contador Publico Nacional Ana Perez. Tomo:182 Folio:010. "
+        "Estudio: Price Waterhouse & Co."
+    )
+    tail = "S.R.L."
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 760), line1, fontsize=8)
+    page.insert_text((72, 772), tail, fontsize=8)
+
+    rect1 = page.search_for(line1)[0]
+    rect2 = page.search_for(tail)[0]
+    document = f"{line1} {tail}"
+    entity = "Tomo:182 Folio:010. Estudio: Price Waterhouse & Co. S.R.L"
+    label = _label_for_document_text(document, entity, label="TEXTO_ANONIMIZAR")
+
+    def line_entry(index: int, rect, start: int, end: int, text: str) -> dict:
+        return {
+            "page_index": 0,
+            "box_index": 0,
+            "line_index": index,
+            "bbox": tuple(rect),
+            "font_size": 8.0,
+            "start": start,
+            "end": end,
+            "text": text,
+            "style": None,
+            "spans_detail": [],
+            "strip_offset": 0,
+        }
+
+    box_bbox = pymupdf.Rect(rect1)
+    box_bbox.include_rect(rect2)
+    paragraph = {
+        "document": document,
+        "labels": [label],
+        "metadata": {
+            "page_index": 0,
+            "page_number": 1,
+            "box_index": 0,
+            "box_bbox": tuple(box_bbox),
+            "line_text": f"{document}\n{tail}",
+            "lines": [
+                line_entry(0, rect1, 0, len(document), document),
+                line_entry(
+                    1, rect2, len(document) + 1, len(document) + 1 + len(tail), tail
+                ),
+            ],
+        },
+    }
+
+    page_ops, widget_ops, signature_ops = _collect_page_redactions(
+        doc, [paragraph], None
+    )
+    _apply_redactions(doc, page_ops, widget_ops, signature_ops)
+    output_path = tmp_path / "wrapped-tail.pdf"
+    doc.save(output_path)
+
+    with pymupdf.open(output_path) as output_doc:
+        page_text = output_doc[0].get_text()
+
+    assert "Tomo:182" not in page_text
+    assert "S.R.L" not in page_text
+    assert "Contador Publico Nacional" in page_text
+
+
+@pytest.mark.integration
+@WINDOWS_PYMUPDF_LAYOUT_XFAIL
 def test_pdf_anonymizer_preserves_signature_appearance_when_redacting_signer_name(
     tmp_path,
 ):
@@ -791,6 +1203,134 @@ def test_should_return_cached_result_when_calling_twice(mock_load_pipeline, clie
     assert response2.status_code == 200
     assert data1["document"] == data2["document"]
     assert data1["labels"] == data2["labels"]
+
+
+def build_normalizing_mock_pipeline():
+    """Mock pipeline whose preprocess applies the real FlairTextNormalize,
+    mimicking the production flair-anonymizer pipeline (which rewrites
+    ``doc.text``: strips zero-width chars, collapses whitespace)."""
+    from copy import deepcopy
+
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    mock = MagicMock()
+
+    def preprocess_impl(items):
+        items = deepcopy(items)
+        for item in items:
+            item["data"]["doc.text"] = FlairTextNormalize.normalize_text(
+                item["data"]["doc.text"]
+            )
+        return items
+
+    mock.preprocess.side_effect = preprocess_impl
+
+    def predict_single_impl(item):
+        item["predictions"] = {"entities": [build_label().model_dump(mode="json")]}
+        return item
+
+    mock.predict_single.side_effect = predict_single_impl
+    mock.postprocess.side_effect = lambda items: items
+
+    return mock
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.load_pipeline")
+def test_should_not_fail_when_predicting_pipeline_normalized_text_twice(
+    mock_load_pipeline, client, db_session
+):
+    """Regression: paragraphs whose text is rewritten by pipeline
+    normalization (e.g. containing U+FEFF) used to be stored under the
+    normalized-text hash while the cache lookup used the raw-text hash.
+    The lookup never hit, so reprocessing the same paragraph re-inserted
+    the same primary key -> sqlite IntegrityError (UNIQUE constraint
+    failed: anonymization_paragraph.id)."""
+    mock_pipeline = build_normalizing_mock_pipeline()
+    mock_load_pipeline.return_value = mock_pipeline
+
+    raw_text = "A mayor abundamiento,\ufeff no puede dejar de considerarse."
+
+    response1 = client.post(
+        "/api/anonymizer/predict",
+        json={"text": raw_text},
+        params={"use_cache": True},
+    )
+    assert response1.status_code == 200
+
+    response2 = client.post(
+        "/api/anonymizer/predict",
+        json={"text": raw_text},
+        params={"use_cache": True},
+    )
+    assert response2.status_code == 200
+    assert response1.json() == response2.json()
+
+    # exactly one row, keyed by the normalized text
+    rows = db_session.exec(sqlmodel_select(AnonymizationParagraph)).all()
+    assert len(rows) == 1
+
+    # second call must be served from cache: the pipeline ran only once
+    assert mock_pipeline.predict_single.call_count == 1
+
+
+@pytest.mark.integration
+def test_should_return_validation_when_text_needs_pipeline_normalization(
+    client, db_session
+):
+    """Regression: /validation hashed the raw request text, but paragraphs
+    are stored under the pipeline-normalized text hash. For texts containing
+    e.g. U+FEFF the lookup always missed and validations were never found."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    raw_text = "A mayor abundamiento,\ufeff no puede dejar de considerarse."
+    normalized_text = FlairTextNormalize.normalize_text(raw_text)
+    assert normalized_text != raw_text
+
+    validation = [build_label("PER", "Jane Roe").model_dump(mode="json")]
+    db_session.add(
+        AnonymizationParagraph(
+            id=text_to_uuid(normalized_text),
+            text=normalized_text,
+            validation=validation,
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        "/api/anonymizer/validation",
+        json={"text": raw_text},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == validation
+
+
+@pytest.mark.integration
+def test_should_upsert_when_creating_same_paragraph_twice(db_session):
+    """Regression: anonymization_paragraph_create blindly inserted, so a
+    second create with the same content-hash id raised IntegrityError."""
+    from aymurai.database.crud.anonymization.paragraph import (
+        anonymization_paragraph_create,
+    )
+    from aymurai.database.schema import AnonymizationParagraphCreate
+
+    text = "Same paragraph text stored twice"
+    first = anonymization_paragraph_create(
+        AnonymizationParagraphCreate(text=text, prediction=[build_label()]),
+        session=db_session,
+    )
+
+    updated_label = build_label("PER", "Jane Roe")
+    second = anonymization_paragraph_create(
+        AnonymizationParagraphCreate(text=text, prediction=[updated_label]),
+        session=db_session,
+    )
+
+    assert second.id == first.id
+    rows = db_session.exec(sqlmodel_select(AnonymizationParagraph)).all()
+    assert len(rows) == 1
+    assert rows[0].prediction[0]["text"] == "Jane Roe"
 
 
 @pytest.mark.integration

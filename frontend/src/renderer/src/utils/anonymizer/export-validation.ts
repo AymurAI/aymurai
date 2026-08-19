@@ -34,13 +34,30 @@ export interface ExportValidationIssue {
   relatedEntity?: ExportEntityDebugInfo;
 }
 
+const MAX_ISSUES_IN_MESSAGE = 3;
+
+function describeIssue(validationIssue: ExportValidationIssue): string {
+  const { entity } = validationIssue;
+  const excerpt =
+    entity.text.length > 40 ? `${entity.text.slice(0, 40)}…` : entity.text;
+  return `[${entity.label}] «${excerpt}»: ${validationIssue.message}`;
+}
+
+function buildValidationMessage(issues: ExportValidationIssue[]): string {
+  const shown = issues.slice(0, MAX_ISSUES_IN_MESSAGE).map(describeIssue);
+  const remaining = issues.length - shown.length;
+  const details = remaining > 0 ? [...shown, `(+${remaining} más)`] : shown;
+  return [
+    "No se puede exportar: hay entidades con offsets inválidos, duplicados o solapados.",
+    ...details,
+  ].join("\n");
+}
+
 export class AnonymizerExportValidationError extends Error {
   issues: ExportValidationIssue[];
 
   constructor(issues: ExportValidationIssue[]) {
-    super(
-      "No se puede exportar: hay entidades con offsets inválidos, duplicados o solapados.",
-    );
+    super(buildValidationMessage(issues));
     this.name = "AnonymizerExportValidationError";
     this.issues = issues;
   }
