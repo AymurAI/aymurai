@@ -397,9 +397,7 @@ def _collect_page_redactions(
                     # Check if any of these rects overlap an image
                     for rect in grouped_rects:
                         img_rect = _entity_overlaps_image(
-                            page,
-                            rect,
-                            page_image_rects[page_index],
+                            rect, page_image_rects[page_index]
                         )
                         op = _build_page_op(
                             rect,
@@ -491,11 +489,7 @@ def _collect_page_redactions(
                 )
 
                 # Check for image overlap
-                img_rect = _entity_overlaps_image(
-                    page,
-                    rect,
-                    page_image_rects[page_index],
-                )
+                img_rect = _entity_overlaps_image(rect, page_image_rects[page_index])
 
                 # Determine entity-specific style from the span that
                 # actually contains this text (not the line's dominant style)

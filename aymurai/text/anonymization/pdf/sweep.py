@@ -259,7 +259,7 @@ def _collect_sweep_redactions(
                 if not _hit_covers_whole_words(chars, rect):
                     continue
 
-                img_rect = _entity_overlaps_image(page, rect, image_rects)
+                img_rect = _entity_overlaps_image(rect, image_rects)
                 op = _build_page_op(
                     rect,
                     None,
