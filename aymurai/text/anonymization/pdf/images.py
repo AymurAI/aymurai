@@ -38,15 +38,12 @@ def _image_rects_for_clip(
 
 
 def _entity_overlaps_image(
-    page: pymupdf.Page,
-    entity_rect: pymupdf.Rect,
-    image_rects: list[pymupdf.Rect],
+    entity_rect: pymupdf.Rect, image_rects: list[pymupdf.Rect]
 ) -> pymupdf.Rect | None:
     """
     Checks whether an entity rectangle overlaps a detected image.
 
     Args:
-        page (pymupdf.Page): The PDF page being processed.
         entity_rect (pymupdf.Rect): The rectangle representing the entity on the page.
         image_rects (list[pymupdf.Rect]): The image rectangles available for overlap checks.
 
