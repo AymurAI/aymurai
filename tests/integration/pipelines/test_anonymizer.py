@@ -4,6 +4,15 @@ import pytest
 
 from aymurai.pipeline.pipeline import AymurAIPipeline
 
+# Synthetic reproduction of the zero-width-character misalignment bug: one
+# U+FEFF (ZERO WIDTH NO-BREAK SPACE) mid-paragraph, before entity spans, so
+# unnormalized offsets would land one character short of their entity text.
+ZERO_WIDTH_REPRO_PARAGRAPH = (
+    "A mayor abundamiento,\ufeff a fs. 123/456 de la causa 999/2020, "
+    "la Sra. María González declaró contra el Sr. Juan Pérez en el "
+    "Juzgado Civil de Buenos Aires el 15 de marzo de 2023."
+)
+
 
 def _extract_entities(item: dict[str, Any]) -> list[dict[str, Any]]:
     predictions = item.get("predictions")
@@ -93,3 +102,32 @@ def test_should_produce_anonymization_entities_when_running_full_chain(
     assert "predictions" in result
     entities = _extract_entities(result)
     assert entities, "Expected postprocess to preserve anonymizer entities"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_predicted_spans_slice_to_entity_text_for_zero_width_repro_paragraph(
+    anonymizer_pipeline,
+    build_pipeline_input,
+):
+    """Regression test for the zero-width-character misalignment bug: Flair's
+    Sentence silently strips U+200B/U+200C/U+FE0F/U+FEFF before tokenizing, so
+    without normalizing them away first, every predicted span after such a
+    character lands one character short of its entity text.
+
+    document-extract strips zero-width characters itself, but the pipeline
+    must stay robust for callers that feed it raw text (e.g. direct /predict
+    requests), so the repro paragraph carries a raw mid-paragraph U+FEFF.
+    """
+    input_item = build_pipeline_input(ZERO_WIDTH_REPRO_PARAGRAPH)
+    preprocessed_item = anonymizer_pipeline.preprocess([input_item])[0]
+    predicted_item = anonymizer_pipeline.predict_single(preprocessed_item)
+
+    document = predicted_item["data"]["doc.text"]
+    assert "\ufeff" not in document
+
+    entities = _extract_entities(predicted_item)
+    assert entities, "Expected at least one entity in the repro paragraph"
+    for entity in entities:
+        start, end = entity["start_char"], entity["end_char"]
+        assert document[start:end] == entity["text"]

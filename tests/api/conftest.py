@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import diskcache
 import pytest
@@ -92,11 +91,6 @@ def client(app, db_engine):
     finally:
         c.close()
         app.dependency_overrides.clear()
-
-
-@pytest.fixture(scope="session")
-def sample_docx():
-    return Path("/resources/data/sample/document-01.docx")
 
 
 def build_data_item(text: str = "sample text") -> dict:

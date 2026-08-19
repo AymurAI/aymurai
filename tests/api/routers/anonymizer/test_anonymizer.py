@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pymupdf
 import pytest
 from docx import Document
+from sqlmodel import select as sqlmodel_select
 
 from aymurai.api.endpoints.routers.anonymizer import anonymizer as anonymizer_module
 from aymurai.database.schema import AnonymizationParagraph
@@ -1026,6 +1027,134 @@ def test_should_return_cached_result_when_calling_twice(mock_load_pipeline, clie
     assert response2.status_code == 200
     assert data1["document"] == data2["document"]
     assert data1["labels"] == data2["labels"]
+
+
+def build_normalizing_mock_pipeline():
+    """Mock pipeline whose preprocess applies the real FlairTextNormalize,
+    mimicking the production flair-anonymizer pipeline (which rewrites
+    ``doc.text``: strips zero-width chars, collapses whitespace)."""
+    from copy import deepcopy
+
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    mock = MagicMock()
+
+    def preprocess_impl(items):
+        items = deepcopy(items)
+        for item in items:
+            item["data"]["doc.text"] = FlairTextNormalize.normalize_text(
+                item["data"]["doc.text"]
+            )
+        return items
+
+    mock.preprocess.side_effect = preprocess_impl
+
+    def predict_single_impl(item):
+        item["predictions"] = {"entities": [build_label().model_dump(mode="json")]}
+        return item
+
+    mock.predict_single.side_effect = predict_single_impl
+    mock.postprocess.side_effect = lambda items: items
+
+    return mock
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.anonymizer.anonymizer.load_pipeline")
+def test_should_not_fail_when_predicting_pipeline_normalized_text_twice(
+    mock_load_pipeline, client, db_session
+):
+    """Regression: paragraphs whose text is rewritten by pipeline
+    normalization (e.g. containing U+FEFF) used to be stored under the
+    normalized-text hash while the cache lookup used the raw-text hash.
+    The lookup never hit, so reprocessing the same paragraph re-inserted
+    the same primary key -> sqlite IntegrityError (UNIQUE constraint
+    failed: anonymization_paragraph.id)."""
+    mock_pipeline = build_normalizing_mock_pipeline()
+    mock_load_pipeline.return_value = mock_pipeline
+
+    raw_text = "A mayor abundamiento,\ufeff no puede dejar de considerarse."
+
+    response1 = client.post(
+        "/api/anonymizer/predict",
+        json={"text": raw_text},
+        params={"use_cache": True},
+    )
+    assert response1.status_code == 200
+
+    response2 = client.post(
+        "/api/anonymizer/predict",
+        json={"text": raw_text},
+        params={"use_cache": True},
+    )
+    assert response2.status_code == 200
+    assert response1.json() == response2.json()
+
+    # exactly one row, keyed by the normalized text
+    rows = db_session.exec(sqlmodel_select(AnonymizationParagraph)).all()
+    assert len(rows) == 1
+
+    # second call must be served from cache: the pipeline ran only once
+    assert mock_pipeline.predict_single.call_count == 1
+
+
+@pytest.mark.integration
+def test_should_return_validation_when_text_needs_pipeline_normalization(
+    client, db_session
+):
+    """Regression: /validation hashed the raw request text, but paragraphs
+    are stored under the pipeline-normalized text hash. For texts containing
+    e.g. U+FEFF the lookup always missed and validations were never found."""
+    from aymurai.models.flair.utils import FlairTextNormalize
+
+    raw_text = "A mayor abundamiento,\ufeff no puede dejar de considerarse."
+    normalized_text = FlairTextNormalize.normalize_text(raw_text)
+    assert normalized_text != raw_text
+
+    validation = [build_label("PER", "Jane Roe").model_dump(mode="json")]
+    db_session.add(
+        AnonymizationParagraph(
+            id=text_to_uuid(normalized_text),
+            text=normalized_text,
+            validation=validation,
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        "/api/anonymizer/validation",
+        json={"text": raw_text},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == validation
+
+
+@pytest.mark.integration
+def test_should_upsert_when_creating_same_paragraph_twice(db_session):
+    """Regression: anonymization_paragraph_create blindly inserted, so a
+    second create with the same content-hash id raised IntegrityError."""
+    from aymurai.database.crud.anonymization.paragraph import (
+        anonymization_paragraph_create,
+    )
+    from aymurai.database.schema import AnonymizationParagraphCreate
+
+    text = "Same paragraph text stored twice"
+    first = anonymization_paragraph_create(
+        AnonymizationParagraphCreate(text=text, prediction=[build_label()]),
+        session=db_session,
+    )
+
+    updated_label = build_label("PER", "Jane Roe")
+    second = anonymization_paragraph_create(
+        AnonymizationParagraphCreate(text=text, prediction=[updated_label]),
+        session=db_session,
+    )
+
+    assert second.id == first.id
+    rows = db_session.exec(sqlmodel_select(AnonymizationParagraph)).all()
+    assert len(rows) == 1
+    assert rows[0].prediction[0]["text"] == "Jane Roe"
 
 
 @pytest.mark.integration
