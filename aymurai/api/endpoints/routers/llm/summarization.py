@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -137,8 +137,8 @@ def _response_from_record(record: Summarization) -> SummarizationResponse:
 @router.post("/summarize", response_model=SummarizationResponse)
 async def summarize_document(
     payload: SummarizationRequest,
+    session: Annotated[Session, Depends(get_session)],
     use_cache: bool = True,
-    session: Session = Depends(get_session),
 ) -> SummarizationResponse:
     """
     Summarize a document using the configured LLM provider, persisting the result.
@@ -153,10 +153,10 @@ async def summarize_document(
 
     Args:
         payload (SummarizationRequest): The summarization request body.
-        use_cache (bool, optional): Whether to return a stored summary when one
-            exists for this text. Defaults to True.
         session (Session, optional): The database session. Defaults to
             Depends(get_session).
+        use_cache (bool, optional): Whether to return a stored summary when one
+            exists for this text. Defaults to True.
 
     Raises:
         HTTPException: If the input text is empty.
@@ -403,8 +403,8 @@ async def _stream_summary_events(
 @router.post("/summarize/stream")
 async def stream_summarize_document(
     payload: SummarizationRequest,
+    session: Annotated[Session, Depends(get_session)],
     use_cache: bool = True,
-    session: Session = Depends(get_session),
 ) -> StreamingResponse:
     """Stream a document summary using server-sent events (text/event-stream).
 
@@ -422,10 +422,10 @@ async def stream_summarize_document(
 
     Args:
         payload (SummarizationRequest): The summarization request body.
-        use_cache (bool, optional): Whether to replay a stored summary when one
-            exists for this text. Defaults to True.
         session (Session, optional): The database session. Defaults to
             Depends(get_session).
+        use_cache (bool, optional): Whether to replay a stored summary when one
+            exists for this text. Defaults to True.
 
     Raises:
         HTTPException: If the input text is empty.

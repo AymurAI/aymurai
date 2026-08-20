@@ -30,7 +30,9 @@ def _parse_hhmmss(value: str | float | timedelta) -> timedelta:
         return timedelta(seconds=float(value))
 
     if not isinstance(value, str):
-        raise ValueError("Invalid time format")
+        raise ValueError(  # noqa: TRY004  # ValueError is part of this function's documented contract
+            "Invalid time format"
+        )
 
     if value.startswith("PT"):
         match = ISO8601_DURATION_RE.match(value)

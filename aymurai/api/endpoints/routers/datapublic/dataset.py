@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from typing import Annotated
 
 import pandas as pd
 from fastapi import Depends, HTTPException, UploadFile
@@ -29,7 +30,7 @@ router = APIRouter()
 @router.post("", response_model=DataPublicDatasetRead)
 async def datapublic_dataset_create(
     data: DataPublicDatasetCreate,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> DataPublicDatasetRead:
     data = DataPublicDataset(**data.model_dump())
 
@@ -44,7 +45,7 @@ async def datapublic_dataset_create(
 @router.get("/{document_id}", response_model=DataPublicDatasetRead)
 async def datapublic_dataset_read(
     document_id: UUID4 | UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> DataPublicDatasetRead:
     statement = select(DataPublicDataset).where(DataPublicDataset.id == document_id)
     data = session.exec(statement).first()
@@ -58,7 +59,7 @@ async def datapublic_dataset_read(
 @router.post("/batch/import/json", response_model=SuccessResponse)
 async def datapublic_dataset_batch_create(
     json_file: UploadFile,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> SuccessResponse:
     try:
         data = json.load(json_file.file)
@@ -70,7 +71,7 @@ async def datapublic_dataset_batch_create(
 
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON format: {e!s}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # any parse/validation failure should map to a 400
         raise HTTPException(status_code=400, detail=str(e))
 
     return SuccessResponse(message="Data imported successfully")
@@ -78,8 +79,8 @@ async def datapublic_dataset_batch_create(
 
 @router.get("/batch/export")
 async def datapublic_dataset_batch_read(
+    session: Annotated[Session, Depends(get_session)],
     format: ExportFormat = ExportFormat.CSV,
-    session: Session = Depends(get_session),
 ) -> FileResponse:
     statement = select(DataPublicDataset)
     dump = session.exec(statement).all()

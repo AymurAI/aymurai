@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Body, Depends
 from fastapi.routing import APIRouter, HTTPException
 from pydantic import UUID5
@@ -25,7 +27,7 @@ router = APIRouter()
 @router.post("/paragraph", response_model=AnonymizationParagraphRead)
 async def api_paragraph_create(
     paragraph_in: AnonymizationParagraphCreate,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     """
     Add a new paragraph to the database
@@ -38,7 +40,7 @@ async def api_paragraph_create(
 @router.get("/paragraph", response_model=AnonymizationParagraphRead | None)
 async def paragraph_read_by_text(
     data: TextRequest,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> AnonymizationParagraphRead | None:
     paragraph_id = text_to_uuid(data.text)
 
@@ -53,7 +55,7 @@ async def paragraph_get_uuid(text: str = Body(...)) -> str:
 @router.get("/paragraph/{paragraph_id}", response_model=AnonymizationParagraphRead)
 async def api_paragraph_read(
     paragraph_id: UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> AnonymizationParagraphRead:
     statement = select(AnonymizationParagraph).where(
         AnonymizationParagraph.id == paragraph_id
@@ -66,7 +68,7 @@ async def api_paragraph_read(
 async def api_paragraph_update(
     paragraph_id: UUID5,
     data: AnonymizationParagraphUpdate,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> AnonymizationParagraphRead:
     try:
         paragraph = anonymization_paragraph_update(paragraph_id, data, session)
@@ -78,7 +80,7 @@ async def api_paragraph_update(
 @router.delete("/paragraph/{paragraph_id}", response_model=SuccessResponse)
 async def api_paragraph_delete(
     paragraph_id: UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     try:
         anonymization_paragraph_delete(paragraph_id, session)

@@ -1,9 +1,11 @@
+import asyncio
 import json
 import os
 import subprocess
 import tempfile
 from collections.abc import Iterable
 from threading import Lock
+from typing import Annotated
 
 from fastapi import Body, Depends, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
@@ -80,7 +82,7 @@ def _entities_to_doclabels(entities: list[dict]) -> list[DocLabel]:
                     }
                 )
             doclabels.append(doclabel)
-        except Exception as exc:  # keep going if a single entity is malformed
+        except Exception as exc:  # noqa: BLE001  # keep going if a single entity is malformed
             logger.warning(f"Skipping invalid entity for DocLabel: {exc}")
 
     return _dedupe_doclabels(doclabels)
@@ -330,21 +332,21 @@ def _should_anonymize_label(
 # MARK: Predict
 @router.post("/predict", response_model=DocumentInformation)
 async def anonymizer_paragraph_predict(
-    text_request: TextRequest = Body(
-        {"text": "Acusado: Ramiro Marrón DNI 34.555.666."}
-    ),
-    use_cache: bool = Query(
-        True, description="Use cache to store or retrive predictions"
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    text_request: Annotated[TextRequest, Body()] = {  # noqa: B006
+        "text": "Acusado: Ramiro Marrón DNI 34.555.666."
+    },
+    use_cache: Annotated[
+        bool, Query(description="Use cache to store or retrive predictions")
+    ] = True,
 ) -> DocumentInformation:
     """
     Endpoint to predict anonymization for a given paragraph of text.
 
     Args:
+        session (Session): Database session dependency.
         text_request (TextRequest): The request body containing the text to be anonymized.
         use_cache (bool): Flag to determine whether to use cache for storing or retrieving predictions.
-        session (Session): Database session dependency.
 
     Returns:
         DocumentInformation: The anonymized document information including the text and labels.
@@ -398,19 +400,23 @@ async def anonymizer_paragraph_predict(
 # MARK: Disambiguate
 @router.post("/disambiguate", response_model=DocumentAnnotations)
 async def anonymizer_disambiguate(
-    paragraphs: list[DocumentInformation] = Body(
-        ...,
-        description=(
-            "List of per-paragraph predictions returned by /anonymizer/predict."
+    paragraphs: Annotated[
+        list[DocumentInformation],
+        Body(
+            description=(
+                "List of per-paragraph predictions returned by /anonymizer/predict."
+            ),
         ),
-    ),
-    label_policies: dict[str, LabelPolicy] | None = Body(
-        None,
-        description=(
-            "Optional per-label policy overrides for disambiguation/anonymization."
+    ],
+    session: Annotated[Session, Depends(get_session)],
+    label_policies: Annotated[
+        dict[str, LabelPolicy] | None,
+        Body(
+            description=(
+                "Optional per-label policy overrides for disambiguation/anonymization."
+            ),
         ),
-    ),
-    session: Session = Depends(get_session),
+    ] = None,
 ) -> DocumentAnnotations:
     """
     Performs canonical entity disambiguation using fuzzy matching.
@@ -418,8 +424,8 @@ async def anonymizer_disambiguate(
     Args:
         paragraphs: A list of DocumentInformation objects containing the NER
             predictions per paragraph that need to be disambiguated.
-        label_policies: Optional per-label disambiguation/anonymization policies.
         session: Database session dependency for caching results.
+        label_policies: Optional per-label disambiguation/anonymization policies.
     Returns:
         DocumentAnnotations: The original annotations enriched with
             'canonical_entity_id' and 'role' fields for each resolved mention.
@@ -533,17 +539,17 @@ async def anonymizer_disambiguate(
 # MARK: Validate
 @router.post("/validation", response_model=list[DocLabel] | None)
 async def anonymizer_get_paragraph_validation(
-    text_request: TextRequest = Body(
-        {"text": "Acusado: Ramiro Marrón DNI 34.555.666."}
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    text_request: Annotated[TextRequest, Body()] = {  # noqa: B006
+        "text": "Acusado: Ramiro Marrón DNI 34.555.666."
+    },
 ) -> list[DocLabel] | None:
     """
     Get the validation labels for a given paragraph text.
 
     Args:
-        text_request (TextRequest): The request body containing the text to be validated.
         session (Session): Database session dependency.
+        text_request (TextRequest): The request body containing the text to be validated.
 
     Returns:
         list[DocLabel] | None: A list of validation labels for the given paragraph text, or None if no validation exists.
@@ -565,8 +571,8 @@ async def anonymizer_get_paragraph_validation(
 @router.post("/anonymize-document")
 async def anonymizer_compile_document(
     file: UploadFile,
-    annotations: str = Form(...),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    annotations: Annotated[str, Form()],
 ) -> FileResponse:
     """
     Compile Anonimized document from original file and annotations
@@ -698,8 +704,12 @@ async def anonymizer_compile_document(
     logger.info(f"Executing: {' '.join(cmd)}")
 
     try:
-        output = subprocess.check_output(
-            cmd, shell=False, encoding="utf-8", errors="ignore"
+        output = await asyncio.to_thread(
+            subprocess.check_output,
+            cmd,
+            shell=False,
+            encoding="utf-8",
+            errors="ignore",
         )
         logger.info(f"LibreOffice output: {output}")
     except subprocess.CalledProcessError as exc:

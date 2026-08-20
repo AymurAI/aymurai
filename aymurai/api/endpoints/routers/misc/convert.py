@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 import tempfile
@@ -24,9 +25,10 @@ router = APIRouter()
 def libreoffice_convert(
     input: str,
     format: Literal["pdf", "docx", "odt", "txt"],
-    output_dir=tempfile.gettempdir(),
+    output_dir: str | None = None,
     extra_args: str = "",
 ) -> str:
+    output_dir = output_dir if output_dir is not None else tempfile.gettempdir()
     cmd = f"{settings.LIBREOFFICE_BIN} --headless --convert-to {format} --outdir {output_dir} {input} {extra_args}"
     subprocess.run(cmd, shell=True, check=True)
 
@@ -46,17 +48,20 @@ async def convert_libreoffice(
 ) -> FileResponse:
     _, suffix = os.path.splitext(file.filename)
 
-    tmp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-    with open(tmp_file.name, "wb") as tmp:
-        data = file.file.read()
-        tmp.write(data)
+    def _write_temp_file() -> str:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            data = file.file.read()
+            tmp.write(data)
+        return tmp.name
+
+    tmp_path = await asyncio.to_thread(_write_temp_file)
 
     output = libreoffice_convert(
-        tmp_file.name,
+        tmp_path,
         format=output_format,
         extra_args=extra_args,
     )
-    os.remove(tmp_file.name)
+    os.remove(tmp_path)
 
     return FileResponse(
         output,

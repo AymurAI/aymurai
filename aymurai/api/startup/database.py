@@ -34,4 +34,4 @@ def check_db_connection():
 
     except Exception as e:
         logger.error(e)
-        raise e
+        raise

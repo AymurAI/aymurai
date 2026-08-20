@@ -7,7 +7,7 @@ registered under the same `/llm` prefix.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends
 from pydantic import UUID5, BaseModel
@@ -83,7 +83,7 @@ def _validation_response_from_record(
 @router.get("/summarize/validation/document/{document_id}")
 async def summarization_read_document_validation(
     document_id: UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> SummarizationValidationResponse:
     """
     Retrieve the stored summarization record for a given document ID.
@@ -113,8 +113,8 @@ async def summarization_read_document_validation(
 @router.post("/summarize/validation/document/{document_id}")
 async def summarization_save_document_validation(
     document_id: UUID5,
-    payload: SummarizationValidationRequest = Body(...),
-    session: Session = Depends(get_session),
+    payload: Annotated[SummarizationValidationRequest, Body()],
+    session: Annotated[Session, Depends(get_session)],
 ) -> None:
     """
     Save the human-validated summary for a given document ID.

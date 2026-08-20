@@ -50,9 +50,11 @@ def test_transcribe_audio_bytes_raises_runtime_error_when_no_done_frame(monkeypa
     mock_client = AsyncMock()
     mock_client.audio.transcriptions.create = AsyncMock(return_value=_fake_stream())
 
-    with patch("aymurai.audio.asr_client.AsyncOpenAI", return_value=mock_client):
-        with pytest.raises(RuntimeError, match="done frame"):
-            asyncio.run(transcribe_audio_bytes(b"data", "f.wav", "audio/wav"))
+    with (
+        patch("aymurai.audio.asr_client.AsyncOpenAI", return_value=mock_client),
+        pytest.raises(RuntimeError, match="done frame"),
+    ):
+        asyncio.run(transcribe_audio_bytes(b"data", "f.wav", "audio/wav"))
 
 
 def test_stream_transcribe_audio_bytes_yields_deltas_then_segments(monkeypatch):

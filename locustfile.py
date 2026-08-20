@@ -84,7 +84,7 @@ class StatsMixin:
                 memory_percent=data.get("memory_usage_mb", 0),
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # stats polling must never crash the load test
             print(f"Error fetching server stats: {e}")
 
 
