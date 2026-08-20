@@ -22,7 +22,6 @@ from aymurai.database.schema import AnonymizationParagraph, AnonymizationParagra
 from aymurai.database.session import get_session
 from aymurai.database.utils import data_to_uuid, text_to_uuid
 from aymurai.logger import get_logger
-from aymurai.models.flair.utils import FlairTextNormalize
 from aymurai.meta.api_interfaces import (
     DocLabel,
     DocumentAnnotations,
@@ -31,6 +30,7 @@ from aymurai.meta.api_interfaces import (
     RenderPolicy,
     TextRequest,
 )
+from aymurai.models.flair.utils import FlairTextNormalize
 from aymurai.settings import DEFAULT_RENDER_POLICY, settings
 from aymurai.text.anonymization import (
     InvalidDocumentAnonymizer,

@@ -3,11 +3,10 @@ import warnings
 from datetime import timedelta
 from typing import Any
 
-
 SENTENCE_END_RE = re.compile(r"(?:[.!?]+|[.!?]+[\"')\]]+)\s*$")
 
 
-def parse_time_seconds(value: str | int | float | timedelta) -> float:
+def parse_time_seconds(value: str | float | timedelta) -> float:
     """
     Parse a time value in HH:MM:SS, ISO 8601 duration (PT#H#M#S), or seconds.
 

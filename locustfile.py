@@ -22,7 +22,7 @@ cross-pipeline blocking that a single-endpoint test would miss.
 import uuid
 
 import lorem
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 from aymurai.logger import get_logger
 
@@ -61,7 +61,7 @@ def generate_text():
     # Unique per call so `use_cache` lookups always miss and every request
     # actually exercises the pipeline (preprocess/predict/postprocess), not
     # just a cache hit.
-    return f"{str(uuid.uuid4())} {paragraph}"
+    return f"{uuid.uuid4()!s} {paragraph}"
 
 
 class StatsMixin:
@@ -116,8 +116,8 @@ class DataPublicUser(StatsMixin, HttpUser):
         print(
             "Request: predict (datapublic),"
             f" Response Time: {response.elapsed.total_seconds() * 1000}ms,"
-            f" CPU Usage: {stats.cpu_usage}% ({stats.n_cores} cores),"  # noqa: E501
-            f" Memory Usage: {stats.memory_usage} / {stats.memory_limit}MB ({stats.memory_percent}%)",  # noqa: E501
+            f" CPU Usage: {stats.cpu_usage}% ({stats.n_cores} cores),"
+            f" Memory Usage: {stats.memory_usage} / {stats.memory_limit}MB ({stats.memory_percent}%)",
         )
 
 
@@ -146,6 +146,6 @@ class AnonymizerUser(StatsMixin, HttpUser):
         print(
             "Request: predict (anonymizer),"
             f" Response Time: {response.elapsed.total_seconds() * 1000}ms,"
-            f" CPU Usage: {stats.cpu_usage}% ({stats.n_cores} cores),"  # noqa: E501
-            f" Memory Usage: {stats.memory_usage} / {stats.memory_limit}MB ({stats.memory_percent}%)",  # noqa: E501
+            f" CPU Usage: {stats.cpu_usage}% ({stats.n_cores} cores),"
+            f" Memory Usage: {stats.memory_usage} / {stats.memory_limit}MB ({stats.memory_percent}%)",
         )

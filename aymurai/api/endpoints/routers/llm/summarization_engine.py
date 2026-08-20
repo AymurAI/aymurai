@@ -9,9 +9,10 @@ modules stay thin orchestration layers (CES-8). Imported by
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel

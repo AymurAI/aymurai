@@ -4,7 +4,6 @@ Factory for creating sentence encoder instances based on configuration.
 
 import os
 from enum import Enum
-from typing import Optional
 
 from aymurai.logger import get_logger
 from aymurai.models.sentence_encoder.base import BaseSentenceEncoder
@@ -58,7 +57,7 @@ def _coerce_encoder_type(value: EncoderType | str | None) -> EncoderType:
 
 def create_encoder(
     encoder_type: EncoderType | str | None = None,
-    device: Optional[str] = None,
+    device: str | None = None,
 ) -> BaseSentenceEncoder:
     """
     Factory function to create the appropriate sentence encoder.

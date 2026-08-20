@@ -76,7 +76,9 @@ def _odt_text(odt_bytes: bytes) -> str:
     with zipfile.ZipFile(io.BytesIO(odt_bytes)) as archive:
         content = archive.read("content.xml").decode("utf-8")
 
-    raw_paragraphs = re.findall(r"<text:p[^>]*>(.*?)</text:p>", content, flags=re.S)
+    raw_paragraphs = re.findall(
+        r"<text:p[^>]*>(.*?)</text:p>", content, flags=re.DOTALL
+    )
     return "\n".join(_strip_odt_markup(p) for p in raw_paragraphs)
 
 

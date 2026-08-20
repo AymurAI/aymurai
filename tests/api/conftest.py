@@ -12,8 +12,7 @@ os.environ.setdefault("RESOURCES_BASEPATH", "resources")
 
 from aymurai.api.endpoints.routers.anonymizer import anonymizer
 from aymurai.api.endpoints.routers.datapublic import datapublic
-from aymurai.api.endpoints.routers.misc import document_extract
-from aymurai.api.endpoints.routers.misc import convert
+from aymurai.api.endpoints.routers.misc import convert, document_extract
 from aymurai.database.meta.anonymization.paragraph import AnonymizationParagraphCreate
 from aymurai.database.meta.datapublic.paragraph import DataPublicParagraphCreate
 from aymurai.database.session import get_session

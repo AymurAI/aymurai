@@ -1,23 +1,23 @@
-from pydantic import UUID5
 from fastapi import Body, Depends
-from sqlmodel import Session, select
 from fastapi.routing import APIRouter, HTTPException
+from pydantic import UUID5
+from sqlmodel import Session, select
 
-from aymurai.database.utils import text_to_uuid
-from aymurai.database.session import get_session
-from aymurai.meta.api_interfaces import TextRequest, SuccessResponse
-from aymurai.database.schema import (
-    AnonymizationParagraph,
-    AnonymizationParagraphRead,
-    AnonymizationParagraphCreate,
-    AnonymizationParagraphUpdate,
-)
 from aymurai.database.crud.anonymization.paragraph import (
-    anonymization_paragraph_read,
     anonymization_paragraph_create,
     anonymization_paragraph_delete,
+    anonymization_paragraph_read,
     anonymization_paragraph_update,
 )
+from aymurai.database.schema import (
+    AnonymizationParagraph,
+    AnonymizationParagraphCreate,
+    AnonymizationParagraphRead,
+    AnonymizationParagraphUpdate,
+)
+from aymurai.database.session import get_session
+from aymurai.database.utils import text_to_uuid
+from aymurai.meta.api_interfaces import SuccessResponse, TextRequest
 
 router = APIRouter()
 

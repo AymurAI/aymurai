@@ -1,17 +1,17 @@
 import os
 
 from aymurai.logger import get_logger
-from aymurai.meta.types import DataItem, DataBlock
+from aymurai.meta.types import DataBlock, DataItem
 
-from .training import TrainingPipeline
-from .preprocess import PreProcessPipeline
-from .postprocess import PostProcessPipeline
 from .config import config2json, config2yaml, json2config
+from .postprocess import PostProcessPipeline
+from .preprocess import PreProcessPipeline
+from .training import TrainingPipeline
 
 logger = get_logger(__name__)
 
 
-class AymurAIPipeline(object):
+class AymurAIPipeline:
     """
     AymurAIPipeline provides a set of separated pipelines in preprocessing,
         training and postprocessing.

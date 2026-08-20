@@ -1,8 +1,8 @@
 from copy import deepcopy
 
+from aymurai.meta.pipeline_interfaces import Transform
 from aymurai.meta.types import DataItem
 from aymurai.utils.misc import get_element
-from aymurai.meta.pipeline_interfaces import Transform
 
 from .patterns import regex_patterns
 from .utils import find_subcategories

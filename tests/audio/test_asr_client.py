@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from aymurai.api.meta.asr.coro import CoroStreamDelta, CoroStreamSegments
 from aymurai.audio.asr_client import (
     stream_transcribe_audio_bytes,
     transcribe_audio_bytes,
 )
-from aymurai.api.meta.asr.coro import CoroStreamDelta, CoroStreamSegments
 from aymurai.settings import settings
 
 
@@ -46,7 +46,6 @@ def test_transcribe_audio_bytes_raises_runtime_error_when_no_done_frame(monkeypa
 
     async def _fake_stream():
         yield _fake_event("transcript.text.delta", delta="partial")
-        return
 
     mock_client = AsyncMock()
     mock_client.audio.transcriptions.create = AsyncMock(return_value=_fake_stream())

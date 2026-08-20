@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, model_validator
-from typing_extensions import TYPE_CHECKING, Self
-from sqlmodel import Field, SQLModel, Relationship
 from sqlalchemy import JSON, Column, DateTime, func, text
+from sqlmodel import Field, Relationship, SQLModel
 
 from aymurai.database.utils import text_to_uuid
 from aymurai.meta.api_interfaces import DocLabel

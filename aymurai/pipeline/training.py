@@ -1,16 +1,15 @@
-from typing import Dict, Optional
 from collections import OrderedDict
 
 from aymurai.logger import get_logger
-from aymurai.meta.types import DataItem, DataBlock
 from aymurai.meta.pipeline_interfaces import TrainModule
+from aymurai.meta.types import DataBlock, DataItem
 from aymurai.utils.cache import cache_load, cache_save, get_cache_key
 
 logger = get_logger(__name__)
 
 
-class TrainingPipeline(object):
-    def __init__(self, config: Dict, logger=None):
+class TrainingPipeline:
+    def __init__(self, config: dict, logger=None):
         """
         Training pipeline
 
@@ -110,7 +109,7 @@ class TrainingPipeline(object):
 
         return data_block
 
-    def save(self, path: str) -> Optional[dict]:
+    def save(self, path: str) -> dict | None:
         """
         save models pipeline
 

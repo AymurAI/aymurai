@@ -1,24 +1,24 @@
-import os
 import json
+import os
 import tempfile
 
 import pandas as pd
+from fastapi import Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.routing import APIRouter
 from pydantic import UUID4, UUID5
 from sqlmodel import Session, select
-from fastapi.routing import APIRouter
-from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
-from fastapi import Depends, UploadFile, HTTPException
 
-from aymurai.logger import get_logger
-from aymurai.database.session import get_session
-from aymurai.meta.api_interfaces import SuccessResponse
 from aymurai.api.endpoints.meta.database import ExportFormat
 from aymurai.database.schema import (
     DataPublicDataset,
-    DataPublicDatasetRead,
     DataPublicDatasetCreate,
+    DataPublicDatasetRead,
 )
+from aymurai.database.session import get_session
+from aymurai.logger import get_logger
+from aymurai.meta.api_interfaces import SuccessResponse
 
 logger = get_logger(__name__)
 
@@ -69,7 +69,7 @@ async def datapublic_dataset_batch_create(
                 session.add(dataset)
 
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {e!s}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

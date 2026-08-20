@@ -1,12 +1,12 @@
 from copy import deepcopy
 
-from aymurai.meta.types import DataItem
-from aymurai.utils.misc import get_element
 from aymurai.meta.pipeline_interfaces import Transform
+from aymurai.meta.types import DataItem
 from aymurai.transforms.entity_subcategories.utils import (
     filter_by_category,
     map_article_to_code_or_law,
 )
+from aymurai.utils.misc import get_element
 
 
 class ArticleSubcategorizer(Transform):

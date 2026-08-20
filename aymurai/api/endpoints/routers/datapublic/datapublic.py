@@ -158,5 +158,3 @@ async def datapublic_save_document_validation(
     session.commit()
     session.refresh(document)
     logger.info(f"document validation saved => {document_id}")
-
-    return

@@ -70,7 +70,6 @@ class DecisionEmbeddingBagBinRegex(TrainModule):
             val (DataBlock): Validation data block.
         """
         logger.warning("fit routine not implemented")
-        pass
 
     def predict(self, data: DataBlock) -> DataBlock:
         """

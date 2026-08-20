@@ -4,7 +4,7 @@ Abstract base class for sentence encoders.
 
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -30,7 +30,7 @@ class BaseSentenceEncoder(ABC):
         self,
         text_array: list[str],
         encoder_type: str,
-        context_array: Optional[list[str]] = None,
+        context_array: list[str] | None = None,
     ) -> np.ndarray:
         """
         Encode a list of texts into embeddings.
@@ -43,7 +43,6 @@ class BaseSentenceEncoder(ABC):
         Returns:
             numpy array of embeddings.
         """
-        pass
 
     @abstractmethod
     def batch_encode(
@@ -63,4 +62,3 @@ class BaseSentenceEncoder(ABC):
         Returns:
             numpy array of embeddings.
         """
-        pass

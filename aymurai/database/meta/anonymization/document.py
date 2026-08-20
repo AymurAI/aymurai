@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
-from sqlmodel import Field, SQLModel, Relationship
 from sqlalchemy import Column, DateTime, func, text
+from sqlmodel import Field, Relationship, SQLModel
 
 from aymurai.database.meta.anonymization.document_paragraph import (
     AnonymizationDocumentParagraph,

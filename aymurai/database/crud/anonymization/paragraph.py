@@ -171,8 +171,6 @@ def anonymization_paragraph_delete(paragraph_id: uuid.UUID, session: Session):
     session.delete(paragraph)
     session.commit()
 
-    return
-
 
 # FIXME: This can be CLEARLY optimized
 def anonymization_paragraph_batch_create_update(

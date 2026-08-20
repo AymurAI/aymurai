@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
+from functools import cache
 from typing import Any
 from unicodedata import normalize
 
@@ -539,7 +539,7 @@ def _fit_display_token(
 _BASE14_FONT_CACHE: dict[str, pymupdf.Font] = {}
 
 
-@lru_cache(maxsize=None)
+@cache
 def _cached_base14_font(name: str) -> pymupdf.Font:
     """
     Loads and caches a Base-14 font by name.

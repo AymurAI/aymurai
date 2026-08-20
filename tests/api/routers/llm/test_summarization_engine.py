@@ -14,7 +14,7 @@ from aymurai.api.endpoints.routers.llm.summarization_engine import (
     prepare_run,
     summarize_events,
 )
-from aymurai.llm_providers import LLMResponse, LlamaCppLLMProvider
+from aymurai.llm_providers import LlamaCppLLMProvider, LLMResponse
 from aymurai.llm_providers.llamacpp_provider import ServedModel
 from aymurai.llm_providers.tokens import TokenPiece
 from aymurai.settings import settings

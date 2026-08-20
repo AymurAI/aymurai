@@ -2,8 +2,8 @@ import cachetools
 import torch
 
 from aymurai.logger import get_logger
-from aymurai.settings import settings
 from aymurai.pipeline import AymurAIPipeline
+from aymurai.settings import settings
 
 logger = get_logger(__name__)
 

@@ -112,7 +112,7 @@ class ASRParagraph(BaseModel):
 
     @field_validator("start", "end", mode="before")
     @classmethod
-    def parse_hhmmss(cls, value: str | int | float | timedelta) -> timedelta:
+    def parse_hhmmss(cls, value: str | float | timedelta) -> timedelta:
         return _parse_hhmmss(value)
 
     @computed_field
@@ -121,7 +121,7 @@ class ASRParagraph(BaseModel):
         return text_to_uuid(self.text)
 
     @staticmethod
-    def _format_hh_mm_ss(value: timedelta | float | int | str) -> str:
+    def _format_hh_mm_ss(value: timedelta | float | str) -> str:
         if isinstance(value, timedelta):
             total_seconds = value.total_seconds()
         elif isinstance(value, str):

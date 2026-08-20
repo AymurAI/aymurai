@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pymupdf
@@ -18,7 +18,7 @@ def _pdf_metadata_mod_date() -> str:
     Returns:
         str: The PDF-formatted UTC modification timestamp.
     """
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(UTC)
     return timestamp.strftime("D:%Y%m%d%H%M%S+00'00'")
 
 

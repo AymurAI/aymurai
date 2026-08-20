@@ -12,10 +12,10 @@ from aymurai.text.anonymization.pdf import PdfAnonymizer
 __all__ = [
     "BaseAnonymizer",
     "DocxAnonymizer",
-    "PdfAnonymizer",
     "InvalidDocumentAnonymizer",
+    "PdfAnonymizer",
     "get_anonymizer",
     "register_anonymizer",
-    "supported_extensions",
     "replace_labels_in_text",
+    "supported_extensions",
 ]

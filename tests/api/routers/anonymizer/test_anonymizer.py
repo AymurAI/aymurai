@@ -3,7 +3,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1062,7 +1062,7 @@ def test_index_paragraphs_reads_docx_xml_as_utf8(tmp_path):
     <w:p><w:r><w:t>Señora — resolución</w:t></w:r></w:p>
   </w:body>
 </w:document>
-""".encode("utf-8")
+""".encode()
     )
 
     paragraphs = index_paragraphs(str(xml_path))
@@ -1080,7 +1080,7 @@ def test_docx_anonymizer_sets_aymurai_core_properties(tmp_path):
     document.core_properties.last_modified_by = "Sensitive Modifier"
     document.save(source_path)
 
-    started_at = datetime.now(timezone.utc).replace(microsecond=0)
+    started_at = datetime.now(UTC).replace(microsecond=0)
 
     output_path = DocxAnonymizer().anonymize(
         {"path": str(source_path)},
@@ -1100,8 +1100,8 @@ def test_docx_anonymizer_sets_aymurai_core_properties(tmp_path):
     assert core_properties.modified is not None
     modified = core_properties.modified
     if modified.tzinfo is None:
-        modified = modified.replace(tzinfo=timezone.utc)
-    assert started_at <= modified <= datetime.now(timezone.utc) + timedelta(seconds=5)
+        modified = modified.replace(tzinfo=UTC)
+    assert started_at <= modified <= datetime.now(UTC) + timedelta(seconds=5)
 
 
 @pytest.mark.integration

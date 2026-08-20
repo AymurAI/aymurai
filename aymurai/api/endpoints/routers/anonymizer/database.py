@@ -1,10 +1,10 @@
-from pydantic import UUID5
 from fastapi import Depends
-from sqlmodel import Session
 from fastapi.routing import APIRouter
+from pydantic import UUID5
+from sqlmodel import Session
 
-from aymurai.logger import get_logger
 from aymurai.database.session import get_session
+from aymurai.logger import get_logger
 
 logger = get_logger(__name__)
 
