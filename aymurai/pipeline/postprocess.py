@@ -79,7 +79,7 @@ class PostProcessPipeline:
         """
 
         self.logger.info("doing postprocessing tasks...")
-        if "multiprocessing" in self.config.keys():
+        if "multiprocessing" in self.config:
             njobs = self.config["multiprocessing"].get("njobs", -1)
             backend = self.config["multiprocessing"].get("backend", "multiprocessing")
 

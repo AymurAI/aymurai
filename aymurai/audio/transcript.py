@@ -54,7 +54,7 @@ def format_timestamp(seconds: float) -> str:
     """
     normalized = max(0.0, seconds)
     whole_seconds = int(normalized)
-    millis = int(round((normalized - whole_seconds) * 1000))
+    millis = round((normalized - whole_seconds) * 1000)
     if millis == 1000:
         whole_seconds += 1
         millis = 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from itertools import pairwise
 from typing import Any
 from unicodedata import normalize
 
@@ -92,7 +93,7 @@ def _apply_minimal_boundary_merge(
         paragraphs (list[dict]): The paragraph collection being processed.
         render_context (dict[str, Any] | None): The rendering context used to resolve replacement tokens.
     """
-    for left_par, right_par in zip(paragraphs, paragraphs[1:]):
+    for left_par, right_par in pairwise(paragraphs):
         left_doc = left_par.get("document") or ""
         right_doc = right_par.get("document") or ""
         left_labels = left_par.get("labels") or []

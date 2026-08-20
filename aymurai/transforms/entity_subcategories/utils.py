@@ -41,16 +41,12 @@ def find_subcategories(
     ents = deepcopy(ents)
 
     if use_context:
-        texts = map(
-            lambda x: f"{x['context_pre']} {x['text']} {x['context_post']}", ents
-        )
+        texts = (f"{x['context_pre']} {x['text']} {x['context_post']}" for x in ents)
     else:
-        texts = map(lambda x: x["text"], ents)
+        texts = (x["text"] for x in ents)
 
     filtered_ents = filter_by_category(ents, category)
-    found_subcats = list(
-        map(lambda x: find_subcategory_patterns(x, patterns_dict), texts)
-    )
+    found_subcats = [find_subcategory_patterns(x, patterns_dict) for x in texts]
 
     for ent, found_subcat in zip(ents, found_subcats):
         aymurai_label_subclass = get_element(

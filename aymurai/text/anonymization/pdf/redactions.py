@@ -66,7 +66,7 @@ def _render_text_op(page: pymupdf.Page, op: dict) -> None:
             overlay=True,
         )
         return
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
         logger.debug("insert_text failed for '%s': %s", op["text"], exc)
 
     try:
@@ -80,7 +80,7 @@ def _render_text_op(page: pymupdf.Page, op: dict) -> None:
         )
         tw.write_text(page, overlay=True)
         return
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
         logger.debug("TextWriter failed for '%s': %s", op["text"], exc)
 
     try:
@@ -93,7 +93,7 @@ def _render_text_op(page: pymupdf.Page, op: dict) -> None:
             align=op.get("text_align", pymupdf.TEXT_ALIGN_CENTER),
             overlay=True,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
         logger.warning(
             "All text insertion methods failed for '%s': %s",
             op["text"],

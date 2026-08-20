@@ -11,7 +11,7 @@ def _add_hyperlink(
     url: str,
     font_name: str = "Archivo",
     size: int = 10,
-    color: RGBColor = RGBColor(115, 190, 250),
+    color: RGBColor | None = None,
     italic: bool = False,
     bold: bool = True,
     underline: bool = True,
@@ -39,6 +39,9 @@ def _add_hyperlink(
     Raises:
         ValueError: If the paragraph is not a valid python-docx paragraph object.
     """
+    if color is None:
+        color = RGBColor(115, 190, 250)
+
     # Create the hyperlink relationship
     part = paragraph.part
     r_id = part.relate_to(url, RELATIONSHIP_TYPE.HYPERLINK, is_external=True)

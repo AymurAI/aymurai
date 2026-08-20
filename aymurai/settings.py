@@ -34,15 +34,13 @@ def load_env():
 class Settings(BaseSettings):
     model_config = ConfigDict(case_sensitive=False)
 
-    CORS_ORIGINS: list[str] | str = ",".join(
-        [
-            "http://localhost",
-            "https://localhost",
-            "http://localhost:8080",
-            "http://localhost:3000",
-            "0.0.0.0:8899",
-            "0.0.0.0:3000",
-        ]
+    CORS_ORIGINS: list[str] | str = (
+        "http://localhost,"
+        "https://localhost,"
+        "http://localhost:8080,"
+        "http://localhost:3000,"
+        "0.0.0.0:8899,"
+        "0.0.0.0:3000"
     )
 
     @field_validator("CORS_ORIGINS", mode="before")
@@ -52,7 +50,7 @@ class Settings(BaseSettings):
             return []
 
         if not isinstance(v, str):
-            raise ValueError(v)
+            raise TypeError(v)
 
         return [i.strip() for i in v.split(",")]
 

@@ -52,7 +52,7 @@ class DecisionEmbeddingBagBinRegex(TrainModule):
                 config_output = output.rsplit(".safetensors", 1)[0] + ".json"
                 try:
                     download(config_url, output=config_output)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # reason: best-effort optional download from an external source; any failure mode should not abort model loading
                     logger.warning(f"Could not download config file: {e}")
 
         self.model, self.cfg = TinyEmbeddingBagClassifier.from_checkpoint(

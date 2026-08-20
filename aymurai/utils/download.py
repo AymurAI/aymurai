@@ -7,7 +7,7 @@ import requests
 
 from aymurai.logger import get_logger
 
-NO_DOWNLOAD_IF_EXISTS = os.getenv("NO_DOWNLOAD_IF_EXISTS", True)
+NO_DOWNLOAD_IF_EXISTS = os.getenv("NO_DOWNLOAD_IF_EXISTS", "True")
 
 logger = get_logger(__name__)
 

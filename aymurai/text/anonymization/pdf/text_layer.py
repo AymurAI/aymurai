@@ -77,7 +77,7 @@ def _insert_invisible_text(page: pymupdf.Page, rect: pymupdf.Rect, text: str) ->
             render_mode=_INVISIBLE_RENDER_MODE,
             overlay=True,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
         logger.debug("Could not re-insert text '%s': %s", text, exc)
 
 

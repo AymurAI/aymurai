@@ -15,7 +15,7 @@ DISKCACHE_ROOT = os.getenv("DISKCACHE_ROOT", "/resources/cache/diskcache")
 cache = diskcache.Cache(DISKCACHE_ROOT)
 
 
-def flatten_dict(current: dict, key: str = "", result: dict = {}) -> dict:
+def flatten_dict(current: dict, key: str = "", result: dict | None = None) -> dict:
     """
     Flatten nested dictionaries into a dotted-key mapping.
 
@@ -27,10 +27,12 @@ def flatten_dict(current: dict, key: str = "", result: dict = {}) -> dict:
     Returns:
         dict: Mapping of flattened keys to terminal values.
     """
+    if result is None:
+        result = {}
     if type(current) is dict:
-        for k in current:
+        for k, value in current.items():
             new_key = f"{key}.{k}" if len(key) > 0 else k
-            flatten_dict(current[k], new_key, result)
+            flatten_dict(value, new_key, result)
     else:
         result[key] = current
     return result
@@ -51,7 +53,7 @@ def get_cache_key(item: Any, context: Any = "") -> str:
 
     if type(item) in [dict]:
         item = flatten_dict(item)
-        item = sorted(tuple(item.items()))
+        item = sorted(item.items())
         item = json.dumps(item, cls=EnhancedJSONEncoder)
     item_hash = joblib.hash(item)
 

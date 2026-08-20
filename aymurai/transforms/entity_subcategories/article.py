@@ -18,10 +18,10 @@ class ArticleSubcategorizer(Transform):
         item = deepcopy(item)
 
         ents = get_element(item, levels=["predictions", "entities"]) or []
-        texts = map(lambda x: x["text"], ents)
+        texts = (x["text"] for x in ents)
 
         filtered_ents = filter_by_category(ents, "ART_INFRINGIDO")
-        found_subcats = list(map(lambda x: map_article_to_code_or_law(x, ents), texts))
+        found_subcats = [map_article_to_code_or_law(x, ents) for x in texts]
 
         for ent, found_subcat in zip(ents, found_subcats):
             if ent in filtered_ents and not get_element(
