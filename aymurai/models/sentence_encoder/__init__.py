@@ -34,12 +34,9 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    # Base interface
     "BaseSentenceEncoder",
-    # Factory
-    "EncoderType",
-    "create_encoder",
-    # Implementations (lazy loaded)
     "DistilUSEEncoder",
+    "EncoderType",
     "MultilingualMiniLMEncoder",
+    "create_encoder",
 ]

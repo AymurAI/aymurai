@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
+from functools import cache
 from typing import Any
 from unicodedata import normalize
 
@@ -117,7 +117,7 @@ def _pdf_color_from_span(span: dict) -> tuple[float, float, float]:
         return tuple(
             float(value) for value in pymupdf.sRGB_to_pdf(int(span.get("color") or 0))
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # reason: color conversion depends on undocumented pymupdf failure modes; any error falls back to black
         return (0.0, 0.0, 0.0)
 
 
@@ -524,7 +524,7 @@ def _fit_display_token(
         if font_obj is not None:
             try:
                 return font_obj.text_length(text, fontsize=size)
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # reason: pymupdf font measurement can fail in undocumented ways; falls through to the generic text-length measurement below
                 pass
         return pymupdf.get_text_length(text, fontname=fontname, fontsize=size)
 
@@ -539,7 +539,7 @@ def _fit_display_token(
 _BASE14_FONT_CACHE: dict[str, pymupdf.Font] = {}
 
 
-@lru_cache(maxsize=None)
+@cache
 def _cached_base14_font(name: str) -> pymupdf.Font:
     """
     Loads and caches a Base-14 font by name.

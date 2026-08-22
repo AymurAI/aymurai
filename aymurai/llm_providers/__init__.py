@@ -9,9 +9,9 @@ from aymurai.llm_providers.openai_compatible_provider import (
 )
 
 __all__ = [
+    "UNRESOLVED_MODEL",
     "LLMResponse",
     "LlamaCppLLMProvider",
     "OpenAICompatibleLLMProvider",
     "ServedModel",
-    "UNRESOLVED_MODEL",
 ]

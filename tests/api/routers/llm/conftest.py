@@ -26,9 +26,12 @@ def parse_sse(body: str) -> list[dict]:
 
 
 def fake_budget(**overrides) -> ContextBudget:
-    defaults = dict(
-        effective_ctx=1000, scaffold_first=10, scaffold_rolling=10, reserved_output=100
-    )
+    defaults = {
+        "effective_ctx": 1000,
+        "scaffold_first": 10,
+        "scaffold_rolling": 10,
+        "reserved_output": 100,
+    }
     defaults.update(overrides)
     return ContextBudget(**defaults)
 

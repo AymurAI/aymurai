@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pymupdf
-import pymupdf.layout  # noqa: F401  # activates layout support
+import pymupdf.layout  # activates layout support
 from pymupdf4llm.helpers import document_layout as pymupdf4llm_document_layout
 
 from aymurai.text.anonymization.base import (

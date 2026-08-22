@@ -1,4 +1,5 @@
 from difflib import Differ, SequenceMatcher
+from itertools import pairwise
 
 import pandas as pd
 from more_itertools import flatten
@@ -49,7 +50,7 @@ def align_text(
         mapping["source"] = source_tokens
         mapping.fillna("", inplace=True)
     else:
-        for match, next_match in zip(matches, matches[1:]):
+        for match, next_match in pairwise(matches):
             _aux = {
                 "source": source_tokens[match.a : match.a + match.size],
                 "target": target_tokens[match.b : match.b + match.size],

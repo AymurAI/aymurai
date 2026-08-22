@@ -69,7 +69,7 @@ def matches(entry: Entry, args: argparse.Namespace) -> bool:
     if args.entry and args.entry.lower() not in entry.path.stem.lower():
         return False
     if args.text:
-        haystack = "\n".join([entry.title, entry.topic, entry.brief, entry.text])
+        haystack = f"{entry.title}\n{entry.topic}\n{entry.brief}\n{entry.text}"
         if not contains(haystack, args.text):
             return False
     return True

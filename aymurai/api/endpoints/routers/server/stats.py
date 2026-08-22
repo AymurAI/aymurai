@@ -65,8 +65,7 @@ def get_memory_limit():
             with open(memory_limit_path, "r") as f:
                 mem_limit = int(f.read())
             # Adjust if no limit is set
-            if mem_limit > psutil.virtual_memory().total:
-                mem_limit = psutil.virtual_memory().total
+            mem_limit = min(mem_limit, psutil.virtual_memory().total)
             return mem_limit
         # Check for cgroups v2
         memory_max_path = "/sys/fs/cgroup/memory.max"

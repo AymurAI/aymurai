@@ -1,6 +1,6 @@
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from glob import glob
 from pathlib import Path
 from typing import Any
@@ -8,6 +8,7 @@ from typing import Any
 from docx import Document
 from more_itertools import flatten
 
+from aymurai.settings import settings
 from aymurai.text.anonymization.alignment import (
     index_paragraphs,
     match_paragraphs_with_predictions,
@@ -18,7 +19,6 @@ from aymurai.text.anonymization.base import (
     register_anonymizer,
 )
 from aymurai.text.anonymization.docx.watermark import add_footer_watermark
-from aymurai.settings import settings
 from aymurai.text.anonymization.docx.xml import (
     create_docx,
     replace_text_in_xml,
@@ -38,7 +38,7 @@ def _set_aymurai_core_properties(doc_path: str) -> None:
     core_properties = document.core_properties
     core_properties.author = ""
     core_properties.last_modified_by = settings.ANONYMIZATION_METADATA_CREATOR
-    core_properties.modified = datetime.now(timezone.utc)
+    core_properties.modified = datetime.now(UTC)
     document.save(doc_path)
 
 

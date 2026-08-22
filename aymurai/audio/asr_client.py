@@ -74,7 +74,7 @@ async def stream_transcribe_audio_bytes(
     payload: bytes,
     filename: str,
     content_type: str,
-) -> AsyncGenerator[CoroStreamEvent, None]:
+) -> AsyncGenerator[CoroStreamEvent]:
     """
     Stream a transcription from coro, yielding deltas then the final segments.
 

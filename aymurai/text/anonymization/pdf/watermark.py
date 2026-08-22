@@ -168,7 +168,7 @@ def _watermark_font_config() -> dict[str, Any]:
                 "link_fontfile": bold_path or regular_path,
                 "link_font": pymupdf.Font(fontfile=bold_path or regular_path),
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
             logger.warning(
                 "Could not load Archivo font for PDF watermark, falling back to Base-14 fonts: %s",
                 exc,
@@ -205,7 +205,7 @@ def _watermark_text_length(
     """
     try:
         return float(font_obj.text_length(text, fontsize=fontsize))
-    except Exception:
+    except Exception:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
         return float(
             pymupdf.get_text_length(text, fontname=fontname, fontsize=fontsize)
         )

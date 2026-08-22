@@ -38,7 +38,7 @@ class FlairModel(TrainModule):
             split_doc (bool, optional): split document on sentences. Defaults to False.
             device (str, optional): device where load model. Defaults to "cpu".
             use_tokenizer(bool, optional): whether to use custom tokenizer. Defaults to False.
-        """  # noqa
+        """
         self.basepath = basepath
         self.split_doc = split_doc
         self.device = device

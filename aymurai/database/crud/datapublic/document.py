@@ -2,12 +2,12 @@ import uuid
 
 from sqlmodel import Session, select
 
-from aymurai.logger import get_logger
 from aymurai.database.schema import (
     DataPublicDocument,
-    DataPublicParagraph,
     DataPublicDocumentUpdate,
+    DataPublicParagraph,
 )
+from aymurai.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -72,5 +72,3 @@ def datapublic_document_delete(document_id: uuid.UUID, session: Session):
 
     session.delete(document)
     session.commit()
-
-    return

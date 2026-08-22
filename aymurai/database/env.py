@@ -1,11 +1,11 @@
 import pathlib
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
-from sqlalchemy import pool, engine_from_config
 
-from aymurai.settings import load_env, settings
 from aymurai.database.schema import *  # noqa: F403
+from aymurai.settings import load_env, settings
 
 PARENT = pathlib.Path(__file__).parent
 load_env()

@@ -1,28 +1,29 @@
 import tempfile
+from typing import Annotated
 
 import pandas as pd
 from fastapi import Depends
-from sqlmodel import Session, select
-from fastapi.routing import APIRouter
 from fastapi.responses import FileResponse
+from fastapi.routing import APIRouter
+from sqlmodel import Session, select
 
-from aymurai.database.session import get_session
-from aymurai.meta.api_interfaces import SuccessResponse
 from aymurai.api.endpoints.meta.database import ExportFormat
 from aymurai.database.schema import (
     DataPublicDataset,
-    DataPublicDatasetRead,
     DataPublicDatasetCreate,
+    DataPublicDatasetRead,
     DataPublicDatasetUpdate,
 )
+from aymurai.database.session import get_session
+from aymurai.meta.api_interfaces import SuccessResponse
 
 router = APIRouter()
 
 
 @router.get("/export")
 async def database_export(
+    session: Annotated[Session, Depends(get_session)],
     format: ExportFormat = ExportFormat.CSV,
-    session: Session = Depends(get_session),
 ) -> FileResponse:
     statement = select(DataPublicDataset)
     data = pd.read_sql(statement, session.bind)
@@ -47,7 +48,7 @@ async def database_export(
 @router.post("/items/add", response_model=SuccessResponse)
 async def item_add(
     data: DataPublicDatasetCreate,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     item = DataPublicDataset.model_validate(data)
 
@@ -61,7 +62,7 @@ async def item_add(
 @router.get("/items/{item_id}", response_model=DataPublicDatasetRead)
 async def item_get(
     item_id: int,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> DataPublicDatasetRead:
     statement = select(DataPublicDataset).where(DataPublicDataset.id == item_id)
     data = session.exec(statement).first()
@@ -72,7 +73,7 @@ async def item_get(
 async def item_update(
     item_id: int,
     data: DataPublicDatasetUpdate,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> DataPublicDatasetRead:
     statement = select(DataPublicDataset).where(DataPublicDataset.id == item_id)
     data_db = session.exec(statement).first()
@@ -90,7 +91,7 @@ async def item_update(
 @router.delete("/items/{item_id}", response_model=SuccessResponse)
 async def item_delete(
     item_id: int,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     statement = select(DataPublicDataset).where(DataPublicDataset.id == item_id)
     data = session.exec(statement).first()

@@ -1,16 +1,16 @@
-from typing import Any, Union, Optional, TypedDict
+from typing import Any, TypedDict
 
-from aymurai.meta.pipeline_interfaces import Transform, TrainModule
+from aymurai.meta.pipeline_interfaces import TrainModule, Transform
 
-PipeSchema = tuple[Union[str, Transform], dict[str, Any]]
-ModelSchema = tuple[Union[str, TrainModule], dict[str, Any]]
+PipeSchema = tuple[str | Transform, dict[str, Any]]
+ModelSchema = tuple[str | TrainModule, dict[str, Any]]
 
 
 class ConfigSchema(TypedDict):
     preprocess: list[PipeSchema]
     models: list[ModelSchema]
     postprocess: list[PipeSchema]
-    multiprocessing: Optional[dict]
+    multiprocessing: dict | None
 
 
 EMPTY_CONFIG = ConfigSchema(preprocess=[], models=[], postprocess=[])

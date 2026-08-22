@@ -1,6 +1,7 @@
+import uuid
+
 from aymurai.meta.api_interfaces import DocLabel
 from aymurai.meta.entities import CanonicalEntity
-import uuid
 
 
 def get_canonical_dates(labels: list[DocLabel]) -> list[CanonicalEntity]:

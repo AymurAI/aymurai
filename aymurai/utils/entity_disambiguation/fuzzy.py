@@ -1,12 +1,11 @@
 from collections import Counter
-from typing import Iterable
+from collections.abc import Iterable
 
 from rapidfuzz import process
 from rapidfuzz.fuzz import token_set_ratio
 
 from aymurai.meta.api_interfaces import DocLabel
 from aymurai.meta.entities import CanonicalEntity
-
 from aymurai.transforms.anonymization_postprocess.exact_labels import EXACT_LABELS
 
 

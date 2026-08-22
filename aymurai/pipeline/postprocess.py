@@ -1,15 +1,15 @@
 from collections import OrderedDict
 
-from tqdm.auto import tqdm
 from joblib import Parallel, delayed
+from tqdm.auto import tqdm
 
 from aymurai.logger import get_logger
-from aymurai.meta.types import DataItem, DataBlock
 from aymurai.meta.pipeline_interfaces import Transform
+from aymurai.meta.types import DataBlock, DataItem
 from aymurai.utils.cache import cache_load, cache_save, get_cache_key
 
 
-class PostProcessPipeline(object):
+class PostProcessPipeline:
     def __init__(self, config, logger=None):
         """
         Postprocessing pipeline
@@ -79,7 +79,7 @@ class PostProcessPipeline(object):
         """
 
         self.logger.info("doing postprocessing tasks...")
-        if "multiprocessing" in self.config.keys():
+        if "multiprocessing" in self.config:
             njobs = self.config["multiprocessing"].get("njobs", -1)
             backend = self.config["multiprocessing"].get("backend", "multiprocessing")
 

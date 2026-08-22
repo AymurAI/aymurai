@@ -1,7 +1,7 @@
 import json
 import math
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Body, Depends, UploadFile
 from fastapi.responses import StreamingResponse
@@ -272,18 +272,18 @@ async def _transcribe_audio_bytes_with_error_handling(
 @router.post("/transcribe", response_model=ASRDocument)
 async def transcribe(
     file: UploadFile,
+    base_url: Annotated[str, Depends(get_transcribe_base_url)],
+    session: Annotated[Session, Depends(get_session)],
     use_cache: bool = True,
-    base_url: str = Depends(get_transcribe_base_url),
-    session: Session = Depends(get_session),
 ) -> ASRDocument:
     """
     Transcribes an uploaded audio file and returns the transcribed document.
 
     Args:
         file (UploadFile): The audio file to be transcribed.
-        use_cache (bool, optional): Whether to use cached transcription results. Defaults to True.
         base_url (str, optional): The coro base URL for the transcription service. Defaults to Depends(get_transcribe_base_url).
         session (Session, optional): The database session. Defaults to Depends(get_session).
+        use_cache (bool, optional): Whether to use cached transcription results. Defaults to True.
 
     Returns:
         ASRDocument: The transcribed audio document.
@@ -322,9 +322,9 @@ async def transcribe(
 @router.post("/transcribe/stream")
 async def transcribe_stream(
     file: UploadFile,
+    base_url: Annotated[str, Depends(get_transcribe_base_url)],
+    session: Annotated[Session, Depends(get_session)],
     use_cache: bool = True,
-    base_url: str = Depends(get_transcribe_base_url),
-    session: Session = Depends(get_session),
 ) -> StreamingResponse:
     """
     Transcribe an uploaded audio file and stream progress via Server-Sent Events.
@@ -340,9 +340,9 @@ async def transcribe_stream(
 
     Args:
         file (UploadFile): The audio file to be transcribed.
-        use_cache (bool, optional): Whether to use cached results. Defaults to True.
         base_url (str, optional): The coro base URL. Defaults to Depends(get_transcribe_base_url).
         session (Session, optional): The database session. Defaults to Depends(get_session).
+        use_cache (bool, optional): Whether to use cached results. Defaults to True.
 
     Returns:
         StreamingResponse: A text/event-stream of transcription progress events.
@@ -448,7 +448,7 @@ async def transcribe_stream(
 @router.get("/validation/document/{document_id}")
 async def asr_read_document_validation(
     document_id: UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> ASRDocument | None:
     """
     Retrieves the validation document for a given document ID.
@@ -473,8 +473,10 @@ async def asr_read_document_validation(
 @router.post("/validation/document/{document_id}")
 async def asr_save_document_validation(
     document_id: UUID5,
-    payload: list[ASRParagraphRequest] | ASRValidationDocumentRequest = Body(...),
-    session: Session = Depends(get_session),
+    payload: Annotated[
+        list[ASRParagraphRequest] | ASRValidationDocumentRequest, Body()
+    ],
+    session: Annotated[Session, Depends(get_session)],
 ) -> None:
     """
     Saves the validation annotations for a given document ID.

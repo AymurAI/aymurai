@@ -11,9 +11,9 @@ from aymurai.text.extractors.base import (
 SUPPORTED_EXTENSIONS = supported_extensions()
 
 __all__ = [
+    "SUPPORTED_EXTENSIONS",
     "BaseExtractor",
     "InvalidFile",
-    "SUPPORTED_EXTENSIONS",
     "get_extractor",
     "register_extractor",
 ]

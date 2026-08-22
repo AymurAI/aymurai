@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pymupdf
@@ -18,7 +18,7 @@ def _pdf_metadata_mod_date() -> str:
     Returns:
         str: The PDF-formatted UTC modification timestamp.
     """
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(UTC)
     return timestamp.strftime("D:%Y%m%d%H%M%S+00'00'")
 
 
@@ -170,7 +170,7 @@ def _remove_overlapping_page_links(
                 continue
             try:
                 page.delete_link(link)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
                 logger.warning(
                     "Failed to delete PDF link on page=%s rect=%s: %s",
                     page_idx,
@@ -190,7 +190,7 @@ def _remove_remaining_annotations(doc: pymupdf.Document) -> None:
         for annot in list(page.annots() or []):
             try:
                 page.delete_annot(annot)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
                 logger.warning(
                     "Failed to delete residual PDF annotation on page=%s: %s",
                     page_idx,
@@ -279,13 +279,13 @@ def _sanitize_document(
     if callable(get_xml_metadata) and callable(del_xml_metadata):
         try:
             xml_metadata = get_xml_metadata()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
             logger.warning("Failed to read PDF XML metadata after scrub: %s", exc)
         else:
             if xml_metadata:
                 try:
                     del_xml_metadata()
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
                     logger.warning(
                         "Failed to delete residual PDF XML metadata: %s",
                         exc,

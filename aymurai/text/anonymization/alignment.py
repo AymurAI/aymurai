@@ -54,9 +54,11 @@ def resolve_render_token(label: dict, render_context: dict | None = None) -> str
     if render_policy.suffix_mode == "never" or index is None:
         return base
 
-    if render_policy.suffix_mode == "auto":
-        if count_by_base.get(base, 0) <= render_policy.suffix_threshold:
-            return base
+    if (
+        render_policy.suffix_mode == "auto"
+        and count_by_base.get(base, 0) <= render_policy.suffix_threshold
+    ):
+        return base
 
     return f"{base}_{index}"
 
@@ -342,18 +344,18 @@ def index_paragraphs(file: str) -> list[dict]:
         xml = f.read()
 
     paragraphs = []
-    paragraph_index = 0
 
     # Find all paragraphs in the XML file
-    for match in re.finditer(REGEX_PARAGRAPH, xml):
+    for paragraph_index, match in enumerate(re.finditer(REGEX_PARAGRAPH, xml)):
         paragraph = match.group("paragraph")
         paragraph_start = match.start("paragraph")
         paragraph_end = match.end("paragraph")
         fragments = []
-        fragment_index = 0
 
         # Find all text fragments in the paragraph
-        for fragment in re.finditer(REGEX_FRAGMENT, paragraph):
+        for fragment_index, fragment in enumerate(
+            re.finditer(REGEX_FRAGMENT, paragraph)
+        ):
             text = fragment.group("text")
             start = fragment.start("text")
             end = fragment.end("text")
@@ -367,7 +369,6 @@ def index_paragraphs(file: str) -> list[dict]:
                 "paragraph_index": paragraph_index,
             }
             fragments.append(fragment_dict)
-            fragment_index += 1
 
         # Join all fragments as plain text
         plain_text = "".join([fragment["normalized_text"] for fragment in fragments])
@@ -383,7 +384,6 @@ def index_paragraphs(file: str) -> list[dict]:
                 },
             }
         )
-        paragraph_index += 1
 
     return paragraphs
 

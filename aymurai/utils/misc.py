@@ -4,7 +4,7 @@ from typing import Any
 
 def get_element(
     obj: Any,
-    levels: list[Any] | Any = [],
+    levels: list[Any] | Any = None,
     default: Any = None,
     *,
     ignore_errors: bool = True,
@@ -14,7 +14,7 @@ def get_element(
 
     Args:
         obj (Any): Parent object to traverse.
-        levels (list[Any] | Any, optional): Hierarchy levels to access. Defaults to [].
+        levels (list[Any] | Any, optional): Hierarchy levels to access. Defaults to None (treated as []).
         default (Any, optional): Value returned when traversal fails and
             `ignore_errors` is True. Defaults to None.
         ignore_errors (bool, optional): Whether to suppress lookup errors.
@@ -27,6 +27,9 @@ def get_element(
     Raises:
         Exception: Propagates the underlying error when `ignore_errors` is False.
     """
+
+    if levels is None:
+        levels = []
 
     # if levels not a list handle it has a key
     if not isinstance(levels, list):
@@ -83,14 +86,12 @@ def get_recursively(search_dict: dict, field: str) -> list[Any]:
 
         elif isinstance(value, dict):
             results = get_recursively(value, field)
-            for result in results:
-                fields_found.append(result)
+            fields_found.extend(results)
 
         elif isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
                     more_results = get_recursively(item, field)
-                    for another_result in more_results:
-                        fields_found.append(another_result)
+                    fields_found.extend(more_results)
 
     return fields_found

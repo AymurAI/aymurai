@@ -58,7 +58,7 @@ def json2config(config: str) -> ConfigSchema:
                     if callable(func_):
                         kwargs[key] = func_
                 # except ModuleNotFoundError:
-                except Exception:
+                except Exception:  # noqa: BLE001, S110  # reason: value may legitimately not resolve to an importable object (e.g. a plain string/number kwarg); any resolution failure is intentionally ignored and left unresolved
                     pass
 
             if callable(func_path):

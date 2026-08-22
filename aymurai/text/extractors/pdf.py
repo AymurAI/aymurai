@@ -1,10 +1,10 @@
 import re
-from collections.abc import Set
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
 import pymupdf
-import pymupdf.layout  # noqa: F401  # activates layout support
+import pymupdf.layout  # activates layout support
 import pymupdf4llm
 
 from aymurai.logger import get_logger
@@ -42,7 +42,7 @@ def pdf_to_paragraphs(
     *,
     include_headers: bool = True,
     include_footers: bool = True,
-    skip_box_classes: Set[str] = PDF_SKIP_BOX_CLASSES,
+    skip_box_classes: AbstractSet[str] = PDF_SKIP_BOX_CLASSES,
 ) -> list[str]:
     """
     Extract paragraph-like layout units from a PDF using PyMuPDF layout parsing.
@@ -51,7 +51,7 @@ def pdf_to_paragraphs(
         file_path (Path | str): Path to the PDF document.
         include_headers (bool): Whether to keep header boxes. Defaults to True.
         include_footers (bool): Whether to keep footer boxes. Defaults to True.
-        skip_box_classes (Set[str]): Layout box classes to ignore. Defaults to PDF_SKIP_BOX_CLASSES.
+        skip_box_classes (AbstractSet[str]): Layout box classes to ignore. Defaults to PDF_SKIP_BOX_CLASSES.
 
     Returns:
         list[str]: Normalized paragraph strings extracted from the PDF.

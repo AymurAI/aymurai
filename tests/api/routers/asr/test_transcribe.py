@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, patch
 
 from sqlmodel import Session
 
+from aymurai.api.meta.asr.coro import CoroSegment
 from aymurai.database.meta.audio_transcription import AudioTranscription
 from aymurai.database.utils import data_to_uuid
-from aymurai.api.meta.asr.coro import CoroSegment
 from aymurai.meta.api_interfaces import ASRDocument, ASRParagraph
 
 

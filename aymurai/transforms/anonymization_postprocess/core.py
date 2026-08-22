@@ -3,8 +3,8 @@ from copy import deepcopy
 
 from aymurai.meta.pipeline_interfaces import Transform
 from aymurai.meta.types import DataItem
-from aymurai.utils.misc import get_element
 from aymurai.transforms.anonymization_postprocess.exact_labels import EXACT_LABELS
+from aymurai.utils.misc import get_element
 
 
 class AnonymizationEntityCleaner(Transform):

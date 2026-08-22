@@ -77,8 +77,6 @@ def datapublic_paragraph_delete(paragraph_id: uuid.UUID, session: Session):
     session.delete(paragraph)
     session.commit()
 
-    return
-
 
 def datapublic_paragraph_batch_create_update(
     paragraphs_in: list[DataPublicParagraphCreate], session: Session

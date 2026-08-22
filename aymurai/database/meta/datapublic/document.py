@@ -1,14 +1,14 @@
 import uuid
 from datetime import datetime
-
 from typing import TYPE_CHECKING
-from sqlmodel import Field, SQLModel, Relationship
-from sqlalchemy import Column, DateTime, func, text, JSON
-from aymurai.meta.api_interfaces import DataPublicDocumentAnnotations
+
+from sqlalchemy import JSON, Column, DateTime, func, text
+from sqlmodel import Field, Relationship, SQLModel
 
 from aymurai.database.meta.datapublic.document_paragraph import (
     DataPublicDocumentParagraph,
 )
+from aymurai.meta.api_interfaces import DataPublicDocumentAnnotations
 
 if TYPE_CHECKING:
     from aymurai.database.meta.datapublic.paragraph import DataPublicParagraph

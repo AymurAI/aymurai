@@ -1,5 +1,6 @@
 import os
 from threading import Lock
+from typing import Annotated
 
 from fastapi import Body, Depends, HTTPException, Query
 from fastapi.routing import APIRouter
@@ -37,11 +38,13 @@ router = APIRouter()
 @router.post("/predict/{document_id}", response_model=DocumentInformation)
 async def predict_over_text(
     document_id: UUID5,
-    text_request: TextRequest = Body({"text": "Buenos Aires, 17 de noviembre 2024"}),
-    use_cache: bool = Query(
-        True, description="Use cache to store or retrive predictions"
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    text_request: Annotated[TextRequest, Body()] = {  # noqa: B006
+        "text": "Buenos Aires, 17 de noviembre 2024"
+    },
+    use_cache: Annotated[
+        bool, Query(description="Use cache to store or retrive predictions")
+    ] = True,
 ) -> DocumentInformation:
     logger.info("datapublic predict single")
 
@@ -122,7 +125,7 @@ async def predict_over_text(
 @router.get("/validation/document/{document_id}")
 async def datapublic_read_document_validation(
     document_id: UUID5,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ) -> DataPublicDocumentAnnotations | None:
     logger.info(f"loading annotations => {document_id}")
 
@@ -144,8 +147,8 @@ async def datapublic_read_document_validation(
 @router.post("/validation/document/{document_id}")
 async def datapublic_save_document_validation(
     document_id: UUID5,
-    annotations: DataPublicDocumentAnnotations = Body(..., example={}),
-    session: Session = Depends(get_session),
+    annotations: Annotated[DataPublicDocumentAnnotations, Body(example={})],
+    session: Annotated[Session, Depends(get_session)],
 ) -> None:
     logger.info(f"processing annotations => {document_id}")
 
@@ -158,5 +161,3 @@ async def datapublic_save_document_validation(
     session.commit()
     session.refresh(document)
     logger.info(f"document validation saved => {document_id}")
-
-    return

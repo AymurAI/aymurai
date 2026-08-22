@@ -291,7 +291,7 @@ def _apply_widget_ops(
             try:
                 widget.field_value = current_text
                 widget.update()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
                 logger.warning(
                     "Failed to update PDF widget '%s' on page=%s: %s",
                     widget.field_name,
@@ -358,5 +358,5 @@ def _prepare_signature_widget_ops(
     if should_bake_widgets:
         try:
             doc.bake(annots=False, widgets=True)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # reason: pymupdf/third-party PDF operation may fail in undocumented ways; already logged and handled by falling back / continuing
             logger.warning("Failed to flatten PDF signature widgets: %s", exc)

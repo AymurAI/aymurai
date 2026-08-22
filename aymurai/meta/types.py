@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from typing_extensions import TypedDict
 
@@ -12,9 +12,9 @@ class DataItem(TypedDict):
     path: str
     extension: str
     dataset: str
-    data: Optional[dict]
-    annotations: Optional[list[Annotation]]
-    predictions: Optional[list[Annotation]]
+    data: dict | None
+    annotations: list[Annotation] | None
+    predictions: list[Annotation] | None
 
 
 DataBlock = list[DataItem]

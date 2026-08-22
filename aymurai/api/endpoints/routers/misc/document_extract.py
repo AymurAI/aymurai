@@ -121,7 +121,7 @@ def plain_text_extractor(file: UploadFile) -> Document:
                 detail="Text extraction timed out",
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # any extraction failure maps to a 500
             logger.error(f"error while processing data item: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

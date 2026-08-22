@@ -1,8 +1,8 @@
 import re
 from copy import deepcopy
 
-from aymurai.meta.types import DataItem
 from aymurai.meta.pipeline_interfaces import Transform
+from aymurai.meta.types import DataItem
 from aymurai.text.normalize import ZERO_WIDTH_CHARS_PATTERN
 
 

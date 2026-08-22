@@ -2,12 +2,12 @@ import uuid
 
 from sqlmodel import Session, select
 
-from aymurai.logger import get_logger
 from aymurai.database.schema import (
     AnonymizationDocument,
-    AnonymizationParagraph,
     AnonymizationDocumentUpdate,
+    AnonymizationParagraph,
 )
+from aymurai.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -75,5 +75,3 @@ def anonymization_document_delete(document_id: uuid.UUID, session: Session):
 
     session.delete(document)
     session.commit()
-
-    return

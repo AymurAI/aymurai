@@ -3,7 +3,7 @@ Sentence Transformers encoder implementations.
 Compatible with Apple Silicon (M1/M2/M3) via PyTorch MPS backend.
 """
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -26,7 +26,7 @@ class DistilUSEEncoder(BaseSentenceEncoder):
 
     MODEL_NAME = "sentence-transformers/distiluse-base-multilingual-cased-v2"
 
-    def __init__(self, device: Optional[str] = None):
+    def __init__(self, device: str | None = None):
         """
         Initialize the DistilUSE encoder.
 
@@ -41,7 +41,7 @@ class DistilUSEEncoder(BaseSentenceEncoder):
         self,
         text_array: list[str],
         encoder_type: str,
-        context_array: Optional[list[str]] = None,
+        context_array: list[str] | None = None,
     ) -> np.ndarray:
         """
         Encode texts into embeddings.
@@ -81,7 +81,7 @@ class MultilingualMiniLMEncoder(BaseSentenceEncoder):
 
     MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-    def __init__(self, device: Optional[str] = None):
+    def __init__(self, device: str | None = None):
         """
         Initialize the Multilingual MiniLM encoder.
 
@@ -96,7 +96,7 @@ class MultilingualMiniLMEncoder(BaseSentenceEncoder):
         self,
         text_array: list[str],
         encoder_type: str,
-        context_array: Optional[list[str]] = None,
+        context_array: list[str] | None = None,
     ) -> np.ndarray:
         """
         Encode texts into embeddings.

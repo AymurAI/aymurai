@@ -1,7 +1,6 @@
 import abc
-from typing import Optional
 
-from aymurai.meta.types import DataItem, DataBlock
+from aymurai.meta.types import DataBlock, DataItem
 
 
 class Transform(metaclass=abc.ABCMeta):
@@ -14,13 +13,13 @@ class Transform(metaclass=abc.ABCMeta):
         pass
 
 
-class TrainModule(object):
+class TrainModule:
     @property
     def __name__(self):
         return self.__class__.__name__
 
     @abc.abstractmethod
-    def save(self, path: str) -> Optional[dict]:
+    def save(self, path: str) -> dict | None:
         pass
 
     @abc.abstractmethod
