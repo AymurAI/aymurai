@@ -1,6 +1,7 @@
 import uuid
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from aymurai.database.schema import (
@@ -104,6 +105,51 @@ def test_should_store_paragraph_and_document_when_use_cache_true(
         .first()
     )
     assert stored_link is not None
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.datapublic.datapublic.load_pipeline")
+def test_should_store_paragraph_when_pipeline_yields_numpy_int_offsets(
+    mock_load_pipeline, client, db_session
+):
+    """Regression test: pipeline models (e.g. Flair/pandas-backed transforms)
+    can hand back numpy dtypes (int64) for entity spans. These raw entity
+    dicts bypass pydantic validation on the way into the JSON column, so a
+    lingering numpy.int64 previously blew up json.dumps at commit time."""
+    mock_pipeline = build_mock_pipeline()
+
+    def predict_single_impl(item):
+        item["predictions"] = {
+            "entities": [
+                {
+                    "text": "John Doe",
+                    "start_char": np.int64(0),
+                    "end_char": np.int64(8),
+                    "attrs": {"aymurai_label": "PER"},
+                }
+            ]
+        }
+        return item
+
+    mock_pipeline.predict_single.side_effect = predict_single_impl
+    mock_load_pipeline.return_value = mock_pipeline
+
+    document_id = uuid.uuid5(uuid.NAMESPACE_URL, "datapublic-numpy-offsets")
+    text = "Numpy offset paragraph"
+
+    response = client.post(
+        f"/api/datapublic/predict/{document_id}",
+        json={"text": text},
+        params={"use_cache": True},
+    )
+
+    assert response.status_code == 200
+
+    paragraph_id = text_to_uuid(text)
+    stored_para = db_session.get(DataPublicParagraph, paragraph_id)
+    assert stored_para is not None
+    assert stored_para.prediction[0]["start_char"] == 0
+    assert isinstance(stored_para.prediction[0]["start_char"], int)
 
 
 @pytest.mark.integration

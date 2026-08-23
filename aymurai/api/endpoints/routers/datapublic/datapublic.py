@@ -18,6 +18,7 @@ from aymurai.database.utils import text_to_uuid
 from aymurai.logger import get_logger
 from aymurai.meta.api_interfaces import (
     DataPublicDocumentAnnotations,
+    DocLabel,
     DocumentInformation,
     TextRequest,
 )
@@ -72,7 +73,15 @@ async def predict_over_text(
         processed = pipeline.postprocess([processed])
 
     text = get_element(processed[0], ["data", "doc.text"]) or ""
-    labels = get_element(processed[0], ["predictions", "entities"]) or []
+    raw_entities = get_element(processed[0], ["predictions", "entities"]) or []
+    # Pipeline models (e.g. Flair/pandas-backed transforms) may hand back
+    # numpy dtypes for entity spans/scores. Round-trip through DocLabel so
+    # everything is coerced to native, JSON-serializable Python types before
+    # it reaches the JSON column below.
+    labels = [
+        DocLabel.model_validate(entity).model_dump(mode="json", exclude_none=True)
+        for entity in raw_entities
+    ]
     paragraph: DataPublicParagraph | None = None
 
     if use_cache:
