@@ -100,7 +100,7 @@ describe("SummaryValidation", () => {
     await waitFor(() => expect(mockSave).toHaveBeenCalled());
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "/app/$feature/finish" }),
+        expect.objectContaining({ to: "/$feature/finish" }),
       ),
     );
   });
@@ -117,7 +117,7 @@ describe("SummaryValidation", () => {
     fireEvent.click(screen.getByText("validation.finish"));
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "/app/$feature/finish" }),
+        expect.objectContaining({ to: "/$feature/finish" }),
       ),
     );
   });
@@ -145,7 +145,7 @@ describe("SummaryValidation", () => {
     resolveSave();
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "/app/$feature/finish" }),
+        expect.objectContaining({ to: "/$feature/finish" }),
       ),
     );
     expect(mockSave).toHaveBeenCalledTimes(1);
@@ -198,7 +198,7 @@ describe("SummaryValidation", () => {
     resolveFirstSave();
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "/app/$feature/finish" }),
+        expect.objectContaining({ to: "/$feature/finish" }),
       ),
     );
 

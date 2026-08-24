@@ -221,7 +221,7 @@ export default function VoiceFinish() {
             variant="secondary"
             onClick={() =>
               navigate({
-                to: "/app/$feature/validation",
+                to: "/$feature/validation",
                 params: { feature: FeatureFlowEnum.VoiceToText },
               })
             }

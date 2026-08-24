@@ -43,7 +43,7 @@ export default function VoiceValidation() {
       }
     }
     navigate({
-      to: "/app/$feature/finish",
+      to: "/$feature/finish",
       params: { feature: FeatureFlowEnum.VoiceToText },
     });
   };
@@ -55,7 +55,7 @@ export default function VoiceValidation() {
         <Footer>
           <HStack gap="4">
             <BackButton
-              to="/app/$feature/process"
+              to="/$feature/process"
               params={{ feature: FeatureFlowEnum.VoiceToText }}
             />
           </HStack>

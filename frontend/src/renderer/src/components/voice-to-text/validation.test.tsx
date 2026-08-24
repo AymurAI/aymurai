@@ -100,7 +100,7 @@ describe("VoiceValidation", () => {
         "warning",
       );
       expect(navigate).toHaveBeenCalledWith({
-        to: "/app/$feature/finish",
+        to: "/$feature/finish",
         params: { feature: "VOICE_TO_TEXT" },
       });
     });

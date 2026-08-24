@@ -108,7 +108,7 @@ export default function VoicePreview() {
 
   const handleConfirmFiles = () => {
     navigate({
-      to: "/app/$feature/process",
+      to: "/$feature/process",
       params: { feature: FeatureFlowEnum.VoiceToText },
     });
   };
@@ -120,7 +120,7 @@ export default function VoicePreview() {
         <Stack gap="8">
           <HStack alignItems="center" gap="6">
             <BackButton
-              to="/app/$feature/onboarding"
+              to="/$feature/onboarding"
               params={{ feature: FeatureFlowEnum.VoiceToText }}
             />
             <SectionTitle>{t("preview.sectionTitle")}</SectionTitle>

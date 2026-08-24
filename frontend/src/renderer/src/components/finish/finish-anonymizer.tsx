@@ -106,7 +106,7 @@ export default function FinishAnonymizer() {
 
   const handleBack = () =>
     navigate({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature: FeatureFlowEnum.Anonymizer },
     });
 

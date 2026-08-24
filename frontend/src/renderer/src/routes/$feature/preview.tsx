@@ -20,13 +20,13 @@ import { useTranslation } from "react-i18next";
 
 import VoicePreview from "@/components/voice-to-text/preview";
 
-export const Route = createFileRoute("/app/$feature/preview")({
+export const Route = createFileRoute("/$feature/preview")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const { feature } = useParams({
-    from: "/app/$feature/preview",
+    from: "/$feature/preview",
   });
   if (feature === FeatureFlowEnum.VoiceToText) return <VoicePreview />;
   return <DocumentPreview />;
@@ -34,7 +34,7 @@ function RouteComponent() {
 
 function DocumentPreview() {
   const { feature } = useParams({
-    from: "/app/$feature/preview",
+    from: "/$feature/preview",
   });
   const navigate = useNavigate();
   const { t } = useTranslation(featureNamespace[feature]);
@@ -52,7 +52,7 @@ function DocumentPreview() {
 
   const handleConfirmFiles = () => {
     navigate({
-      to: "/app/$feature/process",
+      to: "/$feature/process",
       params: { feature },
     });
   };
@@ -64,7 +64,7 @@ function DocumentPreview() {
         <FileSelectionLayout
           title={t("preview.sectionTitle")}
           backButton={
-            <BackButton to="/app/$feature/onboarding" params={{ feature }} />
+            <BackButton to="/$feature/onboarding" params={{ feature }} />
           }
         >
           <Card>

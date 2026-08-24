@@ -244,7 +244,7 @@ describe("FinishAnonymizer", () => {
     expect(buttons).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "finish.back" }));
     expect(navigateSpy).toHaveBeenCalledWith({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature: "ANONYMIZER" },
     });
   });

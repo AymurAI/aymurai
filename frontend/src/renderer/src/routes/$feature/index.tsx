@@ -1,9 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/app/$feature/")({
+export const Route = createFileRoute("/$feature/")({
   beforeLoad: ({ params }) => {
     throw redirect({
-      to: "/app/$feature/onboarding",
+      to: "/$feature/onboarding",
       params: { feature: params.feature },
     });
   },

@@ -39,13 +39,13 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
   // cleared files and fire its guard. `viewTransition: false` makes this
   // specific navigation commit synchronously, closing that gap.
   //
-  // Target onboarding directly (not `/app/$feature`, whose own `beforeLoad`
+  // Target onboarding directly (not `/$feature`, whose own `beforeLoad`
   // redirects there): a `redirect()` thrown from `beforeLoad` starts a new
   // commit that doesn't inherit this call's `viewTransition: false`, which
   // would reopen the exact gap this fix closes.
   const goToFeature = async (feature: FeatureFlowEnum) => {
     await navigate({
-      to: "/app/$feature/onboarding",
+      to: "/$feature/onboarding",
       params: { feature },
       viewTransition: false,
     });

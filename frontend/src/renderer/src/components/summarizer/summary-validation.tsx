@@ -125,7 +125,7 @@ export default function SummaryValidation() {
   // continue anyway, matching the "puedes continuar, pero los cambios podrían
   // no quedar persistidos" copy.
   const handleContinue = async () => {
-    const to = "/app/$feature/finish" as const;
+    const to = "/$feature/finish" as const;
     if (saveFailed) {
       navigate({ to, params: { feature: FeatureFlowEnum.Summarizer } });
       return;

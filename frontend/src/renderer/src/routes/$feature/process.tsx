@@ -29,13 +29,13 @@ import { useTranslation } from "react-i18next";
 import SummaryProcess from "@/components/summarizer/summary-process";
 import VoiceProcess from "@/components/voice-to-text/process";
 
-export const Route = createFileRoute("/app/$feature/process")({
+export const Route = createFileRoute("/$feature/process")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const { feature } = useParams({
-    from: "/app/$feature/process",
+    from: "/$feature/process",
   });
   if (feature === FeatureFlowEnum.VoiceToText) return <VoiceProcess />;
   if (feature === FeatureFlowEnum.Summarizer) return <SummaryProcess />;
@@ -45,7 +45,7 @@ function RouteComponent() {
 function DocumentProcess() {
   const queryClient = useQueryClient();
   const { feature } = useParams({
-    from: "/app/$feature/process",
+    from: "/$feature/process",
   });
   const { t } = useTranslation(featureNamespace[feature]);
 
@@ -69,7 +69,7 @@ function DocumentProcess() {
   const handleNext = () => {
     dispatch(filterUnprocessed());
     navigate({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature },
     });
   };
@@ -157,7 +157,7 @@ function DocumentProcess() {
       <MainContent>
         <Stack gap="10">
           <HStack alignItems="center" gap="6">
-            <BackButton to="/app/$feature/preview" params={{ feature }} />
+            <BackButton to="/$feature/preview" params={{ feature }} />
             <SectionTitle>{t("process.sectionTitle")}</SectionTitle>
           </HStack>
           <Card className={css({ alignItems: "stretch" })}>

@@ -41,7 +41,7 @@ export default function VoiceOnboarding() {
     dispatch(addFiles(files.slice(0, 1)));
     toggleTutorialSeen(FeatureFlowEnum.VoiceToText);
     await navigate({
-      to: "/app/$feature/preview",
+      to: "/$feature/preview",
       params: { feature: FeatureFlowEnum.VoiceToText },
     });
   };

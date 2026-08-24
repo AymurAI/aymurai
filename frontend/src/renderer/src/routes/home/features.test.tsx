@@ -20,7 +20,7 @@ vi.mock("@tanstack/react-router", () => ({
     params?: Record<string, string>;
     children: React.ReactNode;
   } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
-    // Simple template substitution: /app/$feature + { feature: "SUMMARIZER" } => /app/SUMMARIZER
+    // Simple template substitution: /$feature + { feature: "SUMMARIZER" } => /SUMMARIZER
     let href = to;
     if (params && to.includes("$")) {
       Object.entries(params).forEach(([key, value]) => {
@@ -46,7 +46,7 @@ vi.mock("@/services/api", () => ({
 }));
 
 describe("home/features — Summarizer card", () => {
-  it("renders the Summarizer card as an enabled link to /app/SUMMARIZER", () => {
+  it("renders the Summarizer card as an enabled link to /SUMMARIZER", () => {
     const RouteComponent = Route.options.component as React.FC;
     render(<RouteComponent />);
 

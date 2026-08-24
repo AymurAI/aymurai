@@ -109,7 +109,7 @@ export default function SummaryProcess() {
 
   const handleNext = () =>
     navigate({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature: FeatureFlowEnum.Summarizer },
     });
 
@@ -120,7 +120,7 @@ export default function SummaryProcess() {
         <Stack gap="10">
           <HStack alignItems="center" gap="6">
             <BackButton
-              to="/app/$feature/preview"
+              to="/$feature/preview"
               params={{ feature: FeatureFlowEnum.Summarizer }}
             />
             <SectionTitle>{t("process.sectionTitle")}</SectionTitle>

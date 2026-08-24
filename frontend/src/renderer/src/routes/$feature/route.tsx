@@ -4,42 +4,39 @@ import {
   redirect,
   useParams,
 } from "@tanstack/react-router";
-import { z } from "zod";
 
 import FileProvider from "@/context/File";
 import SummaryProvider from "@/context/Summary";
 import TranscriptionProvider from "@/context/Transcription";
 import APIProtected from "@/features/APIProtected";
 import { Stack } from "@/styled/jsx";
-import { FeatureFlowEnum } from "@/types/features";
+import {
+  FeatureFlowEnum,
+  getFeatureRouteSlug,
+  parseFeatureRouteSlug,
+} from "@/types/features";
 
-// Validation schema for feature parameter
-const featureParamSchema = z.object({
-  feature: z.enum([
-    FeatureFlowEnum.Dataset,
-    FeatureFlowEnum.Anonymizer,
-    FeatureFlowEnum.VoiceToText,
-    FeatureFlowEnum.Summarizer,
-  ]),
-});
-
-export const Route = createFileRoute("/app/$feature")({
-  // Parse and validate params
+export const Route = createFileRoute("/$feature")({
+  // The URL carries the lowercase slug ("dataset"); everything inside the app
+  // carries the FeatureFlowEnum value ("DATA_SET"). Mapping here — the one
+  // route that owns the $feature segment — means no call site ever converts:
+  // `params={{ feature }}` and `useParams().feature` both stay the enum, and
+  // TanStack applies `stringify` when it builds hrefs.
   params: {
-    parse: (params) => {
-      try {
-        return featureParamSchema.parse(params);
-      } catch {
-        throw redirect({ to: "/home/features" });
-      }
+    parse: (raw: Record<string, string>) => {
+      const feature = parseFeatureRouteSlug(raw.feature ?? "");
+      if (!feature) throw redirect({ to: "/home/features" });
+      return { feature };
     },
-    stringify: (params) => params,
+    stringify: ({ feature }: { feature: FeatureFlowEnum }) => ({
+      feature: getFeatureRouteSlug(feature),
+    }),
   },
   component: AppLayoutRoute,
 });
 
 function AppLayoutRoute() {
-  const { feature } = useParams({ from: "/app/$feature" });
+  const { feature } = useParams({ from: "/$feature" });
   const isVoice = feature === FeatureFlowEnum.VoiceToText;
   const isSummarizer = feature === FeatureFlowEnum.Summarizer;
   const inner = (

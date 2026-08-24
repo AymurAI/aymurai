@@ -16,12 +16,12 @@ import { useTranslation } from "react-i18next";
 import SummaryFinish from "@/components/summarizer/summary-finish";
 import VoiceFinish from "@/components/voice-to-text/finish";
 
-export const Route = createFileRoute("/app/$feature/finish")({
+export const Route = createFileRoute("/$feature/finish")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const params = useParams({ from: "/app/$feature/finish" });
+  const params = useParams({ from: "/$feature/finish" });
   if (params.feature === FeatureFlowEnum.VoiceToText) return <VoiceFinish />;
   if (params.feature === FeatureFlowEnum.Summarizer)
     return (
@@ -36,7 +36,7 @@ function RouteComponent() {
 
 function DocumentFinish() {
   const navigate = useNavigate();
-  const params = useParams({ from: "/app/$feature/finish" });
+  const params = useParams({ from: "/$feature/finish" });
   const { feature } = params;
 
   const { t } = useTranslation(featureNamespace[feature]);
@@ -44,7 +44,7 @@ function DocumentFinish() {
 
   const handleRestart = () => {
     dispatch(removeAllFiles());
-    navigate({ to: "/app/$feature/onboarding", params });
+    navigate({ to: "/$feature/onboarding", params });
   };
 
   return (

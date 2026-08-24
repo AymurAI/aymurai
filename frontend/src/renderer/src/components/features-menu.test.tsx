@@ -39,7 +39,7 @@ describe("FeaturesMenu", () => {
     fireEvent.click(screen.getByText("dataset:title"));
 
     expect(navigate).toHaveBeenCalledWith({
-      to: "/app/$feature/onboarding",
+      to: "/$feature/onboarding",
       params: { feature: "DATA_SET" },
       viewTransition: false,
     });
@@ -87,7 +87,7 @@ describe("FeaturesMenu — Summarizer", () => {
     fireEvent.click(screen.getByText("common:featuresMenu.summary"));
 
     expect(navigate).toHaveBeenCalledWith({
-      to: "/app/$feature/onboarding",
+      to: "/$feature/onboarding",
       params: { feature: "SUMMARIZER" },
       viewTransition: false,
     });

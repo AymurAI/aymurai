@@ -50,7 +50,7 @@ describe("RequireSummary", () => {
     );
 
     const redirect = screen.getByTestId("navigate");
-    expect(redirect).toHaveAttribute("data-to", "/app/SUMMARIZER/process");
+    expect(redirect).toHaveAttribute("data-to", "/SUMMARIZER/process");
     expect(screen.queryByText("protected content")).not.toBeInTheDocument();
   });
 

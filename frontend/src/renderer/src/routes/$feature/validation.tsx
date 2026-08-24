@@ -17,13 +17,13 @@ import { useTranslation } from "react-i18next";
 
 import VoiceValidation from "@/components/voice-to-text/validation";
 
-export const Route = createFileRoute("/app/$feature/validation")({
+export const Route = createFileRoute("/$feature/validation")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const { feature } = useParams({
-    from: "/app/$feature/validation",
+    from: "/$feature/validation",
   });
   if (feature === FeatureFlowEnum.VoiceToText) return <VoiceValidation />;
   if (feature === FeatureFlowEnum.Summarizer)
@@ -39,7 +39,7 @@ function RouteComponent() {
 
 function DocumentValidation() {
   const { feature } = useParams({
-    from: "/app/$feature/validation",
+    from: "/$feature/validation",
   });
 
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ function DocumentValidation() {
   const file = useFiles()[0]!;
 
   const handleContinue = () =>
-    navigate({ to: "/app/$feature/finish", params: { feature } });
+    navigate({ to: "/$feature/finish", params: { feature } });
 
   if (feature === FeatureFlowEnum.Anonymizer)
     return (

@@ -102,28 +102,28 @@ function RouteComponent() {
               </styled.h1>
               <Grid gap="6" className={featureGrid}>
                 <FeatureCardLink
-                  to="/app/$feature"
+                  to="/$feature"
                   params={{ feature: FeatureFlowEnum.Dataset }}
                   title={t("dataset:title")}
                   subtitle={t("dataset:subtitle")}
                   icon={FEATURE_ICON.DATA_SET}
                 />
                 <FeatureCardLink
-                  to="/app/$feature"
+                  to="/$feature"
                   params={{ feature: FeatureFlowEnum.Anonymizer }}
                   title={t("anonymizer:title")}
                   subtitle={t("anonymizer:subtitle")}
                   icon={FEATURE_ICON.ANONYMIZER}
                 />
                 <FeatureCardLink
-                  to="/app/$feature"
+                  to="/$feature"
                   params={{ feature: FeatureFlowEnum.VoiceToText }}
                   title={t("voice-to-text:title")}
                   subtitle={t("voice-to-text:subtitle")}
                   icon={FEATURE_ICON.VOICE_TO_TEXT}
                 />
                 <FeatureCardLink
-                  to="/app/$feature"
+                  to="/$feature"
                   params={{ feature: FeatureFlowEnum.Summarizer }}
                   title={t("summarizer:title")}
                   subtitle={t("summarizer:subtitle")}

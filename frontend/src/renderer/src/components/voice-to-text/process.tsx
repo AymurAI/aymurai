@@ -160,7 +160,7 @@ export default function VoiceProcess() {
 
   const handleNext = () =>
     navigate({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature: FeatureFlowEnum.VoiceToText },
     });
 
@@ -171,7 +171,7 @@ export default function VoiceProcess() {
         <Stack gap="10">
           <HStack alignItems="center" gap="6">
             <BackButton
-              to="/app/$feature/preview"
+              to="/$feature/preview"
               params={{ feature: FeatureFlowEnum.VoiceToText }}
             />
             <SectionTitle>{t("process.sectionTitle")}</SectionTitle>

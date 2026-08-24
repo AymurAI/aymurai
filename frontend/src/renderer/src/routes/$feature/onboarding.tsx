@@ -27,13 +27,13 @@ import VoiceOnboarding from "@/components/voice-to-text/onboarding";
 import { FeatureFlowEnum } from "@/types/features";
 
 // FIRST step of the processing workflow
-export const Route = createFileRoute("/app/$feature/onboarding")({
+export const Route = createFileRoute("/$feature/onboarding")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const { feature } = useParams({
-    from: "/app/$feature/onboarding",
+    from: "/$feature/onboarding",
   });
   if (feature === FeatureFlowEnum.VoiceToText) return <VoiceOnboarding />;
   return <DocumentOnboarding />;
@@ -42,7 +42,7 @@ function RouteComponent() {
 function DocumentOnboarding() {
   const queryClient = useQueryClient();
   const { feature } = useParams({
-    from: "/app/$feature/onboarding",
+    from: "/$feature/onboarding",
   });
   const navigate = useNavigate();
   const { t } = useTranslation(featureNamespace[feature]);
@@ -56,7 +56,7 @@ function DocumentOnboarding() {
     dispatch(removeAllFiles());
     dispatch(addFiles(files.slice(0, 1)));
     await navigate({
-      to: "/app/$feature/preview",
+      to: "/$feature/preview",
       params: { feature },
     });
     toggleTutorialSeen(feature);

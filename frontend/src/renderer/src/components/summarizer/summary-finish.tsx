@@ -63,7 +63,7 @@ export default function SummaryFinish() {
 
   const handleBack = () =>
     navigate({
-      to: "/app/$feature/validation",
+      to: "/$feature/validation",
       params: { feature: FeatureFlowEnum.Summarizer },
     });
 
