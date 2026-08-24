@@ -50,10 +50,31 @@ def test_redirects_legacy_app_prefix_to_lowercase_feature_route(client):
     assert r.headers["location"] == "/anonymizer/validation"
 
 
-def test_redirects_uppercase_feature_route_to_lowercase(client):
-    r = client.get("/DATA_SET/onboarding", follow_redirects=False)
+@pytest.mark.parametrize(
+    ("requested", "expected"),
+    [
+        ("/DATA_SET/onboarding", "/dataset/onboarding"),
+        ("/data_set/onboarding", "/dataset/onboarding"),
+        ("/app/DATA_SET/onboarding", "/dataset/onboarding"),
+        ("/app/VOICE_TO_TEXT/process", "/voice-to-text/process"),
+        ("/app/SUMMARIZER/validation", "/summarizer/validation"),
+        ("/VOICE_TO_TEXT/process", "/voice-to-text/process"),
+    ],
+)
+def test_redirects_legacy_feature_routes_to_canonical_slug(client, requested, expected):
+    r = client.get(requested, follow_redirects=False)
     assert r.status_code == 307
-    assert r.headers["location"] == "/data_set/onboarding"
+    assert r.headers["location"] == expected
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/dataset", "/dataset/onboarding", "/voice-to-text/process", "/summarizer/finish"],
+)
+def test_serves_spa_for_canonical_feature_routes(client, path):
+    r = client.get(path)
+    assert r.status_code == 200
+    assert "SPA" in r.text
 
 
 def test_api_healthcheck_is_available_under_api_prefix(client):
@@ -84,10 +105,12 @@ def test_404_for_path_traversal(client):
     "path",
     [
         "/anonymizer/no-existe",
+        "/asr/transcribe/stream",
         "/datapublic/no-existe",
         "/database/no-existe",
         "/docs",
         "/document-extract",
+        "/llm/summarize/stream",
         "/misc/no-existe",
         "/openapi.json",
         "/redoc",
