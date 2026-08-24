@@ -139,7 +139,7 @@ services:
             - --backend-asr
             - ${CORO_BACKEND_ASR:-onnx-asr}
             - --model-asr
-            - ${CORO_MODEL_ASR:-nemo-parakeet-tdt-0.6b-v3}
+            - ${CORO_MODEL_ASR:-nemo-canary-1b-v2}
             - --backend-diarization
             - ${CORO_BACKEND_DIARIZATION:-nemo}
 
