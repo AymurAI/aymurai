@@ -19,6 +19,15 @@ export default defineConfig({
   },
   renderer: {
     envDir: resolve("."),
+    define: {
+      // Single source of truth for the app version: the git tag, threaded in as
+      // APP_VERSION by CI. Falls back to package.json for local builds.
+      __APP_VERSION__: JSON.stringify(
+        process.env.APP_VERSION ??
+          process.env.npm_package_version ??
+          "0.0.0-dev",
+      ),
+    },
     // Use relative asset URLs so the renderer works under the file:// protocol
     // when the app is packaged. The standalone web build (vite.config.ts)
     // keeps the default base of "/".

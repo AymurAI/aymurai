@@ -17,6 +17,8 @@ COPY frontend/ ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
+ARG APP_VERSION
+ENV APP_VERSION=${APP_VERSION}
 RUN pnpm run panda:codegen && pnpm run build:web
 
 
