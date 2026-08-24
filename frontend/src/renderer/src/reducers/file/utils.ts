@@ -84,6 +84,13 @@ export function replaceFile(fileName: string, newFile: File, state: DocFile[]) {
 
 /**
  * Compares two predictions to check if they are equal
+ *
+ * Falls back to positional identity when either side lost its mentionId
+ * (annotations rebuilt from rendered DOM splits can carry an empty mentionId
+ * and a text that diverged from the stored prediction). The paragraph, range
+ * and label uniquely identify an occurrence, so the drift-prone `text` field
+ * is deliberately not compared.
+ *
  * @param a First prediction to compare
  * @param b Second prediction to compare
  * @returns `true` if the predictions are equal, `false` otherwise.
@@ -95,7 +102,6 @@ export function comparePrediction(a: PredictLabel, b: PredictLabel) {
     a.paragraphId === b.paragraphId &&
     a.start_char === b.start_char &&
     a.end_char === b.end_char &&
-    a.text === b.text &&
     a.attrs.aymurai_label === b.attrs.aymurai_label
   );
 }
