@@ -111,7 +111,7 @@ pipeline-download = "aymurai.scripts.pipelines_download:pipelines_download"
 
 
 [tool.setuptools.package-data]
-"*" = ["*.yml", "*.yaml", "*.csv", "*.ini"]
+"*" = ["*.yml", "*.yaml", "*.csv", "*.ini", "*.mako"]
 
 [tool.setuptools_scm]
 version_file = "aymurai/version.py"
