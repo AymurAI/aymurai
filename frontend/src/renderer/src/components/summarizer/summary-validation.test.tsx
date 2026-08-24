@@ -1,4 +1,7 @@
-import { documentFromPlainText } from "@aymurai/ui";
+import {
+  documentFromPlainText,
+  serializeDocumentToPlainText,
+} from "@aymurai/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import SummaryValidation from "./summary-validation";
@@ -25,6 +28,22 @@ const mockDocument = {
     {
       type: "paragraph",
       content: [{ type: "text", text: "Resumen generado." }],
+    },
+  ],
+};
+
+const formattedDocument = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [
+        {
+          type: "text",
+          text: "Texto validado a mano.",
+          marks: [{ type: "bold" }],
+        },
+      ],
     },
   ],
 };
@@ -207,9 +226,9 @@ describe("SummaryValidation", () => {
     //    write is slow and still outstanding.
     fireEvent.blur(screen.getByRole("textbox"));
     expect(mockSave).toHaveBeenCalledTimes(1);
-    expect(mockSave.mock.calls[0][0].editedSummary).toContain(
-      "Resumen generado.",
-    );
+    expect(
+      serializeDocumentToPlainText(mockSave.mock.calls[0][0].editedSummary),
+    ).toContain("Resumen generado.");
 
     // 2. The user goes back in, corrects the summary, and clicks "Finalizar"
     //    before that first write has come back.
@@ -228,7 +247,9 @@ describe("SummaryValidation", () => {
     // The correction must have reached the persistence adapter before the app
     // reported success and navigated away.
     const lastPayload = mockSave.mock.calls.at(-1)?.[0];
-    expect(lastPayload?.editedSummary).toContain("Resumen corregido a mano.");
+    expect(serializeDocumentToPlainText(lastPayload?.editedSummary)).toContain(
+      "Resumen corregido a mano.",
+    );
   });
 
   // Adversary: two different rulings that happen to be filed under the same
@@ -281,7 +302,7 @@ describe("SummaryValidation", () => {
       documentId: "doc-0",
       title: "",
       generatedSummary: "Resumen generado.",
-      editedSummary: "Resumen generado.",
+      editedSummary: documentFromPlainText("Resumen generado."),
       hasValidation: false,
     });
 
@@ -298,7 +319,7 @@ describe("SummaryValidation", () => {
       documentId: "doc-0",
       title: "Título guardado",
       generatedSummary: "Resumen generado.",
-      editedSummary: "Texto validado a mano.",
+      editedSummary: formattedDocument,
       hasValidation: true,
     });
 
@@ -307,10 +328,35 @@ describe("SummaryValidation", () => {
     await waitFor(() =>
       expect(mockDispatch).toHaveBeenCalledWith({
         type: "restoreValidation",
-        document: documentFromPlainText("Texto validado a mano."),
+        document: formattedDocument,
         title: "Título guardado",
       }),
     );
+  });
+
+  // Regression: `editedSummary` used to round-trip through
+  // `documentFromPlainText`/`serializeDocumentToPlainText`, which silently
+  // dropped every mark (bold, italic, etc.). Restoring must hand the stored
+  // JSONContent to the dispatch untouched so formatting survives.
+  it("preserves text formatting (bold, italic) when restoring a saved validation", async () => {
+    mockLoad.mockResolvedValue({
+      documentId: "doc-0",
+      title: "Título guardado",
+      generatedSummary: "Resumen generado.",
+      editedSummary: formattedDocument,
+      hasValidation: true,
+    });
+
+    render(<SummaryValidation />);
+
+    await waitFor(() => {
+      const call = mockDispatch.mock.calls.find(
+        ([action]) => action.type === "restoreValidation",
+      );
+      expect(call?.[0].document.content[0].content[0].marks).toEqual([
+        { type: "bold" },
+      ]);
+    });
   });
 
   // Adversary: the tests above only ever resolve `load()` before the user has
@@ -338,7 +384,7 @@ describe("SummaryValidation", () => {
       documentId: "doc-0",
       title: "Título guardado",
       generatedSummary: "Resumen generado.",
-      editedSummary: "Texto validado a mano.",
+      editedSummary: formattedDocument,
       hasValidation: true,
     });
     await waitFor(() => expect(mockLoad).toHaveBeenCalled());
@@ -359,7 +405,7 @@ describe("SummaryValidation", () => {
       documentId: "doc-0",
       title: "Sin resumen",
       generatedSummary: "Resumen generado.",
-      editedSummary: "",
+      editedSummary: { type: "doc", content: [] },
       hasValidation: true,
     });
 

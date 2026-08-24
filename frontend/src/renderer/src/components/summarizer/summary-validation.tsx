@@ -14,13 +14,7 @@ import { summaryValidationClient } from "@/services/aymurai/summaryValidationCli
 import { css } from "@/styled/css";
 import { Grid } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import {
-  Button,
-  Callout,
-  RichTextEditor,
-  documentFromPlainText,
-  serializeDocumentToPlainText,
-} from "@aymurai/ui";
+import { Button, Callout, RichTextEditor } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -96,7 +90,7 @@ export default function SummaryValidation() {
         // slow-resolving saved validation.
         if (summaryRef.current.hasUserEdited) return;
 
-        const restoredDocument = documentFromPlainText(result.editedSummary);
+        const restoredDocument = result.editedSummary;
         // A document validated with every word deleted must not become a
         // permanent dead end: restoring it would zero out `document.content`,
         // which `hasSummary` below turns into the missingSummary error
@@ -155,7 +149,7 @@ export default function SummaryValidation() {
       documentId: summary.documentId,
       title: summary.title,
       generatedSummary: summary.partialText,
-      editedSummary: serializeDocumentToPlainText(summary.document),
+      editedSummary: summary.document,
     };
     const fingerprint = JSON.stringify(payload);
 

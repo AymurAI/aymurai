@@ -4,24 +4,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { noopSummaryValidationClient } from "./noopSummaryValidation";
 import { summaryValidationClient } from "./summaryValidationClient";
 
+const editedDocument = documentFromPlainText("e");
+
 describe("summaryValidationClient", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("saves through the backend validation route", async () => {
+  it("saves the edited document's JSONContent verbatim, preserving marks", async () => {
     const post = vi.spyOn(api, "post").mockResolvedValue({ data: null });
 
     await summaryValidationClient.save({
       documentId: "doc-1",
       title: "t",
       generatedSummary: "g",
-      editedSummary: "e",
+      editedSummary: editedDocument,
     });
 
     expect(post).toHaveBeenCalledWith(
       "/llm/summarize/validation/document/doc-1",
-      { title: "t", validation: documentFromPlainText("e") },
+      { title: "t", validation: editedDocument },
       { signal: undefined },
     );
   });
@@ -55,6 +57,35 @@ describe("backendSummaryValidationClient", () => {
 
     expect(result?.hasValidation).toBe(true);
   });
+
+  it("returns the stored validation's JSONContent verbatim, preserving marks", async () => {
+    const storedDocument = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Editado en negrita.",
+              marks: [{ type: "bold" }],
+            },
+          ],
+        },
+      ],
+    };
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        title: "Título validado",
+        summary: "Generado.",
+        validation: storedDocument,
+      },
+    });
+
+    const result = await summaryValidationClient.load("doc-1");
+
+    expect(result?.editedSummary).toEqual(storedDocument);
+  });
 });
 
 describe("noopSummaryValidationClient", () => {
@@ -69,7 +100,7 @@ describe("noopSummaryValidationClient", () => {
       documentId: "doc-1",
       title: "Resumen acta.docx",
       generatedSummary: "Original.",
-      editedSummary: "Editado.",
+      editedSummary: documentFromPlainText("Editado."),
     };
     await noopSummaryValidationClient.save(summary);
     expect(await noopSummaryValidationClient.load("doc-1")).toEqual({
@@ -83,19 +114,19 @@ describe("noopSummaryValidationClient", () => {
       documentId: "doc-1",
       title: "A",
       generatedSummary: "A",
-      editedSummary: "A",
+      editedSummary: documentFromPlainText("A"),
     });
     await noopSummaryValidationClient.save({
       documentId: "doc-1",
       title: "B",
       generatedSummary: "B",
-      editedSummary: "B",
+      editedSummary: documentFromPlainText("B"),
     });
     expect(await noopSummaryValidationClient.load("doc-1")).toEqual({
       documentId: "doc-1",
       title: "B",
       generatedSummary: "B",
-      editedSummary: "B",
+      editedSummary: documentFromPlainText("B"),
       hasValidation: true,
     });
   });
