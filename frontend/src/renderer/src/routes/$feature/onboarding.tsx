@@ -17,6 +17,7 @@ import { useSetTutorialSeen, useTutorialSeen } from "@/store/useLocal";
 import { HStack, styled } from "@/styled/jsx";
 import { featureNamespace } from "@/types/features";
 import { isAllowed } from "@/utils/file";
+import { filesForFeatureLoad } from "@/utils/file/preview-files";
 import { Button, FileDropZone } from "@aymurai/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { File as FileIcon } from "phosphor-react";
@@ -53,8 +54,9 @@ function DocumentOnboarding() {
   const tutorialSeen = useTutorialSeen(feature);
   const toggleTutorialSeen = useSetTutorialSeen();
   const handleAddFiles = async (files: File[]) => {
+    const filesToAdd = filesForFeatureLoad(feature, files);
     dispatch(removeAllFiles());
-    dispatch(addFiles(files.slice(0, 1)));
+    dispatch(addFiles(filesToAdd));
     await navigate({
       to: "/$feature/preview",
       params: { feature },
