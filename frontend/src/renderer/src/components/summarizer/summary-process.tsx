@@ -12,10 +12,18 @@ import taskbar from "@/services/taskbar";
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import { Button, Callout, Card, CheckCircle, Spinner } from "@aymurai/ui";
+import {
+  Button,
+  Callout,
+  Card,
+  CheckCircle,
+  RichTextEditor,
+  Spinner,
+  documentFromMarkdown,
+} from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { Info } from "phosphor-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const previewFrame = css({
@@ -33,15 +41,6 @@ const previewContent = css({
   px: "6",
   py: "4",
   boxSizing: "border-box",
-});
-
-const previewText = css({
-  m: "[0]",
-  fontWeight: "[300]",
-  fontSize: "[18px]",
-  lineHeight: "[30px]",
-  color: "text.lighter",
-  whiteSpace: "pre-wrap",
 });
 
 const spinnerSlot = css({
@@ -74,6 +73,23 @@ export default function SummaryProcess() {
   const isError = status === "error";
   const isStopped = status === "stopped";
   const [isDismissed, setIsDismissed] = useState(false);
+
+  // Renders as formatted rich text (headings, bold, lists…) instead of
+  // showing raw "##"/"**" syntax literally. While streaming, parses the
+  // partial markdown on every chunk — parsers are lenient with incomplete
+  // input, so this degrades gracefully (e.g. an unclosed "**" just renders as
+  // literal asterisks until the closing marker streams in). Once generation
+  // completes, prefers `summary.document` over re-parsing the raw text: that
+  // state already reflects a prior human validation for this document when
+  // one exists (see useSummarize's onSuccess), which otherwise wouldn't
+  // surface until the validation screen.
+  const previewDocument = useMemo(
+    () =>
+      isCompleted && summary.document
+        ? summary.document
+        : documentFromMarkdown(summary.partialText),
+    [isCompleted, summary.document, summary.partialText],
+  );
 
   // Play the completion sound + taskbar bounce once when the summary
   // finishes, matching the Dataset/Anonimizador/Voz a texto pipelines.
@@ -196,7 +212,12 @@ export default function SummaryProcess() {
                   >
                     <div className={previewContent}>
                       {summary.partialText ? (
-                        <p className={previewText}>{summary.partialText}</p>
+                        <RichTextEditor
+                          document={previewDocument}
+                          readOnly
+                          variant="embedded"
+                          aria-label={t("process.previewAriaLabel")}
+                        />
                       ) : (
                         <span className={previewPlaceholder}>
                           {t("process.waitingForWords")}

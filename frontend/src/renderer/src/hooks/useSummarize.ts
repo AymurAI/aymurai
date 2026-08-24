@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type SummaryAction,
   finish,
+  restoreValidation,
   setPartialText,
   start,
   stop,
   error as summaryError,
 } from "@/context/Summary";
 import { summarizeDocument } from "@/services/aymurai/queries";
+import { summaryValidationClient } from "@/services/aymurai/summaryValidationClient";
 import type { DocFile } from "@/types/file";
 
 export type SummarizeHookStatus =
@@ -70,6 +72,28 @@ export function useSummarize(
             // has replaced controllerRef, this settle is stale — ignore it.
             if (controllerRef.current !== controller) return;
             dispatchRef.current?.(finish(result.summary, result.documentId));
+
+            // A prior human validation for this exact document (same
+            // text_to_uuid identity) outranks the freshly (re)generated
+            // machine summary — best-effort: the fresh summary already
+            // dispatched above is a reasonable fallback if this lookup
+            // fails or there simply isn't one yet.
+            summaryValidationClient
+              .load(result.documentId, controller.signal)
+              .then((validation) => {
+                if (controllerRef.current !== controller) return;
+                if (!validation?.hasValidation) return;
+                // Mirrors summary-validation.tsx's restore-on-mount guard:
+                // an intentionally emptied validation must not blackhole the
+                // freshly generated (always non-empty) summary.
+                if ((validation.editedSummary.content?.length ?? 0) === 0) {
+                  return;
+                }
+                dispatchRef.current?.(
+                  restoreValidation(validation.editedSummary, validation.title),
+                );
+              })
+              .catch(() => {});
           },
           onError: (err) => {
             if (controllerRef.current !== controller) return;
