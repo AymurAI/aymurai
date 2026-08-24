@@ -430,3 +430,35 @@ describe("export error message (G8 F1)", () => {
     }
   });
 });
+
+describe("AnonymizerExportValidationError message detail", () => {
+  it("names the offending entities after the family sentence", () => {
+    const issue = {
+      code: "overlapping_range" as const,
+      message: "solapado",
+      entity: {
+        entityId: "e1",
+        canonicalEntityId: null,
+        label: "NOMBRE",
+        start: 0,
+        end: 11,
+        text: "Juana Perez",
+        source: "manual" as const,
+        groupId: null,
+        isDeleted: false,
+        isManual: true,
+        paragraphId: "p1",
+      },
+    };
+
+    const error = new AnonymizerExportValidationError([
+      issue,
+      issue,
+      issue,
+      issue,
+    ]);
+
+    expect(error.message).toContain("[NOMBRE] «Juana Perez»");
+    expect(error.message).toContain("(+1 más)");
+  });
+});

@@ -145,6 +145,23 @@ function translateFamily(key: keyof typeof ANONYMIZER_ES.export): string {
     : ANONYMIZER_ES.export[key];
 }
 
+const MAX_ISSUES_IN_MESSAGE = 3;
+
+// The family sentence says what went wrong; these lines say where. Without
+// them a report reads "hay entidades solapadas" with no way to find them.
+function describeIssue(validationIssue: ExportValidationIssue): string {
+  const { entity } = validationIssue;
+  const excerpt =
+    entity.text.length > 40 ? `${entity.text.slice(0, 40)}…` : entity.text;
+  return `[${entity.label}] «${excerpt}»: ${validationIssue.message}`;
+}
+
+function describeIssues(fatalIssues: ExportValidationIssue[]): string[] {
+  const shown = fatalIssues.slice(0, MAX_ISSUES_IN_MESSAGE).map(describeIssue);
+  const remaining = fatalIssues.length - shown.length;
+  return remaining > 0 ? [...shown, `(+${remaining} más)`] : shown;
+}
+
 function buildExportErrorMessage(fatalIssues: ExportValidationIssue[]): string {
   const families = new Set<ExportIssueFamily>();
   for (const fatalIssue of fatalIssues) {
@@ -153,10 +170,15 @@ function buildExportErrorMessage(fatalIssues: ExportValidationIssue[]): string {
   }
 
   if (families.size === 0) {
-    return translateFamily("generic");
+    return [translateFamily("generic"), ...describeIssues(fatalIssues)].join(
+      "\n",
+    );
   }
 
-  return [...families].map((family) => translateFamily(family)).join(" ");
+  return [
+    [...families].map((family) => translateFamily(family)).join(" "),
+    ...describeIssues(fatalIssues),
+  ].join("\n");
 }
 
 export class AnonymizerExportValidationError extends Error {
