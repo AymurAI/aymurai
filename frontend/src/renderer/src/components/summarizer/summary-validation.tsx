@@ -85,14 +85,17 @@ export default function SummaryValidation() {
   // Resolves to `false` only when the save actually failed — lets callers
   // that navigate away decide whether to wait for a clean save first.
   const handleSave = (): Promise<boolean> => {
-    if (!file || !summary.document) return Promise.resolve(true);
+    if (!file || !summary.document || !summary.documentId) {
+      return Promise.resolve(true);
+    }
 
     const payload: SummaryValidationPayload = {
-      // A stable id, not the display filename: two different documents can
-      // share a filename (e.g. two rulings both exported as "sentencia.docx"
-      // from different case folders), and the filename is the entire
-      // storage key downstream.
-      documentId: file.paragraphs?.[0]?.document_id ?? file.data.name,
+      // The backend's text_to_uuid(text) identity for this summarization
+      // (threaded through from the /llm/summarize response) — not a display
+      // string and not a paragraph-level id from a different id namespace,
+      // either of which the backend's UUID5-keyed validation route would
+      // reject or silently miss.
+      documentId: summary.documentId,
       title: summary.title,
       generatedSummary: summary.partialText,
       editedSummary: serializeDocumentToPlainText(summary.document),

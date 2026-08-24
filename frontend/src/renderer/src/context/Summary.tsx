@@ -11,6 +11,7 @@ export type SummaryStatus =
 export interface SummaryState {
   status: SummaryStatus;
   sourceFileName: string | null;
+  documentId: string | null;
   title: string;
   partialText: string;
   document: JSONContent | null;
@@ -20,6 +21,7 @@ export interface SummaryState {
 const initialState: SummaryState = {
   status: "idle",
   sourceFileName: null,
+  documentId: null,
   title: "",
   partialText: "",
   document: null,
@@ -30,7 +32,7 @@ export type SummaryAction =
   | { type: "reset" }
   | { type: "start"; fileName: string }
   | { type: "setPartialText"; text: string }
-  | { type: "finish"; summary: string }
+  | { type: "finish"; summary: string; documentId: string }
   | { type: "error"; message: string }
   | { type: "stop" }
   | { type: "edit"; document: JSONContent }
@@ -45,9 +47,10 @@ export const setPartialText = (text: string): SummaryAction => ({
   type: "setPartialText",
   text,
 });
-export const finish = (summary: string): SummaryAction => ({
+export const finish = (summary: string, documentId: string): SummaryAction => ({
   type: "finish",
   summary,
+  documentId,
 });
 export const error = (message: string): SummaryAction => ({
   type: "error",
@@ -83,6 +86,7 @@ function summaryReducer(
       return {
         ...state,
         status: "completed",
+        documentId: action.documentId,
         document: documentFromMarkdown(action.summary),
       };
     case "error":

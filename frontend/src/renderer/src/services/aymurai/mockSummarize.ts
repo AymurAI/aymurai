@@ -26,5 +26,11 @@ export async function mockSummarizeStream(
     onPartialText?.(acc);
   }
 
-  return { summary: acc, model: "mock", chunks_used: 1, steps: [] };
+  return {
+    documentId: crypto.randomUUID(),
+    summary: acc,
+    model: "mock",
+    chunks_used: 1,
+    steps: [],
+  };
 }

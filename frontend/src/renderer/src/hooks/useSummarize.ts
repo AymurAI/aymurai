@@ -69,7 +69,7 @@ export function useSummarize(
             // Guard against a superseded request: if a newer file/effect run
             // has replaced controllerRef, this settle is stale — ignore it.
             if (controllerRef.current !== controller) return;
-            dispatchRef.current?.(finish(result.summary));
+            dispatchRef.current?.(finish(result.summary, result.documentId));
           },
           onError: (err) => {
             if (controllerRef.current !== controller) return;

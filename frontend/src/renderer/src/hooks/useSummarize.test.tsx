@@ -15,6 +15,7 @@ vi.mock("@/services/aymurai/summarize", () => ({
       onPartialText?.("Hola");
       onPartialText?.("Hola mundo");
       return {
+        documentId: "doc-1",
         summary: "Hola mundo",
         model: "mock",
         chunks_used: 1,
@@ -87,6 +88,7 @@ describe("useSummarize", () => {
     // simulate it settling *after* file B's session has already started.
     let resolveA:
       | ((value: {
+          documentId: string;
           summary: string;
           model: string;
           chunks_used: number;
@@ -130,6 +132,7 @@ describe("useSummarize", () => {
     // window where A's mutation observer callback could still be attached
     // when A's stale result arrives — the exact race under test.
     resolveA?.({
+      documentId: "doc-a",
       summary: "Stale A summary",
       model: "mock",
       chunks_used: 1,

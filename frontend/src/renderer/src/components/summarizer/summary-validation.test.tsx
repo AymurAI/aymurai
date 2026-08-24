@@ -34,13 +34,16 @@ const { mockDispatch, mockSave, mockNavigate } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
 }));
 
+let mockSummaryState = {
+  status: "completed",
+  document: mockDocument,
+  documentId: "doc-0",
+  title: "Resumen acta.docx",
+  sourceFileName: "acta.docx",
+};
+
 vi.mock("@/context/Summary", () => ({
-  useSummary: () => ({
-    status: "completed",
-    document: mockDocument,
-    title: "Resumen acta.docx",
-    sourceFileName: "acta.docx",
-  }),
+  useSummary: () => mockSummaryState,
   useSummaryDispatch: () => mockDispatch,
   edit: (document: unknown) => ({ type: "edit", document }),
   editTitle: (title: string) => ({ type: "editTitle", title }),
@@ -71,6 +74,13 @@ describe("SummaryValidation", () => {
     mockNavigate.mockClear();
     mockSave.mockClear();
     mockSave.mockResolvedValue(undefined);
+    mockSummaryState = {
+      status: "completed",
+      document: mockDocument,
+      documentId: "doc-0",
+      title: "Resumen acta.docx",
+      sourceFileName: "acta.docx",
+    };
   });
 
   it("renders both the original document panel and the summary editor", () => {
@@ -84,10 +94,12 @@ describe("SummaryValidation", () => {
     fireEvent.blur(screen.getByRole("textbox"));
     expect(mockSave).toHaveBeenCalledWith(
       expect.objectContaining({
-        // The stable document id (from the file's own paragraphs), not the
-        // display filename "acta.docx" — see the "does not collide" test
-        // below for why the filename cannot be the key.
-        documentId: "d0",
+        // The backend's text_to_uuid(text) identity, threaded through
+        // Summary state from the /llm/summarize response — not a display
+        // filename and not a paragraph-level id from a different id
+        // namespace. See the "does not collide" test below for why two
+        // different documents must not share a save key.
+        documentId: "doc-0",
         title: "Resumen acta.docx",
       }),
     );
@@ -208,41 +220,28 @@ describe("SummaryValidation", () => {
     expect(lastPayload?.editedSummary).toContain("Resumen corregido a mano.");
   });
 
-  // Adversary: `documentId: file.data.name` (summary-validation.tsx:60) is a
-  // display string, and it is the whole storage key - noopSummaryValidation
-  // writes `summary-validation:<documentId>` into localStorage and `load()`
-  // reads it back by the same key. Two different rulings that happen to be
-  // filed under the same filename (very common: "sentencia.docx" exported from
-  // two different case folders) therefore share one record. CONVENTIONS.md's
-  // "Join on ids, never on display strings" names exactly this; the file's own
-  // paragraphs already carry a stable `document_id`.
+  // Adversary: two different rulings that happen to be filed under the same
+  // filename (very common: "sentencia.docx" exported from two different case
+  // folders) must not share a save key. The key comes from Summary state's
+  // documentId — the backend's text_to_uuid(text) identity for this
+  // summarization, which differs whenever the source text does — never from
+  // the display filename or a paragraph-level id from an unrelated namespace.
   it("keys the persisted summary so two different documents with the same filename do not collide", () => {
-    const originalFile = mockFiles[0];
+    const originalSummaryState = mockSummaryState;
     onTestFinished(() => {
-      mockFiles[0] = originalFile;
+      mockSummaryState = originalSummaryState;
     });
-
-    const documentA = {
-      ...originalFile,
-      data: new File(["a"], "sentencia.docx"),
-      paragraphs: [{ id: "p0", document_id: "case-a", value: "Expediente A." }],
-    };
-    const documentB = {
-      ...originalFile,
-      data: new File(["b"], "sentencia.docx"),
-      paragraphs: [{ id: "p0", document_id: "case-b", value: "Expediente B." }],
-    };
 
     // Two separate visits to the screen - the real sequence (validate one
     // ruling, later validate another) - so each gets its own component
     // instance and neither save can be coalesced into the other.
-    mockFiles[0] = documentA;
+    mockSummaryState = { ...originalSummaryState, documentId: "case-a" };
     const { unmount } = render(<SummaryValidation />);
     fireEvent.blur(screen.getByRole("textbox"));
     const keyForA = mockSave.mock.calls.at(-1)?.[0]?.documentId;
     unmount();
 
-    mockFiles[0] = documentB;
+    mockSummaryState = { ...originalSummaryState, documentId: "case-b" };
     render(<SummaryValidation />);
     fireEvent.blur(screen.getByRole("textbox"));
     const keyForB = mockSave.mock.calls.at(-1)?.[0]?.documentId;

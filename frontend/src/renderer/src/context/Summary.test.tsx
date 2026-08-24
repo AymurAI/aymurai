@@ -45,17 +45,20 @@ describe("Summary context", () => {
     expect(result.current.state.partialText).toBe("Hola mundo");
   });
 
-  it("finish() sets status to completed and parses the summary into a document", () => {
+  it("finish() sets status to completed, parses the summary into a document, and stores the document id", () => {
     const { result } = renderHook(
       () => ({ state: useSummary(), dispatch: useSummaryDispatch() }),
       { wrapper },
     );
     act(() => result.current.dispatch(start("a.docx")));
     act(() =>
-      result.current.dispatch(finish("Primer párrafo.\n\nSegundo párrafo.")),
+      result.current.dispatch(
+        finish("Primer párrafo.\n\nSegundo párrafo.", "doc-1"),
+      ),
     );
     expect(result.current.state.status).toBe("completed");
     expect(result.current.state.document?.content).toHaveLength(2);
+    expect(result.current.state.documentId).toBe("doc-1");
   });
 
   it("error()/stop() set the corresponding status", () => {
@@ -77,7 +80,7 @@ describe("Summary context", () => {
       { wrapper },
     );
     act(() => result.current.dispatch(start("a.docx")));
-    act(() => result.current.dispatch(finish("Texto.")));
+    act(() => result.current.dispatch(finish("Texto.", "doc-1")));
     act(() =>
       result.current.dispatch(
         edit({ type: "doc", content: [{ type: "paragraph" }] }),
