@@ -4,6 +4,7 @@ import DocumentSearchPanel from "@/components/summarizer/document-search-panel";
 import {
   edit,
   editTitle,
+  restoreValidation,
   useSummary,
   useSummaryDispatch,
 } from "@/context/Summary";
@@ -17,10 +18,11 @@ import {
   Button,
   Callout,
   RichTextEditor,
+  documentFromPlainText,
   serializeDocumentToPlainText,
 } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // Grid items stretch to the row height by default, but their content can
@@ -60,6 +62,42 @@ export default function SummaryValidation() {
     promise: Promise<boolean>;
     fingerprint: string;
   } | null>(null);
+
+  // Restore-on-mount: the summarizer always regenerates a fresh summary for
+  // the current document (see useSummarize), so reopening a document that
+  // was previously human-validated would otherwise silently discard the
+  // saved edits in favor of the freshly generated text. `hasValidation`
+  // distinguishes a genuine saved validation from the backend's
+  // markdown-fallback shape (never validated) — only the former should
+  // overwrite what's on screen.
+  useEffect(() => {
+    const documentId = summary.documentId;
+    if (!documentId) return;
+
+    let active = true;
+    const controller = new AbortController();
+
+    summaryValidationClient
+      .load(documentId, controller.signal)
+      .then((result) => {
+        if (!active || !result?.hasValidation) return;
+        dispatch(
+          restoreValidation(
+            documentFromPlainText(result.editedSummary),
+            result.title,
+          ),
+        );
+      })
+      .catch(() => {
+        // Best-effort: the freshly generated summary already on screen is a
+        // reasonable fallback if the lookup fails.
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [summary.documentId, dispatch]);
 
   const runSave = (payload: SummaryValidationPayload): Promise<boolean> => {
     setSaving(true);

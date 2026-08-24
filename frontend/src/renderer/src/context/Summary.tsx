@@ -36,7 +36,8 @@ export type SummaryAction =
   | { type: "error"; message: string }
   | { type: "stop" }
   | { type: "edit"; document: JSONContent }
-  | { type: "editTitle"; title: string };
+  | { type: "editTitle"; title: string }
+  | { type: "restoreValidation"; document: JSONContent; title: string };
 
 export const reset = (): SummaryAction => ({ type: "reset" });
 export const start = (fileName: string): SummaryAction => ({
@@ -65,6 +66,10 @@ export const editTitle = (title: string): SummaryAction => ({
   type: "editTitle",
   title,
 });
+export const restoreValidation = (
+  document: JSONContent,
+  title: string,
+): SummaryAction => ({ type: "restoreValidation", document, title });
 
 function summaryReducer(
   state: SummaryState,
@@ -97,6 +102,8 @@ function summaryReducer(
       return { ...state, document: action.document };
     case "editTitle":
       return { ...state, title: action.title };
+    case "restoreValidation":
+      return { ...state, document: action.document, title: action.title };
     default:
       return state;
   }

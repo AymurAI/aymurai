@@ -6,6 +6,7 @@ import SummaryProvider, {
   error,
   finish,
   reset,
+  restoreValidation,
   setPartialText,
   start,
   stop,
@@ -93,6 +94,32 @@ describe("Summary context", () => {
       content: [{ type: "paragraph" }],
     });
     expect(result.current.state.title).toBe("Nuevo título");
+  });
+
+  it("restoreValidation() overwrites document and title without touching status or documentId", () => {
+    const { result } = renderHook(
+      () => ({ state: useSummary(), dispatch: useSummaryDispatch() }),
+      { wrapper },
+    );
+    act(() => result.current.dispatch(start("a.docx")));
+    act(() =>
+      result.current.dispatch(finish("Texto generado.", "doc-1")),
+    );
+    act(() =>
+      result.current.dispatch(
+        restoreValidation(
+          { type: "doc", content: [{ type: "paragraph" }] },
+          "Título validado",
+        ),
+      ),
+    );
+    expect(result.current.state.status).toBe("completed");
+    expect(result.current.state.documentId).toBe("doc-1");
+    expect(result.current.state.document).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    });
+    expect(result.current.state.title).toBe("Título validado");
   });
 
   it("reset() returns to the initial state", () => {

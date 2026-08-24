@@ -13,12 +13,20 @@ export interface SummaryValidation {
   editedSummary: string;
 }
 
+// `hasValidation` distinguishes a genuine human-validated record from the
+// backend's markdown-fallback shape (see the class doc below) — a `load()`
+// caller needs it to decide whether to restore, but it isn't part of the
+// payload a caller `save()`s.
+export interface SummaryValidationRecord extends SummaryValidation {
+  hasValidation: boolean;
+}
+
 export interface SummaryValidationClient {
   save(summary: SummaryValidation, signal?: AbortSignal): Promise<void>;
   load(
     documentId: string,
     signal?: AbortSignal,
-  ): Promise<SummaryValidation | null>;
+  ): Promise<SummaryValidationRecord | null>;
 }
 
 interface SummarizationValidationResponse {
@@ -70,6 +78,7 @@ export const backendSummaryValidationClient: SummaryValidationClient = {
       editedSummary: serializeDocumentToPlainText(
         data.validation ?? documentFromMarkdown(data.summary),
       ),
+      hasValidation: data.validation !== null,
     };
   },
 };

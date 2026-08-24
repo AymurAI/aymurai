@@ -1,3 +1,4 @@
+import { documentFromPlainText } from "@aymurai/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import SummaryValidation from "./summary-validation";
@@ -28,9 +29,10 @@ const mockDocument = {
   ],
 };
 
-const { mockDispatch, mockSave, mockNavigate } = vi.hoisted(() => ({
+const { mockDispatch, mockSave, mockLoad, mockNavigate } = vi.hoisted(() => ({
   mockDispatch: vi.fn(),
   mockSave: vi.fn().mockResolvedValue(undefined),
+  mockLoad: vi.fn().mockResolvedValue(null),
   mockNavigate: vi.fn(),
 }));
 
@@ -47,10 +49,15 @@ vi.mock("@/context/Summary", () => ({
   useSummaryDispatch: () => mockDispatch,
   edit: (document: unknown) => ({ type: "edit", document }),
   editTitle: (title: string) => ({ type: "editTitle", title }),
+  restoreValidation: (document: unknown, title: string) => ({
+    type: "restoreValidation",
+    document,
+    title,
+  }),
 }));
 
 vi.mock("@/services/aymurai/summaryValidationClient", () => ({
-  summaryValidationClient: { save: mockSave, load: vi.fn() },
+  summaryValidationClient: { save: mockSave, load: mockLoad },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -74,6 +81,8 @@ describe("SummaryValidation", () => {
     mockNavigate.mockClear();
     mockSave.mockClear();
     mockSave.mockResolvedValue(undefined);
+    mockLoad.mockClear();
+    mockLoad.mockResolvedValue(null);
     mockSummaryState = {
       status: "completed",
       document: mockDocument,
@@ -256,5 +265,49 @@ describe("SummaryValidation", () => {
     // destroys the first document's persisted summary and `load()` can never
     // tell them apart again.
     expect(keyForB).not.toBe(keyForA);
+  });
+
+  it("looks up a stored validation for the current document on mount", async () => {
+    render(<SummaryValidation />);
+    await waitFor(() =>
+      expect(mockLoad).toHaveBeenCalledWith("doc-0", expect.anything()),
+    );
+  });
+
+  it("leaves the freshly generated summary in place when the document was never human-validated", async () => {
+    mockLoad.mockResolvedValue({
+      documentId: "doc-0",
+      title: "",
+      generatedSummary: "Resumen generado.",
+      editedSummary: "Resumen generado.",
+      hasValidation: false,
+    });
+
+    render(<SummaryValidation />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+
+    expect(mockDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "restoreValidation" }),
+    );
+  });
+
+  it("restores the saved validation instead of the freshly generated summary when reopening a validated document", async () => {
+    mockLoad.mockResolvedValue({
+      documentId: "doc-0",
+      title: "Título guardado",
+      generatedSummary: "Resumen generado.",
+      editedSummary: "Texto validado a mano.",
+      hasValidation: true,
+    });
+
+    render(<SummaryValidation />);
+
+    await waitFor(() =>
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: "restoreValidation",
+        document: documentFromPlainText("Texto validado a mano."),
+        title: "Título guardado",
+      }),
+    );
   });
 });

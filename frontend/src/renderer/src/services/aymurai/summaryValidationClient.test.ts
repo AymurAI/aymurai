@@ -27,6 +27,36 @@ describe("summaryValidationClient", () => {
   });
 });
 
+describe("backendSummaryValidationClient", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reports hasValidation: false when the record was never human-validated", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: { title: null, summary: "Generado.", validation: null },
+    });
+
+    const result = await summaryValidationClient.load("doc-1");
+
+    expect(result?.hasValidation).toBe(false);
+  });
+
+  it("reports hasValidation: true when a human validation is stored", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      data: {
+        title: "Título validado",
+        summary: "Generado.",
+        validation: documentFromPlainText("Editado."),
+      },
+    });
+
+    const result = await summaryValidationClient.load("doc-1");
+
+    expect(result?.hasValidation).toBe(true);
+  });
+});
+
 describe("noopSummaryValidationClient", () => {
   beforeEach(() => localStorage.clear());
 
@@ -42,7 +72,10 @@ describe("noopSummaryValidationClient", () => {
       editedSummary: "Editado.",
     };
     await noopSummaryValidationClient.save(summary);
-    expect(await noopSummaryValidationClient.load("doc-1")).toEqual(summary);
+    expect(await noopSummaryValidationClient.load("doc-1")).toEqual({
+      ...summary,
+      hasValidation: true,
+    });
   });
 
   it("overwrites a previous save for the same documentId", async () => {
@@ -63,6 +96,7 @@ describe("noopSummaryValidationClient", () => {
       title: "B",
       generatedSummary: "B",
       editedSummary: "B",
+      hasValidation: true,
     });
   });
 });

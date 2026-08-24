@@ -14,4 +14,5 @@ export const summaryValidationClient: SummaryValidationClient =
 export type {
   SummaryValidation,
   SummaryValidationClient,
+  SummaryValidationRecord,
 } from "./summaryValidation";
