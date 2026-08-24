@@ -26,7 +26,7 @@ function emitEvents(events: unknown[]) {
 describe("transcribeStream", () => {
   beforeEach(() => {
     mockedFetchEventSource.mockReset();
-    api.defaults.baseURL = "http://asr.test";
+    api.defaults.baseURL = "http://asr.test/api";
     vi.stubGlobal(
       "URL",
       Object.assign(URL, { createObjectURL: vi.fn(() => "blob:audio") }),
@@ -56,7 +56,7 @@ describe("transcribeStream", () => {
     });
 
     expect(mockedFetchEventSource).toHaveBeenCalledWith(
-      "http://asr.test/asr/transcribe/stream?use_cache=true",
+      "http://asr.test/api/asr/transcribe/stream?use_cache=true",
       expect.any(Object),
     );
   });

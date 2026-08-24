@@ -1,6 +1,6 @@
 import { CanceledError } from "axios";
 
-import api from "@/services/api";
+import api, { apiUrl } from "@/services/api";
 
 export interface SummarizationRequest {
   text: string;
@@ -67,17 +67,12 @@ export async function summarizeStream(
   text: string,
   { signal, onPartialText }: SummarizeStreamOptions,
 ): Promise<SummarizationResponse> {
-  const baseURL = api.defaults.baseURL?.replace(/\/$/, "");
-  if (!baseURL) {
-    throw new Error(
-      "No server selected. Connect to a server from the login page first.",
-    );
-  }
+  const url = apiUrl("/llm/summarize/stream");
 
   let finalResponse: SummarizationResponse | null = null;
 
   try {
-    const response = await fetch(`${baseURL}/llm/summarize/stream`, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

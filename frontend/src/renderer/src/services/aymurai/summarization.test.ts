@@ -46,7 +46,7 @@ describe("summarizeStream", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    api.defaults.baseURL = "http://llm.test";
+    api.defaults.baseURL = "http://llm.test/api";
   });
 
   afterEach(() => {
@@ -65,11 +65,32 @@ describe("summarizeStream", () => {
     await expect(
       summarizeStream("texto", { signal: controller.signal }),
     ).rejects.toBeInstanceOf(CanceledError);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://llm.test/api/llm/summarize/stream",
+      expect.anything(),
+    );
   });
 
   it("does not mask a non-abort fetch failure as CanceledError", async () => {
     global.fetch = vi.fn().mockRejectedValue(new TypeError("Network error"));
 
     await expect(summarizeStream("texto", {})).rejects.toThrow("Network error");
+  });
+
+  it("surfaces 'no server selected' instead of masking it as CanceledError when the signal is already aborted", async () => {
+    // apiUrl() must be evaluated before the try/catch, exactly like
+    // transcribeStream.ts: otherwise its "No server selected" Error is caught
+    // by the catch block below and, because the signal is already aborted,
+    // gets converted into a generic CanceledError that hides the real cause.
+    api.defaults.baseURL = undefined;
+    global.fetch = vi.fn();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      summarizeStream("texto", { signal: controller.signal }),
+    ).rejects.toThrow("No server selected");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { normalizeServerHost } from "@/services/api-base-url";
 import { useConnectToHost } from "@/services/aymurai";
 import * as localStore from "@/store/useLocal";
 import { css } from "@/styled/css";
@@ -35,7 +36,9 @@ export default function ConnectToHost() {
 
     connectToHost(host, {
       onSuccess: () => {
-        setServerHost(host);
+        // Store the canonical base URL, not the raw input, so the field shows
+        // the same value it will show after a reload.
+        setServerHost(normalizeServerHost(host));
         navigate({
           to: "/home/features",
         });

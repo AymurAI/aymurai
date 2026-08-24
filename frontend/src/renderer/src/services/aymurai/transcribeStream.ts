@@ -8,7 +8,7 @@ import {
   type ASRStreamEvent,
   ASRStreamEventSchema,
 } from "@/schema/asr";
-import api from "@/services/api";
+import { apiUrl } from "@/services/api";
 import type { Transcription } from "@/types/transcription";
 import { mapASRDocumentToTranscription } from "./asrMapper";
 
@@ -63,13 +63,7 @@ export async function transcribeStream(
   // arrives once in the `segments` event.
   const previewParts: string[] = [];
 
-  const baseURL = api.defaults.baseURL?.replace(/\/$/, "");
-  if (!baseURL) {
-    throw new Error(
-      "No server selected. Connect to a server from the login page first.",
-    );
-  }
-  const url = `${baseURL}/asr/transcribe/stream?use_cache=${useCache}`;
+  const url = apiUrl(`/asr/transcribe/stream?use_cache=${useCache}`);
 
   try {
     await fetchEventSource(url, {
