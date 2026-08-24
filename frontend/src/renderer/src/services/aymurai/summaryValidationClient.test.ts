@@ -1,5 +1,31 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import api from "@/services/api";
+import { documentFromPlainText } from "@aymurai/ui";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { noopSummaryValidationClient } from "./noopSummaryValidation";
+import { summaryValidationClient } from "./summaryValidationClient";
+
+describe("summaryValidationClient", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("saves through the backend validation route", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: null });
+
+    await summaryValidationClient.save({
+      documentId: "doc-1",
+      title: "t",
+      generatedSummary: "g",
+      editedSummary: "e",
+    });
+
+    expect(post).toHaveBeenCalledWith(
+      "/llm/summarize/validation/document/doc-1",
+      { title: "t", validation: documentFromPlainText("e") },
+      { signal: undefined },
+    );
+  });
+});
 
 describe("noopSummaryValidationClient", () => {
   beforeEach(() => localStorage.clear());
