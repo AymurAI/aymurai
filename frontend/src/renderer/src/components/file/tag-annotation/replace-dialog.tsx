@@ -1,10 +1,10 @@
-import Button from "@/components/ui/button";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@aymurai/ui";
 
 interface ReplaceDialogProps {
   isOpen: boolean;
@@ -22,12 +22,12 @@ export default function ReplaceDialog({
 }: ReplaceDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogTitle>Reemplazar todas las ocurrencias</DialogTitle>
         <p>
           Se reemplazará la etiqueta en todas las ocurrencias que coincidan
-          exactamente con el texto <b>{text}</b> por <b>{label}</b>.
-          ¿Deseas continuar?
+          exactamente con el texto <b>{text}</b> por <b>{label}</b>. ¿Deseas
+          continuar?
         </p>
         <DialogFooter>
           <Button onClick={onConfirm}>Aplicar</Button>

@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# git worktrees
+.worktrees/
+
 # dependencies
 /node_modules
 node_modules/*
@@ -11,7 +14,8 @@ node_modules/*
 .husky
 
 # production
-/build
+# NOTE: /build is electron-builder's buildResources dir (icons, entitlements) — source
+# inputs that must be committed, not build output. Actual outputs are /dist and /out.
 /dist
 /out
 
@@ -32,3 +36,23 @@ yarn-error.log*
 src/renderer/src/styled
 
 /me/
+
+# Playwright component-test output
+/playwright-report
+/test-results
+playwright/.cache
+
+# temporary files
+.tmp
+package-lock.json
+.orquestalite/
+team.json
+prompts/
+schemas/
+flows.json
+tasks/
+node_modules/
+dist/
+.next/
+.cache/
+docs/responsive-test-2026-07-30/*

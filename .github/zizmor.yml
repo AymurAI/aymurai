@@ -15,4 +15,4 @@ rules:
   # suggestion is intentionally ignored for the release workflow.
   superfluous-actions:
     ignore:
-      - release.yml
+      - desktop-release.yml

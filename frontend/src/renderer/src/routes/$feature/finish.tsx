@@ -1,59 +1,61 @@
 import FinishAnonymizer from "@/components/finish/finish-anonymizer";
 import FinishDataset from "@/components/finish/finish-dataset";
-import Stepper from "@/components/home/stepper";
 import Header from "@/components/layout/header";
-import HomeButton from "@/components/layout/home-button";
 import RequireFile from "@/features/RequireFile";
+import RequireSummary from "@/features/RequireSummary";
 import { useFileDispatch } from "@/hooks";
-import { Stack } from "@/styled/jsx";
 import { removeAllFiles } from "@/reducers/file/actions";
-import { FeatureFlowEnum, featureNamespace, getFeatureRouteSlug, parseFeatureRouteSlug } from "@/types/features";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import {
-  Navigate,
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import SummaryFinish from "@/components/summarizer/summary-finish";
+import VoiceFinish from "@/components/voice-to-text/finish";
+
 export const Route = createFileRoute("/$feature/finish")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const navigate = useNavigate();
-  const { feature: featureSlug } = useParams({ from: "/$feature/finish" });
-  const feature = parseFeatureRouteSlug(featureSlug);
+  const params = useParams({ from: "/$feature/finish" });
+  if (params.feature === FeatureFlowEnum.VoiceToText) return <VoiceFinish />;
+  if (params.feature === FeatureFlowEnum.Summarizer)
+    return (
+      <RequireFile>
+        <RequireSummary>
+          <SummaryFinish />
+        </RequireSummary>
+      </RequireFile>
+    );
+  return <DocumentFinish />;
+}
 
-  if (!feature) return <Navigate to="/home/features" />;
+function DocumentFinish() {
+  const navigate = useNavigate();
+  const params = useParams({ from: "/$feature/finish" });
+  const { feature } = params;
 
   const { t } = useTranslation(featureNamespace[feature]);
   const dispatch = useFileDispatch();
 
   const handleRestart = () => {
     dispatch(removeAllFiles());
-    navigate({ to: "/$feature/onboarding", params: { feature: getFeatureRouteSlug(feature) } });
+    navigate({ to: "/$feature/onboarding", params });
   };
 
   return (
     <RequireFile>
-      <Stack width="screen" height="screen" gap="0">
-        <Header
-        title={t("title")}
-        center={
-          feature === FeatureFlowEnum.Dataset ? (
-            <Stepper currentStep={4} />
-          ) : undefined
-        }
-        right={<HomeButton />}
-      />
+      <Header title={t("title")} currentStep={4} feature={feature} />
 
-        {feature === FeatureFlowEnum.Dataset ? (
+      {feature === FeatureFlowEnum.Dataset ? (
         <FinishDataset onRestart={handleRestart} />
-        ) : (
-        <FinishAnonymizer onRestart={handleRestart} />
-        )}
-      </Stack>
+      ) : (
+        <FinishAnonymizer />
+      )}
     </RequireFile>
   );
 }

@@ -1,134 +1,93 @@
-import { Button, FilePreview } from "@/components";
-import HiddenInput from "@/components/hidden-input";
-import Stepper from "@/components/home/stepper";
+import { FilePreview } from "@/components";
+import FileSelectionLayout from "@/components/layout/file-selection-layout";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
-import HomeButton from "@/components/layout/home-button";
 import MainContent from "@/components/layout/main-content";
 import BackButton from "@/components/ui/back-button";
-import Card from "@/components/ui/card";
 import RequireFile from "@/features/RequireFile";
 import { useFileDispatch, useFiles } from "@/hooks";
 import { useFileParse } from "@/hooks/useFileParse";
-import { SectionTitle } from "@/layout/section-title";
-import { addFiles, filterUnselected } from "@/reducers/file/actions";
-import { css } from "@/styled/css";
-import { Grid, HStack, Stack, styled } from "@/styled/jsx";
-import { FeatureFlowEnum, featureNamespace, getFeatureRouteSlug, parseFeatureRouteSlug } from "@/types/features";
+import { removeAllFiles } from "@/reducers/file/actions";
+import { Stack, styled } from "@/styled/jsx";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
+import { Button, Card } from "@aymurai/ui";
 import {
-  Navigate,
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
-import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+import VoicePreview from "@/components/voice-to-text/preview";
 
 export const Route = createFileRoute("/$feature/preview")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { feature: featureSlug } = useParams({
+  const { feature } = useParams({
     from: "/$feature/preview",
   });
-  const feature = parseFeatureRouteSlug(featureSlug);
+  if (feature === FeatureFlowEnum.VoiceToText) return <VoicePreview />;
+  return <DocumentPreview />;
+}
+
+function DocumentPreview() {
+  const { feature } = useParams({
+    from: "/$feature/preview",
+  });
   const navigate = useNavigate();
-
-  if (!feature) return <Navigate to="/home/features" />;
-
   const { t } = useTranslation(featureNamespace[feature]);
-
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const files = useFiles();
   const dispatch = useFileDispatch();
   const parseStatuses = useFileParse(files);
+  const file = files[0];
 
-  const isProcessing = files.some((file) => !file.paragraphs);
+  const isProcessing = Boolean(file && !file.paragraphs);
 
-  const handleAddFiles: React.ChangeEventHandler<HTMLInputElement> = async (
-    e,
-  ) => {
-    const rawFiles = e.target.files;
-    if (rawFiles) {
-      dispatch(addFiles([...rawFiles]));
-      await navigate({
-        to: "/$feature/preview",
-        params: { feature: getFeatureRouteSlug(feature) },
-      });
-    }
-  };
-  const handleOpenInput = () => {
-    inputRef.current?.click();
+  const handleRemove = () => {
+    dispatch(removeAllFiles());
   };
 
   const handleConfirmFiles = () => {
-    dispatch(filterUnselected());
     navigate({
       to: "/$feature/process",
-      params: { feature: getFeatureRouteSlug(feature) },
+      params: { feature },
     });
   };
 
   return (
     <RequireFile>
-      <Stack width="screen" height="screen" gap="0">
-        <Header
-        title={t("title")}
-        center={<Stepper currentStep={1} />}
-        feature={feature}
-        right={<HomeButton />}
-      />
-      <MainContent>
-        <Stack gap="8">
-          <HStack alignItems="center" gap="6">
-            <BackButton to="/$feature/onboarding" params={{ feature: getFeatureRouteSlug(feature) }} />
-            <SectionTitle>{t("preview.sectionTitle")}</SectionTitle>
-          </HStack>
+      <Header title={t("title")} currentStep={1} feature={feature} />
+      <MainContent full>
+        <FileSelectionLayout
+          title={t("preview.sectionTitle")}
+          backButton={
+            <BackButton to="/$feature/onboarding" params={{ feature }} />
+          }
+        >
           <Card>
-            <Stack gap="8">
-              <styled.h2 textStyle="subtitle.md.default">
+            <Stack gap="8" alignItems="center">
+              <styled.h2 textStyle="subtitle.md.default" alignSelf="flex-start">
                 {t("preview.filesLabel")}
               </styled.h2>
-              <Grid columns={5}>
-                {files.map((file) => (
-                  <FilePreview
-                    key={file.data.name}
-                    file={file}
-                    status={
-                      parseStatuses[file.data.name]?.status ?? "processing"
-                    }
-                  />
-                ))}
-              </Grid>
+              {file && (
+                <FilePreview
+                  file={file}
+                  status={parseStatuses[file.data.name]?.status ?? "processing"}
+                  onRemove={handleRemove}
+                />
+              )}
             </Stack>
           </Card>
-        </Stack>
+        </FileSelectionLayout>
       </MainContent>
       <Footer withBuiltBy>
-        <HStack gap="4">
-          {feature === FeatureFlowEnum.Dataset && (
-            <>
-              <styled.p textStyle="paragraph.sm.default" whiteSpace="nowrap">
-                {t("preview.validFormats")}
-              </styled.p>
-              <Button
-                variant="secondary"
-                onClick={handleOpenInput}
-                className={css({ whiteSpace: "nowrap" })}
-              >
-                {t("preview.loadMore")}
-              </Button>
-            </>
-          )}
-          <Button onClick={handleConfirmFiles} disabled={isProcessing}>
-            {t("preview.continue")}
-          </Button>
-        </HStack>
+        <Button onClick={handleConfirmFiles} disabled={isProcessing}>
+          {t("preview.continue")}
+        </Button>
       </Footer>
-        <HiddenInput ref={inputRef} onChange={handleAddFiles} />
-      </Stack>
     </RequireFile>
   );
 }

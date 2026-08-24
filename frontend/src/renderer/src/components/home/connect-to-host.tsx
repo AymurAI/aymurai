@@ -1,10 +1,12 @@
+import { normalizeServerHost } from "@/services/api-base-url";
 import { useConnectToHost } from "@/services/aymurai";
 import * as localStore from "@/store/useLocal";
 import { css } from "@/styled/css";
-import { Stack } from "@/styled/jsx";
+import { Stack, styled } from "@/styled/jsx";
+import { isElectronApp } from "@/utils/app-mode";
+import { Button, TextField } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
-import { ArrowLeft } from "phosphor-react";
 import {
   type ChangeEventHandler,
   type SubmitEventHandler,
@@ -12,30 +14,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ZodError } from "zod";
-import Button from "../ui/button";
-import Input from "../ui/input";
 
-const BackButton = ({ onClick }: { onClick: () => void }) => (
-  <button
-    className={css({
-      cursor: "pointer",
-      position: "absolute",
-      top: "8",
-      left: "8",
-    })}
-    type="button"
-    onClick={onClick}
-  >
-    <ArrowLeft size={32} />
-  </button>
-);
-
-interface ConnectToHostProps {
-  onBackClick: () => void;
-}
-export default function ConnectToHost({ onBackClick }: ConnectToHostProps) {
+export default function ConnectToHost() {
   const navigate = useNavigate();
-  const remoteHost = localStore.useServerHost() ?? "";
+  const defaultHost = isElectronApp() ? "" : window.location.origin;
+  const remoteHost = localStore.useServerHost() ?? defaultHost;
   const { setServerHost } = localStore.useServerHostActions();
   const { t } = useTranslation();
 
@@ -53,16 +36,23 @@ export default function ConnectToHost({ onBackClick }: ConnectToHostProps) {
 
     connectToHost(host, {
       onSuccess: () => {
-        setServerHost(host);
+        // Store the canonical base URL, not the raw input, so the field shows
+        // the same value it will show after a reload.
+        setServerHost(normalizeServerHost(host));
         navigate({
           to: "/home/features",
         });
+      },
+      onError: (err) => {
+        // Log once, when the error actually occurs — errorMessage below is
+        // called on every render while an error is displayed, so logging
+        // there would re-log on each re-render instead of once per failure.
+        console.error(err);
       },
     });
   };
 
   const errorMessage = (err: Error | null): string => {
-    console.error(err);
     if (err instanceof AxiosError) {
       if (err.code === "ERR_NETWORK") return t("home.host.errors.network");
       return t("home.host.errors.connection");
@@ -80,29 +70,31 @@ export default function ConnectToHost({ onBackClick }: ConnectToHostProps) {
   };
 
   return (
-    <>
-      <BackButton onClick={onBackClick} />
-      <form onSubmit={tryConnection}>
-        <Stack justify="center" gap="3" width="[400px]">
+    <Stack align="center" gap={{ base: "[1rem]", xl: "12" }} width="[400px]">
+      <styled.img
+        src={`${import.meta.env.BASE_URL}brand/aymurai-vert-darkpurple.svg`}
+        alt="Logotipo AymurAI"
+        width={{ base: "[100px]", xl: "[180px]" }}
+      />
+      <form onSubmit={tryConnection} className={css({ width: "full" })}>
+        <Stack justify="center" gap="3" width="full">
           <h2 className={css({ textStyle: "subtitle.sm.strong" })}>
             {t("home.host.connectServerExplanation")}
           </h2>
 
-          <Stack gap="1" width="full">
-            <Input
-              label={t("home.host.connectServerLabel")}
-              placeholder="http://"
-              value={host}
-              onChange={handleChange}
-              error={error ? errorMessage(error) : undefined}
-            />
-          </Stack>
+          <TextField
+            label={t("home.host.connectServerLabel")}
+            placeholder="http://"
+            value={host}
+            onChange={handleChange}
+            error={error ? errorMessage(error) : undefined}
+          />
 
           <Button type="submit" isLoading={isPending}>
             {t("home.host.connectServerSubmit")}
           </Button>
         </Stack>
       </form>
-    </>
+    </Stack>
   );
 }

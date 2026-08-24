@@ -14,22 +14,37 @@ const content = cva({
   variants: {
     full: {
       true: {},
-      false: {
-        ...stack.raw({ align: "center", gap: "0" }),
-
-        pt: { base: "6", xl: "16" },
-        px: "8",
-
-        "& > div.spacing": {
-          width: "full",
-          maxWidth: "5xl",
-        },
-      },
+      false: { px: { base: "4", sm: "6", md: "8", desktop: "12" } },
     },
   },
   defaultVariants: {
     full: false,
   },
+});
+
+const inner = cva({
+  base: {
+    width: "full",
+    minH: "full",
+  },
+  variants: {
+    full: {
+      true: {},
+      false: {
+        ...stack.raw({ gap: "0" }),
+        // Scoped version (tasks/responsive-fixes/plan-version-acotada.md):
+        // back to the 1015px cap Figma specced at 1440px. The Responsive page
+        // covers only the three validation screens, and none of them goes
+        // through MainContent - verified: routes/$feature/validation.tsx
+        // builds its own layout. So widening this would upscale onboarding,
+        // preview, process and finish, which have no design at any width.
+        maxWidth: "[1015px]",
+        mx: "auto",
+        pt: { base: "6", xl: "16" },
+      },
+    },
+  },
+  defaultVariants: { full: false },
 });
 
 interface MainContentProps {
@@ -42,7 +57,7 @@ export default function MainContent({
 }: MainContentProps) {
   return (
     <main className={cx(content({ full }))}>
-      <div className="spacing">{children}</div>
+      <div className={inner({ full })}>{children}</div>
     </main>
   );
 }

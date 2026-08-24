@@ -101,6 +101,15 @@ resources
 *.mkv
 *.jpg
 *.png
+
+# The blanket raster globs above exist to keep dataset/model imagery out of the
+# repo. Application and documentation assets are source, not data — un-ignore
+# them explicitly rather than relying on `git add -f`, which silently stops
+# working the moment someone adds an asset without knowing the rule.
+!frontend/**/*.png
+!frontend/**/*.jpg
+!docs/**/*.png
+!docs/**/*.jpg
 *.cfg
 *.names
 *.weights

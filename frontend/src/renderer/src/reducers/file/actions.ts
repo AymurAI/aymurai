@@ -13,14 +13,13 @@ export enum ActionTypes {
   ADD = "ADD",
   ADD_PREDICTIONS = "ADD_PREDICTIONS",
   ADD_PARAGRAPHS = "ADD_PARAGRAPHS",
-  FILTER_UNSELECTED = "FILTER_UNSELECTED",
   FILTER_UNPROCESSED = "FILTER_UNPROCESSED",
-  TOGGLE_SELECTED = "TOGGLE_SELECTED",
   REMOVE_ALL_PREDICTIONS = "REMOVE_ALL_PREDICTIONS",
   REMOVE_PREDICTIONS = "REMOVE_PREDICTIONS",
   REMOVE_ALL_FILES = "REMOVE_ALL_FILES",
   REMOVE_FILE = "REMOVE_FILE",
   REPLACE_FILE = "REPLACE_FILE",
+  SET_DURATION = "SET_DURATION",
   VALIDATE = "VALIDATE",
   APPEND_VALIDATION = "APPEND_VALIDATION",
   APPEND_PREDICTION = "APPEND_PREDICTION",
@@ -43,21 +42,6 @@ type Action<Type, Payload = Record<string, never>> = {
   payload: Payload;
 };
 
-export type ToggleSelectedAction = Action<
-  ActionTypes.TOGGLE_SELECTED,
-  { fileName: string }
->;
-/**
- * Toggles the `selected` property of the given file
- * @param fileName Name of the file to be toggled
- */
-export function toggleSelected(fileName: string): ToggleSelectedAction {
-  return {
-    type: ActionTypes.TOGGLE_SELECTED,
-    payload: { fileName },
-  };
-}
-
 export type RemoveAllPredictionsAction =
   Action<ActionTypes.REMOVE_ALL_PREDICTIONS>;
 /**
@@ -66,17 +50,6 @@ export type RemoveAllPredictionsAction =
 export function removeAllPredictions(): RemoveAllPredictionsAction {
   return {
     type: ActionTypes.REMOVE_ALL_PREDICTIONS,
-    payload: {},
-  };
-}
-
-export type FilterUnselectedAction = Action<ActionTypes.FILTER_UNSELECTED>;
-/**
- * Removes files from the state whose `selected` property is set on `false`
- */
-export function filterUnselected(): FilterUnselectedAction {
-  return {
-    type: ActionTypes.FILTER_UNSELECTED,
     payload: {},
   };
 }
@@ -167,6 +140,22 @@ export function replaceFile(fileName: string, file: File): ReplaceFileAction {
   };
 }
 
+export type SetDurationAction = Action<
+  ActionTypes.SET_DURATION,
+  { fileName: string; durationMs: number }
+>;
+
+/** Stores browser-reported media duration for use across the VTT flow. */
+export function setFileDuration(
+  fileName: string,
+  durationMs: number,
+): SetDurationAction {
+  return {
+    type: ActionTypes.SET_DURATION,
+    payload: { fileName, durationMs },
+  };
+}
+
 export type ValidateAction = Action<ActionTypes.VALIDATE, { fileName: string }>;
 /**
  * Sets the validated status to the given file to `true`
@@ -214,20 +203,23 @@ export type AddParagraphsAction = Action<
   {
     paragraphs: Paragraph[];
     fileName: string;
+    pageCount?: number | null;
   }
 >;
 /**
  * Adds paragraphs to the state from the endpoint `/document-extract`
  * @param paragraphs List of paragraphs to be added
  * @param fileName Name of the file to be modified
+ * @param pageCount Page count reported by the endpoint, if any
  */
 export function addParagraphs(
   paragraphs: Paragraph[],
   fileName: string,
+  pageCount?: number | null,
 ): AddParagraphsAction {
   return {
     type: ActionTypes.ADD_PARAGRAPHS,
-    payload: { paragraphs, fileName },
+    payload: { paragraphs, fileName, pageCount },
   };
 }
 

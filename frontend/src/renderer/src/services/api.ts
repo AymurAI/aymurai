@@ -1,25 +1,77 @@
 import axios from "axios";
 
-const API_PREFIX = "/api";
+import { getServerHost } from "@/store/useLocal";
+import { isWebApp } from "@/utils/app-mode";
+import { isUsableOrigin, toApiBaseUrl } from "./api-base-url";
 
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/$/, "");
+const api = axios.create();
+
+/**
+ * Resolves the API base URL once, at module load, in strict precedence:
+ *
+ *  1. VITE_DEV_HOST — dev-only escape hatch so `pnpm dev:web` can render the
+ *     APIProtected screens without walking the connect flow.
+ *  2. A host the user explicitly saved on /home/host — wins on both platforms.
+ *  3. The web app's own origin — the deployed SPA is served by the very API it
+ *     talks to, so no manual configuration should ever be required.
+ *  4. Nothing. The desktop app with no saved server stays unset; APIProtected
+ *     then bounces to /, which routes on to /home/host.
+ *
+ * Every branch goes through `toApiBaseUrl`, so `/api` is appended exactly once
+ * and a stored 1.x value that already ends in /api does not become /api/api.
+ */
+function resolveInitialBaseUrl(): string | undefined {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEV_HOST) {
+    return safeApiBaseUrl(import.meta.env.VITE_DEV_HOST);
+  }
+
+  const stored = getServerHost();
+  if (stored) {
+    const resolved = safeApiBaseUrl(stored);
+    if (resolved) return resolved;
+  }
+
+  // Guard, not a formality: a packaged Electron renderer loads from file://,
+  // where window.location.origin is the literal string "null".
+  if (isWebApp() && isUsableOrigin(window.location.origin)) {
+    return safeApiBaseUrl(window.location.origin);
+  }
+
+  return undefined;
 }
 
-export function getApiBaseUrl(host: string = window.location.origin): string {
-  const origin = trimTrailingSlash(new URL(host).toString());
-  if (origin.endsWith(API_PREFIX)) return origin;
-  return `${origin}${API_PREFIX}`;
+/** A corrupt stored value must send the user to /home/host, never crash boot. */
+function safeApiBaseUrl(host: string): string | undefined {
+  try {
+    return toApiBaseUrl(host);
+  } catch {
+    console.warn("Ignoring unparseable server host", host);
+    return undefined;
+  }
 }
 
-export function setApiBaseUrl(host?: string): string {
-  const baseURL = getApiBaseUrl(host);
+api.defaults.baseURL = resolveInitialBaseUrl();
+
+/** Points the client at a new server. Returns the base URL actually applied. */
+export function setApiBaseUrl(host: string): string {
+  const baseURL = toApiBaseUrl(host);
   api.defaults.baseURL = baseURL;
   return baseURL;
 }
 
-const api = axios.create({
-  baseURL: getApiBaseUrl(),
-});
+/**
+ * Absolute URL for an API path, for the two SSE clients that use `fetch` and
+ * so cannot go through axios. The only sanctioned way to build an API URL
+ * outside the axios instance — never concatenate `/api` at a call site.
+ */
+export function apiUrl(path: string): string {
+  const baseURL = api.defaults.baseURL;
+  if (!baseURL) {
+    throw new Error(
+      "No server selected. Connect to a server from the login page first.",
+    );
+  }
+  return `${baseURL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
 
 export default api;

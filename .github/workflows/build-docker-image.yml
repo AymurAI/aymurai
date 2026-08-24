@@ -49,6 +49,7 @@ jobs:
           target: aymurai-api
           build-args: |
             SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
+            APP_VERSION=${{ steps.tag.outputs.TAG }}
           tags: |
             ghcr.io/aymurai/api:${{ steps.tag.outputs.TAG }}
             ghcr.io/aymurai/api:latest
@@ -62,6 +63,7 @@ jobs:
           target: aymurai-api-full
           build-args: |
             SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
+            APP_VERSION=${{ steps.tag.outputs.TAG }}
           tags: |
             ghcr.io/aymurai/api:full-${{ steps.tag.outputs.TAG }}
             ghcr.io/aymurai/api:full

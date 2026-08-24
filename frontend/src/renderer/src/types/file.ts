@@ -16,9 +16,18 @@ export type DocFile = {
    */
   data: File;
   /**
+   * Duration reported by the browser media element. Voice to Text records it
+   * during file preview so later screens use the same playback timeline.
+   */
+  durationMs?: number;
+  /**
    * File paragraph data and their metadate
    */
   paragraphs?: Paragraph[];
+  /**
+   * Page count reported by the `/misc/document-extract` endpoint
+   */
+  pageCount?: number | null;
   /**
    * Used on the 'preview' page to detect which files have to be processed
    */

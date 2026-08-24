@@ -1,120 +1,129 @@
 import {
-	Navigate,
-	createFileRoute,
-	useNavigate,
-	useParams,
+  createFileRoute,
+  useNavigate,
+  useParams,
 } from "@tanstack/react-router";
 
-import DropArea from "@/components/drop-area";
 import HiddenInput from "@/components/hidden-input";
 import HowItWorks from "@/components/how-it-works";
+import FileSelectionLayout from "@/components/layout/file-selection-layout";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
-import HomeButton from "@/components/layout/home-button";
 import MainContent from "@/components/layout/main-content";
-import BackButton from "@/components/ui/back-button";
-import Button from "@/components/ui/button";
+import { DOCUMENT_EXTENSIONS } from "@/constants/config";
 import { useFileDispatch } from "@/hooks";
-import { SectionTitle } from "@/layout/section-title";
 import { addFiles, removeAllFiles } from "@/reducers/file/actions";
 import { useSetTutorialSeen, useTutorialSeen } from "@/store/useLocal";
-import { HStack, Stack, styled } from "@/styled/jsx";
-import {
-	FeatureFlowEnum,
-	featureNamespace,
-	getFeatureRouteSlug,
-	parseFeatureRouteSlug,
-} from "@/types/features";
+import { HStack, styled } from "@/styled/jsx";
+import { featureNamespace } from "@/types/features";
+import { isAllowed } from "@/utils/file";
 import { filesForFeatureLoad } from "@/utils/file/preview-files";
+import { Button, FileDropZone } from "@aymurai/ui";
 import { useQueryClient } from "@tanstack/react-query";
+import { File as FileIcon } from "phosphor-react";
 import { useEffect, useRef } from "react";
-import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
+
+import VoiceOnboarding from "@/components/voice-to-text/onboarding";
+import { FeatureFlowEnum } from "@/types/features";
 
 // FIRST step of the processing workflow
 export const Route = createFileRoute("/$feature/onboarding")({
-	component: RouteComponent,
+  component: RouteComponent,
 });
 
 function RouteComponent() {
-	const queryClient = useQueryClient();
-	const { feature: featureSlug } = useParams({
-		from: "/$feature/onboarding",
-	});
-	const feature = parseFeatureRouteSlug(featureSlug);
-	const navigate = useNavigate();
+  const { feature } = useParams({
+    from: "/$feature/onboarding",
+  });
+  if (feature === FeatureFlowEnum.VoiceToText) return <VoiceOnboarding />;
+  return <DocumentOnboarding />;
+}
 
-	if (!feature) return <Navigate to="/home/features" />;
+function DocumentOnboarding() {
+  const queryClient = useQueryClient();
+  const { feature } = useParams({
+    from: "/$feature/onboarding",
+  });
+  const navigate = useNavigate();
+  const { t } = useTranslation(featureNamespace[feature]);
 
-	const { t } = useTranslation(featureNamespace[feature]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-	const inputRef = useRef<HTMLInputElement>(null);
+  const dispatch = useFileDispatch();
+  const tutorialSeen = useTutorialSeen(feature);
+  const toggleTutorialSeen = useSetTutorialSeen();
+  const handleAddFiles = async (files: File[]) => {
+    const filesToAdd = filesForFeatureLoad(feature, files);
+    dispatch(removeAllFiles());
+    dispatch(addFiles(filesToAdd));
+    await navigate({
+      to: "/$feature/preview",
+      params: { feature },
+    });
+    toggleTutorialSeen(feature);
+  };
 
-	const dispatch = useFileDispatch();
-	const tutorialSeen = useTutorialSeen(feature);
-	const toggleTutorialSeen = useSetTutorialSeen();
+  const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const rawFiles = e.target.files;
+    if (rawFiles) handleAddFiles(Array.from(rawFiles));
+  };
 
-	const handleAddFiles = async (files: File[]) => {
-		const filesToAdd = filesForFeatureLoad(feature, files);
-		flushSync(() => {
-			if (feature === FeatureFlowEnum.Anonymizer) dispatch(removeAllFiles());
-			dispatch(addFiles(filesToAdd));
-		});
-		await navigate({
-			to: "/$feature/preview",
-			params: { feature: getFeatureRouteSlug(feature) },
-		});
-		toggleTutorialSeen(feature);
-	};
+  const handleOpenInput = () => {
+    inputRef.current?.click();
+  };
 
-	const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-		const rawFiles = e.target.files;
-		if (rawFiles) handleAddFiles(Array.from(rawFiles));
-	};
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only on mount
+  useEffect(() => {
+    queryClient.removeQueries({ queryKey: ["predict"] });
+    queryClient.removeQueries({ queryKey: ["file-parser"] });
+  }, []);
 
-	const handleOpenInput = () => {
-		inputRef.current?.click();
-	};
-
-	useEffect(() => {
-		queryClient.removeQueries({ queryKey: ["predict"] });
-		queryClient.removeQueries({ queryKey: ["file-parser"] });
-	}, [queryClient]);
-
-	return (
-		<Stack width="screen" height="screen" gap="0">
-			<Header title={t("title")} feature={feature} right={<HomeButton />} />
-			<MainContent>
-				{tutorialSeen ? (
-					<Stack gap="8">
-						<HStack alignItems="center" gap="6">
-							<BackButton to="/home/features" />
-							<SectionTitle>{t("onboarding.sectionTitle")}</SectionTitle>
-						</HStack>
-						<DropArea
-							title={t("onboarding.dropAreaTitle")}
-							description={t("onboarding.dropAreaFormats")}
-							multiple={feature === FeatureFlowEnum.Dataset}
-							onDropFiles={handleAddFiles}
-						/>
-					</Stack>
-				) : (
-					<HowItWorks feature={feature} />
-				)}
-			</MainContent>
-			<Footer withBuiltBy>
-				<HStack gap="4">
-					{!tutorialSeen && (
-						<styled.p textStyle="paragraph.sm.default">
-							{t("onboarding.validFormats")}
-						</styled.p>
-					)}
-					<Button onClick={handleOpenInput}>
-						{t("onboarding.loadDocuments")}
-					</Button>
-				</HStack>
-			</Footer>
-			<HiddenInput ref={inputRef} onChange={handleInputChange} />
-		</Stack>
-	);
+  return (
+    <>
+      <Header
+        title={t("title")}
+        feature={feature}
+        currentStep={tutorialSeen ? 1 : undefined}
+      />
+      <MainContent full={tutorialSeen}>
+        {tutorialSeen ? (
+          <FileSelectionLayout title={t("onboarding.sectionTitle")}>
+            <FileDropZone
+              icon={<FileIcon />}
+              title={t("onboarding.dropAreaTitle")}
+              description={t("onboarding.dropAreaFormats")}
+              onDrop={(files) => {
+                const allowedFiles = files.filter((file) =>
+                  isAllowed(file, DOCUMENT_EXTENSIONS),
+                );
+                if (allowedFiles.length > 0)
+                  handleAddFiles(allowedFiles.slice(0, 1));
+              }}
+              onClick={handleOpenInput}
+            />
+          </FileSelectionLayout>
+        ) : (
+          <HowItWorks feature={feature} />
+        )}
+      </MainContent>
+      <Footer withBuiltBy>
+        <HStack gap="4">
+          {!tutorialSeen && (
+            <styled.p textStyle="paragraph.sm.default">
+              {t("onboarding.validFormats")}
+            </styled.p>
+          )}
+          <Button onClick={handleOpenInput}>
+            {t("onboarding.loadDocuments")}
+          </Button>
+        </HStack>
+      </Footer>
+      <HiddenInput
+        ref={inputRef}
+        onChange={handleInputChange}
+        extensions={DOCUMENT_EXTENSIONS}
+      />
+    </>
+  );
 }

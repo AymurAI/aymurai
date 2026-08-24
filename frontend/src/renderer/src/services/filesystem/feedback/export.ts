@@ -1,5 +1,5 @@
+import { downloadBlob } from "@/services/export/download-blob";
 import type { DocFile } from "@/types/file";
-import { downloadBlob } from "../browser/download";
 import filesystemAPI from "../utils";
 import { joinValidation } from "./utils";
 
@@ -25,11 +25,11 @@ function exportFeedbackFromBrowser(fileName: string, content: object) {
 
 /**
  * Exports the file validation and predictions as a JSON file
- * @param file File to be exported
+ * @param files Files to be exported
  */
 export default async function exportFeedback(files: DocFile[]) {
   for (const file of files) {
-    const { name } = file.data;
+    const name = file.data.name;
 
     const feedback = joinValidation(file);
 

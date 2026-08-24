@@ -8,6 +8,8 @@ import filesystemAPI from "../utils";
  * @returns A ExcelJS `Workbook` instance if the `.xlsx` file can be opened, `null` otherwise
  */
 export default async function read() {
+  // No on-disk dataset in the browser — callers treat null as "start fresh"
+  // (see utils/file/submitValidations/offline.ts).
   if (!window.filesystem) return null;
 
   try {

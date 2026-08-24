@@ -148,3 +148,17 @@ entry = "python3 -c \"import sys; [print(f'Error: CES-32 (repo-shape): {f} does 
 language = "system"
 files = "^{{ import_package }}/(.*\\.ipynb$|(.*/)?(resources|reports|data)/.*)"
 priority = 2
+
+# MARK: biome
+# The frontend's formatter and linter. Runs through the repo's pinned pnpm so
+# the version matches frontend/package.json; scoped to frontend/ so backend-only
+# commits never pay for it. Replaces desktop-app's lefthook.yml — one hook
+# runner for the whole repo.
+[[repos.hooks]]
+id = "biome"
+name = "biome (frontend)"
+entry = "bash -c 'cd frontend && pnpm exec biome check --write --no-errors-on-unmatched --files-ignore-unknown=true \"$@\"' --"
+language = "system"
+files = "^frontend/.*\\.(ts|tsx|js|jsx|json|jsonc)$"
+exclude = "^frontend/src/renderer/src/(styled/|routeTree\\.gen\\.ts)"
+priority = 1

@@ -6,7 +6,6 @@ import {
   type AppendPrediction,
   type AppendValidationAction,
   type FilterUnprocessedAction,
-  type FilterUnselectedAction,
   type MergeGroupsAction,
   type MoveMentionToGroupAction,
   type RemoveAllFilesAction,
@@ -18,7 +17,7 @@ import {
   type RemovePredictionsByCanonicalId,
   type RemovePredictionsByText,
   type ReplaceFileAction,
-  type ToggleSelectedAction,
+  type SetDurationAction,
   type UpdatePredictionLabel,
   type UpdatePredictionsByCanonicalId,
   type UpdatePredictionsByText,
@@ -43,13 +42,12 @@ type State = DocFile[];
 export type Action =
   | AddFilesAction
   | AddPredictionsAction
-  | ToggleSelectedAction
   | RemoveAllPredictionsAction
   | RemoveAllFilesAction
   | RemoveFileAction
   | RemovePredictionsAction
   | ReplaceFileAction
-  | FilterUnselectedAction
+  | SetDurationAction
   | ValidateAction
   | AppendValidationAction
   | FilterUnprocessedAction
@@ -100,17 +98,6 @@ export default function reducer(state: State, action: Action): State {
       }));
     }
     // ----------------
-    // TOGGLE SELECTED
-    // ----------------
-    case ActionTypes.TOGGLE_SELECTED: {
-      const { fileName } = payload;
-
-      return update(fileName, (current) => ({
-        ...current,
-        selected: !current.selected,
-      }));
-    }
-    // ----------------
     // REMOVE ALL PREDICTIONS
     // ----------------
     case ActionTypes.REMOVE_ALL_PREDICTIONS: {
@@ -145,15 +132,15 @@ export default function reducer(state: State, action: Action): State {
       const { fileName, file } = payload;
       return replaceFile(fileName, file, state);
     }
-    // ----------------
-    // FILTER UNSELECTED
-    // ----------------
-    case ActionTypes.FILTER_UNSELECTED: {
-      return state.filter((file) => file.selected);
+    case ActionTypes.SET_DURATION: {
+      const { fileName, durationMs } = payload;
+      return update(fileName, (current) => ({
+        ...current,
+        durationMs,
+      }));
     }
-
     // ----------------
-    // FILTER UNSELECTED
+    // FILTER UNPROCESSED
     // ----------------
     case ActionTypes.FILTER_UNPROCESSED: {
       return state.filter((file) => file.predictions);
@@ -182,11 +169,12 @@ export default function reducer(state: State, action: Action): State {
     // ADD PARAGRAPHS
     // ----------------
     case ActionTypes.ADD_PARAGRAPHS: {
-      const { fileName, paragraphs } = payload;
+      const { fileName, paragraphs, pageCount } = payload;
 
       return update(fileName, (cur) => ({
         ...cur,
         paragraphs: paragraphs,
+        pageCount: pageCount,
       }));
     }
 

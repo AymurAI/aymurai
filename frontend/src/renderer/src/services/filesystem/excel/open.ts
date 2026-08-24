@@ -1,4 +1,4 @@
-import { DATASET_URL } from "@/utils/config";
+import { DATASET_URL } from "@/constants/config";
 import logger from "@/utils/logger";
 import filesystemAPI from "../utils";
 
@@ -6,6 +6,8 @@ import filesystemAPI from "../utils";
  * Opens the Excel file
  */
 export default async function open() {
+  // The browser can't open a local workbook; send the user to the shared
+  // spreadsheet instead.
   if (!window.filesystem) {
     window.open(DATASET_URL, "_blank", "noopener,noreferrer");
     return;

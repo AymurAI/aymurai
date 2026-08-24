@@ -3,15 +3,19 @@ const common = {
   howItWorks: "¿Cómo funciona?",
   platformBuiltBy: "Plataforma hecha por",
   settings: "Configuración",
+  close: "Cerrar",
+  featuresMenu: {
+    summary: "Resumen",
+  },
+  header: {
+    appsAria: "Abrir aplicaciones",
+    homeAria: "Ir al inicio",
+  },
   home: {
     features: {
       greeting: "¡Hola! Selecciona la herramienta a utilizar",
     },
     host: {
-      howToConnect: "¿Cómo deseas conectarte a Aymurai?",
-      optionLocal: "Local",
-      optionServer: "Servidor",
-      optionOr: "o",
       connectServerExplanation:
         "Ingresa la dirección del servidor al que deseas conectarte",
       connectServerLabel: "Dirección del servidor",
@@ -33,6 +37,12 @@ const common = {
   },
   filePreview: {
     loadError: "No se pudo cargar el archivo",
+    meta_one: "{{count}} página · {{size}}",
+    meta_other: "{{count}} páginas · {{size}}",
+    removeAria: "Eliminar {{name}}",
+  },
+  fileCheck: {
+    defaultError: "Error de guardado\nVuelve a cargar el archivo",
   },
 };
 

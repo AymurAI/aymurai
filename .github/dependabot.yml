@@ -21,3 +21,20 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+
+  # Frontend dependencies. Grouped so the weekly PR count stays manageable;
+  # electron and its toolchain are separated because those bumps need a
+  # packaged-build smoke test, not just a green CI run.
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      electron:
+        patterns: ["electron", "electron-*", "@electron-toolkit/*"]
+      frontend:
+        patterns: ["*"]
+        exclude-patterns: ["electron", "electron-*", "@electron-toolkit/*"]

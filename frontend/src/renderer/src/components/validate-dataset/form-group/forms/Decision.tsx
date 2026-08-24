@@ -1,6 +1,9 @@
-import { Input, Radio, RadioGroup, Stack, ValidationForm } from "@/components";
-import Select from "@/components/ui/select";
 import { LabelDecisiones } from "@/types/aymurai";
+import { Select } from "@aymurai/ui";
+import { Radio, RadioGroup } from "../../../radio";
+import Stack from "../../../stack";
+import Input from "../../../uncontrolled-input";
+import ValidationForm from "../../../validation-form";
 import type { FormDecisionProps } from "../FormGroup.types";
 import json from "./options.json";
 
@@ -72,8 +75,7 @@ export default function Decision({
           Escrita
         </Radio>
       </RadioGroup>
-      {/* TODO ajustar posicionamiento de estos botones que se ponen en vertical cuando hay una sugerencia */}
-      <Stack spacing="l" css={{ "&>*": { flex: 1 } }}>
+      <Stack direction="column" spacing="l" align="stretch">
         <Input
           ref={prop(LabelDecisiones.HORA_DE_INICIO)}
           {...suggester.text(LabelDecisiones.HORA_DE_INICIO)}

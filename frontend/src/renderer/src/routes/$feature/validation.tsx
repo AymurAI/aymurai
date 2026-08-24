@@ -1,79 +1,82 @@
-import { Button, FileAnnotator, ValidateDataset } from "@/components";
-import Stepper from "@/components/home/stepper";
+import { FileAnnotator, ValidateDataset } from "@/components";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
-import HomeButton from "@/components/layout/home-button";
+import SummaryValidation from "@/components/summarizer/summary-validation";
 import RequireFile from "@/features/RequireFile";
+import RequireSummary from "@/features/RequireSummary";
 import { useFiles } from "@/hooks";
-import { Grid, Stack } from "@/styled/jsx";
-import { FeatureFlowEnum, featureNamespace, getFeatureRouteSlug, parseFeatureRouteSlug } from "@/types/features";
+import { Grid } from "@/styled/jsx";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
+import { Button } from "@aymurai/ui";
 import {
-  Navigate,
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import VoiceValidation from "@/components/voice-to-text/validation";
+
 export const Route = createFileRoute("/$feature/validation")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { feature: featureSlug } = useParams({
+  const { feature } = useParams({
     from: "/$feature/validation",
   });
-  const feature = parseFeatureRouteSlug(featureSlug);
+  if (feature === FeatureFlowEnum.VoiceToText) return <VoiceValidation />;
+  if (feature === FeatureFlowEnum.Summarizer)
+    return (
+      <RequireFile>
+        <RequireSummary>
+          <SummaryValidation />
+        </RequireSummary>
+      </RequireFile>
+    );
+  return <DocumentValidation />;
+}
+
+function DocumentValidation() {
+  const { feature } = useParams({
+    from: "/$feature/validation",
+  });
 
   const navigate = useNavigate();
-
-  if (!feature) return <Navigate to="/home/features" />;
-
   const { t } = useTranslation(featureNamespace[feature]);
 
   const file = useFiles()[0]!;
 
   const handleContinue = () =>
-    navigate({ to: "/$feature/finish", params: { feature: getFeatureRouteSlug(feature) } });
+    navigate({ to: "/$feature/finish", params: { feature } });
 
   if (feature === FeatureFlowEnum.Anonymizer)
     return (
       <RequireFile>
-        <Stack width="screen" height="screen" gap="0">
-          <Header
-            title={t("title")}
-            center={<Stepper currentStep={3} />}
-            feature={feature}
-            right={<HomeButton />}
-          />
-          <Grid
-            columns={1}
-            gap="0"
-            justifyContent="stretch"
-            alignItems="stretch"
-            style={{ overflow: "hidden" }}
-          >
-            <FileAnnotator {...{ file }} isAnnotable />
-          </Grid>
+        <Header title={t("title")} currentStep={3} feature={feature} />
+        <Grid
+          columns={1}
+          gap="0"
+          flex="1"
+          minHeight="0"
+          overflow="hidden"
+          justifyContent="stretch"
+          alignItems="stretch"
+        >
+          <FileAnnotator {...{ file }} isAnnotable />
+        </Grid>
 
-          <Footer>
-            <Button size="md" onClick={handleContinue}>
-              Anonimizar documento
-            </Button>
-          </Footer>
-        </Stack>
+        <Footer withBuiltBy>
+          <Button size="md" onClick={handleContinue}>
+            Anonimizar documento
+          </Button>
+        </Footer>
       </RequireFile>
     );
   return (
     <RequireFile>
-      <Stack gap="0" height="screen" overflow="hidden">
-        <Header
-          title={t("title")}
-          center={<Stepper currentStep={3} />}
-          feature={feature}
-        />
-        <ValidateDataset />
-      </Stack>
+      <Header title={t("title")} currentStep={3} feature={feature} />
+      <ValidateDataset />
     </RequireFile>
   );
 }

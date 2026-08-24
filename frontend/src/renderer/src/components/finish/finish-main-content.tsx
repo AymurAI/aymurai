@@ -1,10 +1,10 @@
 import { SectionTitle } from "@/layout/section-title";
 import { Grid, Stack, styled } from "@/styled/jsx";
 import { type FeatureFlowEnum, featureNamespace } from "@/types/features";
+import { Card } from "@aymurai/ui";
 import type React from "react";
 import { useTranslation } from "react-i18next";
 import MainContent from "../layout/main-content";
-import Card from "../ui/card";
 
 interface FinishMainContentProps {
   feature: FeatureFlowEnum;
@@ -26,7 +26,9 @@ export default function FinishMainContent({
         </Stack>
         <Card>
           <Stack gap={{ base: "4", xl: "8" }}>
-            <styled.h2 textStyle="subtitle.md.default">{t("finish.subtitle")}</styled.h2>
+            <styled.h2 textStyle="subtitle.md.default">
+              {t("finish.subtitle")}
+            </styled.h2>
             <Grid columns={4} gap="8" justifyContent="center" width="full">
               {children}
             </Grid>

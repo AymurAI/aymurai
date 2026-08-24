@@ -1,18 +1,37 @@
+import aymuraiPreset from "@aymurai/ui/preset";
 import { defineConfig, defineGlobalStyles } from "@pandacss/dev";
+import pandaPreset from "@pandacss/preset-panda";
 
 const globalCss = defineGlobalStyles({
   "*": {
-    fontFamily:
-      '"Archivo", -apple-system, Helvetica Neue, Helvetica, Roboto, sans-serif', // TODO: Replace token here (was $primary)
+    // was $primary; preset's fonts.primary QUOTES "Helvetica Neue"
+    // ('"Archivo", -apple-system, "Helvetica Neue", Helvetica, Roboto,
+    // sans-serif', preset.js:37) while this literal leaves it bare, so it is
+    // NOT a byte-identical substitution - tokenizing is a deliberate
+    // CSS-validity correction (an unquoted multi-word family name is not
+    // strictly valid CSS even though browsers tolerate it) (RSP-12e).
+    fontFamily: "primary",
   },
 
   html: {
-    color: "#110041",
+    // was a raw #110041 literal with no verdict comment - unlike every
+    // sibling site here, it never carried a `// TODO: Replace token here`
+    // marker, so both RSP-12a's and RSP-12e's audits (scoped by that marker
+    // list) missed it. Exact match for the preset's `text.default`
+    // (`token("colors.text.default")` === "#110041", asserted in
+    // global-styles-tokens.test.ts); tokenizing is byte-identical, confirmed
+    // via a `panda cssgen` before/after diff (RSP-12b).
+    color: "text.default",
   },
 
   "mark.predicted-word": {
-    backgroundColor: "#E6E8FF", // TODO: Replace token here (was $primaryAlt)
-    fontFamily: '"Times New Roman", Times, serif', // TODO: Replace token here (was $file)
+    // was $primaryAlt; NEAR-MISS (c), same shape as `tabs/index.ts`'s pinned
+    // default-tab background - the preset's `bg.primary-alternative` is
+    // #E5E8FF, one hex digit off this legacy value. Kept as a raw escape so
+    // this migration introduces zero rendered colour change; see the
+    // decision at components/tabs/index.ts:17-21 (RSP-12e).
+    backgroundColor: "#E6E8FF",
+    fontFamily: "file", // was $file, exact match (RSP-12e)
     padding: "0px 0px 0px 2px",
     borderRadius: "8px",
 
@@ -25,13 +44,15 @@ const globalCss = defineGlobalStyles({
     "& button.remove-tag": {
       visibility: "hidden",
       position: "relative",
-      backgroundColor: "#DC582E", // TODO: Replace token here (was $errorPrimary)
-      color: "#FFFFFF", // TODO: Replace token here (was $white)
+      backgroundColor: "system.error", // was $errorPrimary #DC582E, exact match (RSP-12a)
+      color: "text.onbutton-alternative", // was $white #FFFFFF, exact match (RSP-12a)
       padding: "3px 5px",
       borderRadius: "8px",
       cursor: "pointer",
       fontSize: "10px",
-      fontWeight: 800, // TODO: Replace token here (was $heavy)
+      // was $heavy 800; no fontWeights token category in this preset (only
+      // 400/600 baked into the textStyle recipes), so it stays literal (RSP-12a)
+      fontWeight: 800,
       textAlign: "center",
       top: "-10px",
       right: "-5px",
@@ -47,8 +68,13 @@ const globalCss = defineGlobalStyles({
   },
 
   "mark.searched-word": {
-    backgroundColor: "#E0DDE2", // TODO: Replace token here (was $bgSecondaryAlt)
-    fontFamily: '"Times New Roman", Times, serif', // TODO: Replace token here (was $file)
+    // was $bgSecondaryAlt; TWO exact preset matches for #E0DDE2 -
+    // `action.disabled` and `bg.secondary-highlight`. `bg.secondary-highlight`
+    // is the better fit here on both family (`bg.*`) and intent (a
+    // highlighted background, not a disabled-state one) grounds; the
+    // rejected candidate is `action.disabled` (RSP-12e).
+    backgroundColor: "bg.secondary-highlight",
+    fontFamily: "file", // was $file, exact match (RSP-12e)
     padding: "0px 2px",
     borderRadius: "8px",
 
@@ -58,13 +84,15 @@ const globalCss = defineGlobalStyles({
 
     "& button.add-tag": {
       position: "relative",
-      backgroundColor: "#1B834E", // TODO: Replace token here (was $successPrimary)
-      color: "#FFFFFF", // TODO: Replace token here (was $white)
+      backgroundColor: "system.success", // was $successPrimary #1B834E, exact match (RSP-12e)
+      color: "text.onbutton-alternative", // was $white #FFFFFF, exact match - same substitution as `button.remove-tag` above (RSP-12e)
       padding: "2px 5px",
       borderRadius: "8px",
       cursor: "pointer",
       fontSize: "12px",
-      fontWeight: 800, // TODO: Replace token here (was $heavy)
+      // was $heavy 800; no fontWeights token category in this preset (only
+      // 400/600 baked into the textStyle recipes), so it stays literal (RSP-12e)
+      fontWeight: 800,
       textAlign: "center",
       top: "-10px",
       right: "-5px",
@@ -73,17 +101,9 @@ const globalCss = defineGlobalStyles({
   },
 });
 
-const text = (size: number, weight: number, lineHeight: string) => ({
-  value: {
-    fontSize: `${size}px`,
-    fontWeight: weight,
-    lineHeight,
-  },
-});
-
-const color = (hex: string) => ({ value: hex });
-
 export default defineConfig({
+  presets: [pandaPreset, aymuraiPreset],
+
   // Use CSS reset
   preflight: true,
 
@@ -102,132 +122,44 @@ export default defineConfig({
   // Global styles (migrated from Stitches globalStyles.ts)
   globalCss,
 
-  // Other configuration
-  strictTokens: true,
-
+  // Theme extensions
   theme: {
     extend: {
-      keyframes: {
-        fadeIn: {
-          from: { opacity: "0" },
-          to: { opacity: "1" },
+      semanticTokens: {
+        colors: {
+          bg: {
+            // Dark surface for the Voz a Texto editor's floating selection
+            // toolbar. Not in the preset because it's the only dark-surface
+            // element in the app.
+            "overlay-dark": { value: "#26244A" },
+          },
+          text: {
+            "on-overlay-dark": { value: "#FFFFFF" },
+          },
         },
-        fadeOut: {
-          from: { opacity: "1" },
-          to: { opacity: "0" },
-        },
+      },
+      // Extra breakpoint between the preset's `xl` (1280px) and `2xl`
+      // (1536px), for the responsive-layout plan (tasks/responsive/plan.md).
+      breakpoints: {
+        desktop: "1440px",
       },
       tokens: {
-        animations: {
-          fadeIn: { value: "fadeIn 0.15s ease-out" },
-          fadeOut: { value: "fadeOut 0.1s ease-in" },
-        },
-      },
-    },
-    textStyles: {
-      title: {
-        md: {
-          strong: text(32, 700, "120%"),
-          default: text(32, 400, "120%"),
-        },
-      },
-      subtitle: {
-        md: {
-          strong: text(20, 600, "120%"),
-          default: text(20, 400, "120%"),
-        },
-        sm: {
-          strong: text(14, 600, "120%"),
-          default: text(14, 400, "120%"),
-        },
-      },
-      paragraph: {
-        md: {
-          strong: text(18, 600, "150%"),
-          default: text(18, 400, "150%"),
-        },
-        sm: {
-          strong: text(16, 600, "140%"),
-          default: text(16, 400, "140%"),
-        },
-        xsm: {
-          strong: text(10, 600, "140%"),
-          default: text(10, 400, "140%"),
-        },
-      },
-      cta: {
-        md: {
-          strong: text(16, 600, "100%"),
-          default: text(16, 400, "100%"),
-        },
-        sm: {
-          strong: text(16, 600, "115%"),
-          default: text(16, 400, "115%"),
-        },
-      },
-      label: {
-        md: {
-          strong: text(16, 600, "120%"),
-          default: text(16, 400, "120%"),
-        },
-        sm: {
-          strong: text(12, 600, "120%"),
-          default: text(12, 400, "120%"),
-        },
-      },
-    },
-    semanticTokens: {
-      colors: {
-        brand: {
-          primary: color("#3F479D"),
-          secondary: color("#C3CCD7"),
-          tertiary: color("#4A5568"),
-        },
-        text: {
-          default: color("#110041"),
-          lighter: color("#625C68"),
-          "onbutton-default": color("#110041"),
-          "onbutton-alternative": color("#FFFFFF"),
-          "onbutton-disabled": color("#2D3748"),
-        },
-        action: {
-          default: color("#C5CAFF"),
-          disabled: color("#E0DDE2"),
-          "alt-default": color("#3F479D"),
-          hover: color("#110041"),
-          pressed: color("#3F479D"),
-          focus: color("#C5CAFF"),
-        },
-        bg: {
-          primary: color("#F6F5F7"),
-          secondary: color("#FFFFFF"),
-          "primary-alternative": color("#E5E8FF"),
-          "primary-highlight": color("#C5CAFF"),
-          "secondary-highlight": color("#E0DDE2"),
-        },
-        system: {
-          success: color("#1B834E"),
-          "success-secondary": color("#E0FAED"),
-          error: color("#DC582E"),
-          "error-secondary": color("#FFECE5"),
-          warning: color("#F2BA2C"),
-          "warning-secondary": color("#FFF7DB"),
-          info: color("#3F479D"),
-          "info-secondary": color("#F6F5F7"),
-        },
-      },
-      borders: {
-        primary: { value: "1px solid #BCBAB8" },
-        secondary: { value: "1px solid #EDF2F7" },
-        "primary-alt": { value: "1px solid #110041" },
-        error: { value: "1px solid {colors.system.error}" },
-      },
-      gradients: {
-        primary: {
-          value:
-            "linear-gradient(249.5deg, #C5CAFF -33.26%, #8591E8 28.49%, #3F479D 82.99%)",
+        sizes: {
+          content: {
+            max: { value: "1824px" },
+            split: { value: "1672px" },
+            doc: { value: "1520px" },
+          },
+          panel: {
+            side: { value: "479px" },
+            form: { value: "594px" },
+            sideCompact: { value: "360px" },
+          },
         },
       },
     },
   },
+
+  // Other configuration
+  strictTokens: true,
 });

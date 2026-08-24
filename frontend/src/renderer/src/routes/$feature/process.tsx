@@ -1,12 +1,8 @@
-import { Button, FileProcessing } from "@/components";
-import Stepper from "@/components/home/stepper";
+import { FileProcessing } from "@/components";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
-import HomeButton from "@/components/layout/home-button";
 import MainContent from "@/components/layout/main-content";
 import BackButton from "@/components/ui/back-button";
-import Callout from "@/components/ui/callout";
-import Card from "@/components/ui/card";
 import RequireFile from "@/features/RequireFile";
 import { useFileDispatch, useFiles } from "@/hooks";
 import { useDisambiguate } from "@/hooks/useDisambiguate";
@@ -18,11 +14,11 @@ import taskbar from "@/services/taskbar";
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
 import type { Workflows } from "@/types/aymurai";
-import { FeatureFlowEnum, featureNamespace, getFeatureRouteSlug, parseFeatureRouteSlug } from "@/types/features";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import type { DocFile } from "@/types/file";
+import { Button, Callout, Card } from "@aymurai/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Navigate,
   createFileRoute,
   useNavigate,
   useParams,
@@ -30,18 +26,27 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import SummaryProcess from "@/components/summarizer/summary-process";
+import VoiceProcess from "@/components/voice-to-text/process";
+
 export const Route = createFileRoute("/$feature/process")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const queryClient = useQueryClient();
-  const { feature: featureSlug } = useParams({
+  const { feature } = useParams({
     from: "/$feature/process",
   });
-  const feature = parseFeatureRouteSlug(featureSlug);
-  if (!feature) return <Navigate to="/home/features" />;
+  if (feature === FeatureFlowEnum.VoiceToText) return <VoiceProcess />;
+  if (feature === FeatureFlowEnum.Summarizer) return <SummaryProcess />;
+  return <DocumentProcess />;
+}
 
+function DocumentProcess() {
+  const queryClient = useQueryClient();
+  const { feature } = useParams({
+    from: "/$feature/process",
+  });
   const { t } = useTranslation(featureNamespace[feature]);
 
   const dispatch = useFileDispatch();
@@ -65,39 +70,17 @@ function RouteComponent() {
     dispatch(filterUnprocessed());
     navigate({
       to: "/$feature/validation",
-      params: { feature: getFeatureRouteSlug(feature) },
+      params: { feature },
     });
   };
 
-  const isProcessing = files.some(
-    (f) =>
-      parseStatuses[f.data.name]?.status === "processing" ||
-      fileStatuses[f.data.name]?.status === "processing" ||
-      disambiguateStatuses[f.data.name]?.status === "processing",
-  );
-
-  useEffect(() => {
-    if (files.length > 0 && !isProcessing && !hasNotified.current) {
-      hasNotified.current = true;
-      taskbar.notify();
-    }
-  }, [isProcessing, files.length]);
-
-  // Weighted progress: 10% parse / 70% predict / 20% disambiguate (anonymizer)
-  // or 10% parse / 90% predict (datapublic).
-  const getProgress = (fileName: string): number => {
-    const parseDone = parseStatuses[fileName]?.status === "completed" ? 1 : 0;
-    const predictProgress = fileStatuses[fileName]?.progress ?? 0;
-
-    if (workflow !== "anonymizer") {
-      return parseDone * 0.1 + predictProgress * 0.9;
-    }
-    const disambiguateDone =
-      disambiguateStatuses[fileName]?.status === "completed" ? 1 : 0;
-    return parseDone * 0.1 + predictProgress * 0.7 + disambiguateDone * 0.2;
-  };
-
   // Status accounts for all three stages so "completed" only shows at 100%.
+  // This is the ONLY source of per-file status: `isProcessing`/`hasError`/
+  // `isDone` below all derive from it. Looking at a single stage's table (or
+  // recomputing an equivalent by hand) reintroduces G8 F3 by another door -
+  // e.g. `usePredict` reports "completed" once a file has 0 paragraphs
+  // (`total === 0`, meaning parse hasn't produced any yet), so a naive
+  // `fileStatuses[...]?.status === "error"` check would miss parse errors.
   const getCombinedStatus = (fileName: string): PredictStatus => {
     const parseStatus = parseStatuses[fileName]?.status ?? "processing";
     if (parseStatus !== "completed") return parseStatus;
@@ -107,6 +90,52 @@ function RouteComponent() {
       return predictStatus;
 
     return disambiguateStatuses[fileName]?.status ?? "processing";
+  };
+
+  const combinedStatuses = files.map((f) => getCombinedStatus(f.data.name));
+  const isProcessing = combinedStatuses.some((s) => s === "processing");
+  const hasError = combinedStatuses.some((s) => s === "error");
+  // "stopped" (the user aborted this file) is a distinct non-success outcome
+  // from "error": both must keep the success banner from showing, but
+  // "stopped" gets its own copy (`process.stoppedTitle`/`stoppedText`) since
+  // it was a deliberate user action, not a failure. When a run mixes both
+  // outcomes across files, the error copy takes priority as the more
+  // actionable one.
+  const hasStopped = combinedStatuses.some((s) => s === "stopped");
+  const isDone = files.length > 0 && !isProcessing && !hasError && !hasStopped;
+
+  useEffect(() => {
+    // Fires once processing genuinely stops, success OR error - previously
+    // this read a hand-rolled `isProcessing` that, for the Anonimizador,
+    // stayed `true` forever once predict errored (see G8 F3), so a failed
+    // run never notified. Deriving from `getCombinedStatus` fixes that as a
+    // side effect: a run that ends entirely in error now DOES notify, same
+    // as a successful one - the user still needs to know the run is over.
+    if (files.length > 0 && !isProcessing && !hasNotified.current) {
+      hasNotified.current = true;
+      taskbar.notify();
+    }
+  }, [isProcessing, files.length]);
+
+  // Weighted progress: 10% parse / 70% predict / 20% disambiguate (anonymizer)
+  // or 10% parse / 90% predict (datapublic).
+  const getProgress = (fileName: string): number => {
+    // A stopped file keeps resolving in-flight paragraph queries in the
+    // background even after abort (usePredict only stops NEW queries from
+    // starting), so successCount/total keeps climbing behind the "stopped"
+    // status. Force the bar back to empty once stopped instead of racing
+    // that background completion.
+    if (getCombinedStatus(fileName) === "stopped") return 0;
+
+    const parseDone = parseStatuses[fileName]?.status === "completed" ? 1 : 0;
+    const predictProgress = fileStatuses[fileName]?.progress ?? 0;
+
+    if (workflow !== "anonymizer") {
+      return parseDone * 0.1 + predictProgress * 0.9;
+    }
+    const disambiguateDone =
+      disambiguateStatuses[fileName]?.status === "completed" ? 1 : 0;
+    return parseDone * 0.1 + predictProgress * 0.7 + disambiguateDone * 0.2;
   };
 
   const handleAbort = (file: DocFile) => () => {
@@ -124,33 +153,55 @@ function RouteComponent() {
 
   return (
     <RequireFile>
-      <Stack width="screen" height="screen" gap="0">
-        <Header
-        title={t("title")}
-        feature={feature}
-        center={<Stepper currentStep={2} />}
-        right={<HomeButton />}
-      />
+      <Header title={t("title")} feature={feature} currentStep={2} />
       <MainContent>
         <Stack gap="10">
           <HStack alignItems="center" gap="6">
-            <BackButton to="/$feature/preview" params={{ feature: getFeatureRouteSlug(feature) }} />
+            <BackButton to="/$feature/preview" params={{ feature }} />
             <SectionTitle>{t("process.sectionTitle")}</SectionTitle>
           </HStack>
           <Card className={css({ alignItems: "stretch" })}>
             <Stack gap="6" direction="column">
               <Stack direction="column" gap="1">
                 <styled.h2 textStyle="subtitle.md.default">
-                  {t("process.processingTitle")}
+                  {isDone
+                    ? t("process.finishedTitle")
+                    : hasError
+                      ? t("process.errorTitle")
+                      : hasStopped
+                        ? t("process.stoppedTitle")
+                        : t("process.processingTitle")}
                 </styled.h2>
                 <styled.p textStyle="subtitle.sm.default" color="text.lighter">
-                  {t("process.processingSubtitle")}
+                  {isDone
+                    ? t("process.finishedSubtitle")
+                    : hasError
+                      ? t("process.errorSubtitle")
+                      : hasStopped
+                        ? t("process.stoppedSubtitle")
+                        : t("process.processingSubtitle")}
                 </styled.p>
               </Stack>
-              {!isProcessing && !isDismissed && (
+              {isDone && !isDismissed && (
                 <Callout
                   message={t("process.finishText")}
                   variant="info"
+                  noBorder
+                  onDismiss={() => setIsDismissed(true)}
+                />
+              )}
+              {hasError && !isDismissed && (
+                <Callout
+                  message={t("process.errorText")}
+                  variant="error"
+                  noBorder
+                  onDismiss={() => setIsDismissed(true)}
+                />
+              )}
+              {!hasError && hasStopped && !isDismissed && (
+                <Callout
+                  message={t("process.stoppedText")}
+                  variant="error"
                   noBorder
                   onDismiss={() => setIsDismissed(true)}
                 />
@@ -168,12 +219,11 @@ function RouteComponent() {
           </Card>
         </Stack>
       </MainContent>
-        <Footer withBuiltBy>
-          <Button onClick={handleNext} disabled={isProcessing}>
-            Siguiente
-          </Button>
-        </Footer>
-      </Stack>
+      <Footer withBuiltBy>
+        <Button onClick={handleNext} disabled={isProcessing}>
+          {t("process.continue")}
+        </Button>
+      </Footer>
     </RequireFile>
   );
 }

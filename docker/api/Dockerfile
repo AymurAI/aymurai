@@ -3,20 +3,23 @@
 # -------------------
 # Frontend Build Stage
 # -------------------
-FROM node:lts-bookworm AS frontend-builder
+# Node major must track frontend/.nvmrc. `corepack enable` (not
+# `corepack prepare pnpm@latest`) so the pnpm version comes from
+# package.json's `packageManager` field and cannot drift from the lockfile.
+FROM node:22-bookworm AS frontend-builder
 
 WORKDIR /frontend
 
-RUN npm install --global corepack@latest && \
-    corepack enable pnpm && \
-    corepack prepare pnpm@latest --activate
+RUN corepack enable
 
 COPY frontend/ ./
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-RUN pnpm run build:web
+ARG APP_VERSION
+ENV APP_VERSION=${APP_VERSION}
+RUN pnpm run panda:codegen && pnpm run build:web
 
 
 # -------------------

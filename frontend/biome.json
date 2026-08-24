@@ -7,7 +7,26 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["node_modules", "build", ".husky", "out", "routeTree.gen.ts"]
+    "ignore": [
+      "node_modules",
+      "build",
+      "dist",
+      ".husky",
+      "out",
+      "routeTree.gen.ts",
+      "src/renderer/src/styled/**",
+      "playwright/.cache/**",
+      "playwright-report",
+      "test-results",
+      ".worktrees",
+      ".claude/settings.local.json",
+      ".orquestalite",
+      "tasks",
+      "team.json",
+      "flows.json",
+      "prompts",
+      "schemas"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -39,6 +58,20 @@
           "fix": "safe",
           "level": "error"
         }
+      },
+      "nursery": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@stitches/react": "Stitches has been fully migrated to Panda CSS (RSP-12b). Import from `@/styled/css` or `@/styled/jsx` instead.",
+              "react-router-dom": "This app uses TanStack Router, not react-router-dom."
+            }
+          }
+        }
+      },
+      "suspicious": {
+        "noConsoleLog": "warn"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",

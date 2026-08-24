@@ -1,6 +1,7 @@
+import { normalizeServerHost } from "@/services/api-base-url";
 import { create } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 import { devtools, persist } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
 import type { AnonymizerLabels } from "../types/aymurai";
 import { FeatureFlowEnum } from "../types/features";
 
@@ -21,7 +22,7 @@ interface LocalStorageStore {
   setGroupOrder: (order: Record<string, string[]>) => void;
 }
 
-const useLocalStore = create<LocalStorageStore>()(
+export const useLocalStore = create<LocalStorageStore>()(
   devtools(
     persist(
       (set, get) => ({
@@ -31,6 +32,8 @@ const useLocalStore = create<LocalStorageStore>()(
         tutorialsSeen: {
           [FeatureFlowEnum.Anonymizer]: false,
           [FeatureFlowEnum.Dataset]: false,
+          [FeatureFlowEnum.VoiceToText]: false,
+          [FeatureFlowEnum.Summarizer]: false,
         },
         hasSeenTutorial: (feature: FeatureFlowEnum) =>
           get().tutorialsSeen[feature],
@@ -47,6 +50,25 @@ const useLocalStore = create<LocalStorageStore>()(
       }),
       {
         name: "local-storage",
+        // v0 stored whatever the user typed, and the 1.x desktop app required
+        // the /api suffix. v1 stores the bare base URL; /api is appended by
+        // services/api-base-url.ts. Runs once per install.
+        version: 1,
+        migrate: (persisted: unknown) => {
+          const state = (persisted ?? {}) as { serverHost?: string | null };
+          if (!state.serverHost) return state;
+
+          try {
+            return {
+              ...state,
+              serverHost: normalizeServerHost(state.serverHost),
+            };
+          } catch {
+            // An unparseable stored value must not wedge boot — drop it and let
+            // the user reconnect from /home/host.
+            return { ...state, serverHost: null };
+          }
+        },
         // groupOrder holds canonical UUIDs regenerated each session, so
         // persisting it would only accumulate stale data across sessions.
         partialize: (state) => ({
@@ -73,24 +95,35 @@ export const useServerHostActions = () => {
   };
 };
 
+/** Non-hook read for use outside React (e.g. the axios client's module-load default). */
+export const getServerHost = () => useLocalStore.getState().serverHost;
+
 export const useTutorialSeen = (feature: FeatureFlowEnum) =>
   useLocalStore((state) => state.tutorialsSeen[feature]);
 export const useSetTutorialSeen = () =>
   useLocalStore((state) => state.setTutorialSeen);
 
 export const useExcludedTagsConfig = () =>
-  useLocalStore(useShallow((s) => ({ tags: s.excludedTags, words: s.excludedWords })));
+  useLocalStore(
+    useShallow((s) => ({ tags: s.excludedTags, words: s.excludedWords })),
+  );
 export const useExcludedTagsConfigActions = () =>
-  useLocalStore(useShallow((s) => ({
-    setTags: s.setExcludedTags,
-    setWords: s.setExcludedWords,
-  })));
+  useLocalStore(
+    useShallow((s) => ({
+      setTags: s.setExcludedTags,
+      setWords: s.setExcludedWords,
+    })),
+  );
 
 export const useGroupOrder = () =>
-  useLocalStore(useShallow((s) => ({
-    groupOrder: s.groupOrder,
-  })));
+  useLocalStore(
+    useShallow((s) => ({
+      groupOrder: s.groupOrder,
+    })),
+  );
 export const useGroupOrderActions = () =>
-  useLocalStore(useShallow((s) => ({
-    setGroupOrder: s.setGroupOrder,
-  })));
+  useLocalStore(
+    useShallow((s) => ({
+      setGroupOrder: s.setGroupOrder,
+    })),
+  );

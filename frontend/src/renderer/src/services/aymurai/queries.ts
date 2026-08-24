@@ -7,6 +7,7 @@ import type {
   Workflows,
 } from "@/types/aymurai";
 import type { DocFile, Paragraph } from "@/types/file";
+import type { Transcription } from "@/types/transcription";
 import { assertValidAnonymizerExportState } from "@/utils/anonymizer/export-validation";
 import {
   anonymizeQuerySignature,
@@ -15,7 +16,11 @@ import {
 } from "@/utils/anonymizer/predictions";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import api from "../api";
+import { saveValidation as postASRValidation } from "./asrValidation";
 import predict from "./predict";
+import type { SummarizationResponse } from "./summarization";
+import { summarizeDocumentStream } from "./summarize";
+import { type TranscribeFileInput, transcribe } from "./transcribe";
 
 export type SuffixMode = "always" | "when_multiple" | "never";
 
@@ -38,7 +43,13 @@ export const predictParagraph = (
   fileName: string,
 ) =>
   queryOptions({
-    queryKey: ["predict", api.defaults.baseURL, workflow, fileName, paragraph.id],
+    queryKey: [
+      "predict",
+      api.defaults.baseURL,
+      workflow,
+      fileName,
+      paragraph.id,
+    ],
     queryFn: ({ signal }) => {
       const controller = new AbortController();
       signal?.addEventListener("abort", () => controller.abort());
@@ -200,8 +211,12 @@ export const disambiguate = (file: DocFile) =>
         return item.labels.map((l) => {
           const altStart = l.attrs.aymurai_alt_start_char;
           const altEnd = l.attrs.aymurai_alt_end_char;
-          const useAlt = altStart !== null && altEnd !== null && altStart < altEnd;
-          const resolvedText = useAlt && l.attrs.aymurai_alt_text ? l.attrs.aymurai_alt_text : l.text;
+          const useAlt =
+            altStart !== null && altEnd !== null && altStart < altEnd;
+          const resolvedText =
+            useAlt && l.attrs.aymurai_alt_text
+              ? l.attrs.aymurai_alt_text
+              : l.text;
           const resolvedStart = useAlt ? altStart : l.start_char;
           const resolvedEnd = useAlt ? altEnd : l.end_char;
 
@@ -255,22 +270,105 @@ export const fileParser = (file: File) =>
     retryOnMount: false,
   });
 
+/**
+ * Streams ASR for a batch of audio files in parallel. Aggregated `onProgress`
+ * is the average ratio across files; `onPartialText` fires for whichever file
+ * is emitting partials (last write wins — fine for a single-file flow).
+ */
+export const transcribeBatch = ({
+  onProgress,
+  onPartialText,
+}: {
+  onProgress?: (ratio: number) => void;
+  onPartialText?: (text: string) => void;
+} = {}) =>
+  mutationOptions({
+    mutationFn: async ({
+      files,
+      signal,
+    }: {
+      files: TranscribeFileInput[];
+      signal: AbortSignal;
+    }): Promise<Transcription[]> => {
+      if (files.length === 0) return [];
+      const ratios = new Array(files.length).fill(0);
+      const recompute = () => {
+        const sum = ratios.reduce((a, b) => a + b, 0);
+        onProgress?.(sum / files.length);
+      };
+      return Promise.all(
+        files.map(({ file, durationMs }, i) =>
+          transcribe(file, {
+            signal,
+            durationMs,
+            onProgress: (r) => {
+              ratios[i] = r;
+              recompute();
+            },
+            onPartialText,
+          }).then((result) => {
+            ratios[i] = 1;
+            recompute();
+            return result;
+          }),
+        ),
+      );
+    },
+  });
+
+/**
+ * Streams a single document's summary from the LLM backend, forwarding
+ * incremental partial text via `onPartialText` as it arrives.
+ */
+export const summarizeDocument = ({
+  onPartialText,
+}: {
+  onPartialText?: (text: string) => void;
+} = {}) =>
+  mutationOptions({
+    mutationFn: async ({
+      text,
+      signal,
+    }: {
+      text: string;
+      signal: AbortSignal;
+    }): Promise<SummarizationResponse> =>
+      summarizeDocumentStream(text, { signal, onPartialText }),
+  });
+
+/**
+ * Persists a validated transcription back to the ASR backend.
+ * Best-effort — failures don't block downstream UI.
+ */
+export const saveValidation = () =>
+  mutationOptions({
+    mutationFn: async (transcription: Transcription) => {
+      await postASRValidation(transcription);
+    },
+  });
+
+/**
+ * Converts an .odt file to .pdf via the backend's generic converter — the
+ * same endpoint the anonymizer module uses to produce its .pdf export.
+ */
+export const convertOdtToPdf = async (file: Blob): Promise<Blob> => {
+  const formData = new FormData();
+  formData.append("file", file, "document.odt");
+
+  const response = await api.post<Blob>("/convert/odt/pdf", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Accept: "application/octet-stream",
+    },
+    responseType: "blob",
+  });
+
+  return response.data;
+};
+
 export const odtToPdf = () =>
   mutationOptions({
-    mutationFn: async (file: Blob) => {
-      const formData = new FormData();
-      formData.append("file", file, "document.odt");
-
-      const response = await api.post<Blob>("/convert/odt/pdf", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Accept: "application/octet-stream",
-        },
-        responseType: "blob",
-      });
-
-      return response.data;
-    },
+    mutationFn: convertOdtToPdf,
   });
 
 export const pdfToOdt = () =>

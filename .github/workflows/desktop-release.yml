@@ -1,0 +1,66 @@
+name: desktop-release
+
+# Builds the Windows installer from the same tag the container image is built
+# from, so image and installer never report different versions.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Enable corepack
+        run: corepack enable
+        working-directory: .
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/.nvmrc
+          # This workflow runs once per release tag; the caching benefit is
+          # negligible, and a release workflow is exactly the context where
+          # zizmor's cache-poisoning audit flags cache reuse as risky.
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve version from the tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v0.0.0-dev"
+          fi
+          echo "APP_VERSION=$TAG" >> "$GITHUB_ENV"
+          npm pkg set version="${TAG#v}"
+
+      - name: Build installer
+        run: pnpm run build:win
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aymurai-windows-installer
+          path: frontend/dist/*-setup.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: frontend/dist/*-setup.exe

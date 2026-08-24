@@ -6,19 +6,18 @@ import {
 import { Toaster } from "react-hot-toast";
 
 import { ThemeProvider } from "@/components";
-import FileProvider from "@/context/File";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import * as TanstackReactQuery from "@/features/ReactQueryProvider";
+import { isElectronApp } from "@/utils/app-mode";
+import { TooltipProvider } from "@aymurai/ui";
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 
 const TanStackQueryProviderContext = TanstackReactQuery.getContext();
 
-const history =
-  import.meta.env.VITE_APP_MODE === "electron"
-    ? createMemoryHistory({ initialEntries: ["/"] })
-    : undefined;
+const history = isElectronApp()
+  ? createMemoryHistory({ initialEntries: ["/"] })
+  : undefined;
 const router = createRouter({
   routeTree,
   history,
@@ -38,9 +37,7 @@ export default function App() {
       {/* Stitches global styles */}
       <ThemeProvider>
         <TooltipProvider>
-          <FileProvider>
-            <RouterProvider router={router} />
-          </FileProvider>
+          <RouterProvider router={router} />
           <Toaster position="bottom-center" />
         </TooltipProvider>
       </ThemeProvider>

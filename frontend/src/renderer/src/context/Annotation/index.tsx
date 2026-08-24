@@ -333,7 +333,7 @@ export default function AnnotationProvider({
       );
       if (overlapConflict) {
         showToast(
-          "La selección se solapa con una entidad existente (puede estar oculta por una categoría o término excluido). Eliminá o editá la entidad existente antes de crear otra.",
+          "La selección se solapa con una entidad existente (puede estar oculta por una categoría o término excluido). Elimina o edita la entidad existente antes de crear otra.",
           "error",
           WarningCircle,
         );

@@ -1,21 +1,20 @@
-import { WHITELISTED_EXTENSIONS } from "@/constants/config";
-
-const validExtensions = WHITELISTED_EXTENSIONS.map((e) => `.${e}`).join(", ");
+import { documentFormats } from "./document-formats";
 
 const dataset = {
-  title: "Set de datos",
+  title: "Set de Datos",
   subtitle: "Convierte resoluciones judiciales en set de datos estructurados",
   onboarding: {
-    sectionTitle: "1. Selección de Archivos",
-    validFormats: `Formatos válidos: ${validExtensions}`,
-    loadDocuments: "Cargar documentos",
-    dropAreaTitle: "Selecciona el archivo para\nagregar a la base de datos",
-    dropAreaFormats: `Formatos válidos: ${validExtensions}`,
+    sectionTitle: "1. Selección de archivo",
+    validFormats: documentFormats,
+    loadDocuments: "Cargar documento",
+    dropAreaTitle:
+      "Selecciona o arrastra el archivo para\nagregar al set de datos",
+    dropAreaFormats: documentFormats,
   },
   preview: {
-    sectionTitle: "1. Selección de Archivos",
-    filesLabel: "Archivos seleccionados",
-    validFormats: `Formatos válidos: ${validExtensions}`,
+    sectionTitle: "1. Selección de archivo",
+    filesLabel: "Vista previa del documento",
+    validFormats: documentFormats,
     loadMore: "Cargar más documentos",
     continue: "Continuar",
   },
@@ -46,9 +45,23 @@ const dataset = {
   },
   process: {
     sectionTitle: "2. Extracción de datos",
-    processingTitle: "AymurAI está extrayendo los datos de los archivos",
+    processingTitle: "AymurAI está extrayendo los datos de los archivos.",
     processingSubtitle: "Este proceso puede tardar algunos minutos.",
     finishText: "Se finalizó el análisis de tus documentos.",
+    // G8 F3: title/subtitle/Callout must reflect the aggregated status
+    // (routes/$feature/process.tsx), not just "processing" forever.
+    finishedTitle: "AymurAI finalizó la extracción de datos de los archivos.",
+    finishedSubtitle: "Puedes continuar con la validación de los datos.",
+    errorTitle: "Ocurrió un problema al procesar los archivos.",
+    errorSubtitle: "Alguno de los archivos no pudo procesarse correctamente.",
+    errorText: "El procesamiento de los archivos no se completó correctamente.",
+    stoppedTitle: "Detuviste el procesamiento de los archivos.",
+    stoppedSubtitle: "Vuelve atrás para reiniciar el procesamiento.",
+    stoppedText: "El procesamiento de los archivos fue detenido manualmente.",
+    continue: "Continuar",
+  },
+  validation: {
+    continue: "Continuar",
   },
   result: { sectionTitle: "" },
   finish: {
