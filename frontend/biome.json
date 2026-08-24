@@ -1,0 +1,86 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "vcs": {
+    "enabled": false,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "ignore": [
+      "node_modules",
+      "build",
+      "dist",
+      ".husky",
+      "out",
+      "routeTree.gen.ts",
+      "src/renderer/src/styled/**",
+      "playwright/.cache/**",
+      "playwright-report",
+      "test-results",
+      ".worktrees",
+      ".claude/settings.local.json",
+      ".orquestalite",
+      "tasks",
+      "team.json",
+      "flows.json",
+      "prompts",
+      "schemas"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "organizeImports": {
+    "enabled": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "performance": {
+        "noAccumulatingSpread": "warn",
+        "noDelete": "warn"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      },
+      "complexity": {
+        "noUselessSwitchCase": "off",
+        "noForEach": "off",
+        "noUselessFragments": "off",
+        "noBannedTypes": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn",
+        "useSelfClosingElements": {
+          "fix": "safe",
+          "level": "error"
+        }
+      },
+      "nursery": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@stitches/react": "Stitches has been fully migrated to Panda CSS (RSP-12b). Import from `@/styled/css` or `@/styled/jsx` instead."
+            }
+          }
+        }
+      },
+      "suspicious": {
+        "noConsoleLog": "warn"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useKeyWithClickEvents": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  }
+}
