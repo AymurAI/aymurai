@@ -42,9 +42,9 @@ users have existing documents and workflows.
 ## Styling — Panda CSS
 
 - New and touched code uses Panda (`@/styled/css`, `@/styled/jsx`). Never import
-  `@stitches/react` (blocked by lefthook's pre-commit grep and by biome's
-  `noRestrictedImports` rule). `@/styles/stitches.config` no longer exists —
-  the migration to Panda finished in RSP-12b.
+  `@stitches/react` (blocked by biome's `noRestrictedImports` rule).
+  `@/styles/stitches.config` no longer exists — the migration to Panda
+  finished in RSP-12b.
 - `strictTokens: true`. Use semantic tokens by dotted path (`color:
   "text.default"`). Raw values require the bracket escape (`width: "[36px]"`).
   Never inline a raw hex without brackets.

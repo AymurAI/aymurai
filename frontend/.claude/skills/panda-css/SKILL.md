@@ -18,8 +18,8 @@ Quick checklist when you're about to touch styling:
    `width: "[36px]"`).
 3. **Use semantic tokens** for colors (`text.default`, `bg.secondary`,
    `brand.primary`) — never raw hex unless bracketed.
-4. **Run `pnpm panda codegen`** after editing `panda.config.ts` (lefthook
-   handles this on commit, but the IDE needs it to type-check).
+4. **Run `pnpm panda codegen`** after editing `panda.config.ts` manually — no
+   git hook does this on commit, but the IDE needs it to type-check.
 5. **Don't import from `@stitches/react`**. The migration to Panda is complete
    — there is no Stitches code left to touch.
 

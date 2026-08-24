@@ -22,11 +22,14 @@ from training data.
 
 - Package manager: **pnpm** (`pnpm-lock.yaml` is authoritative). `npm install`
   is unsupported in this repo.
-- `pnpm prepare` runs `panda codegen && lefthook install`. Run after a fresh
-  clone or after pulling changes that touch `panda.config.ts`.
-- Pre-commit gate (lefthook): biome (autoformat + lint), panda codegen,
-  forbidden-pattern grep (`console.log`, `debugger`, leftover merge markers,
-  `.only(`, `@stitches/react`).
+- `pnpm prepare` runs `panda codegen`. Run after a fresh clone or after
+  pulling changes that touch `panda.config.ts`.
+- Pre-commit gate (prek): biome (autoformat + lint) on `frontend/**`, plus the
+  repo-wide hooks (merge-conflict check, secret scanning). There is no
+  forbidden-pattern grep anymore — `@stitches/react` imports are caught by
+  biome's `noRestrictedImports` rule instead (see "Migration complete" below),
+  and `panda codegen` is not gated on commit; run it manually after editing
+  `panda.config.ts`.
 - Pre-push gate: `pnpm typecheck`. (`pnpm knip` is informational only — every
   rule in `knip.json` is severity `warn`, so it can never fail; it is not part
   of any gate.)
@@ -39,13 +42,15 @@ RSP-12e). `src/renderer/src/styles/` (the legacy `stitches.config.ts`,
 `@stitches/react` is no longer a dependency. See `.claude/rules/panda-css.md`
 for the measured Stitches → Panda mapping, kept as the historical record.
 
-Two mechanisms block a `@stitches/react` import, with different coverage:
+Historically, two mechanisms blocked a `@stitches/react` import, with
+different coverage:
 
-- `lefthook.yml`'s pre-commit forbidden-pattern grep has **always** blocked
-  `from "@stitches/react"`, but only over staged files.
+- `lefthook.yml`'s pre-commit forbidden-pattern grep blocked
+  `from "@stitches/react"` over staged files, until `lefthook.yml` was removed
+  when the toolchain moved to prek.
 - `biome.json`'s `linter.rules.nursery.noRestrictedImports` rule was added once
   the migration finished, and checks the whole tree on every `pnpm validate`
   — proven to fire against a scratch import.
 
-Both are live; the ban was never actually unenforced, only the whole-tree
-(biome) half of it was missing until the migration closed.
+Only the biome rule is live today; it covers the whole tree on every
+`pnpm validate`, so the ban stays enforced even without the lefthook grep.

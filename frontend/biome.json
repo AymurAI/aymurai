@@ -64,7 +64,8 @@
           "level": "error",
           "options": {
             "paths": {
-              "@stitches/react": "Stitches has been fully migrated to Panda CSS (RSP-12b). Import from `@/styled/css` or `@/styled/jsx` instead."
+              "@stitches/react": "Stitches has been fully migrated to Panda CSS (RSP-12b). Import from `@/styled/css` or `@/styled/jsx` instead.",
+              "react-router-dom": "This app uses TanStack Router, not react-router-dom."
             }
           }
         }

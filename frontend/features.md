@@ -31,8 +31,8 @@ warnings**; the goal of the batch is zero.
 
 ## Retire console.log from the renderer
 
-`lint/suspicious/noConsoleLog`, 4 occurrences. `console.log` is also blocked by
-the lefthook pre-commit grep, so these are live violations.
+`lint/suspicious/noConsoleLog`, 4 occurrences. `console.log` is a live
+violation of biome's lint rule, so these must be fixed.
 
 - `src/renderer/src/utils/logger.ts:8` — `logger.info` wraps `console.log`
   behind an `import.meta.env.PROD` guard. Switch that call to `console.info`,

@@ -22,7 +22,7 @@ import { buildDocFileFixture } from "./document-file";
  * G1/T6: the wrapper must be a `display: flex; flexDirection: column`
  * container with a DEFINITE height, matching the real shell's
  * `<Stack width="full" height="[100dvh]" overflow="hidden">` in
- * routes/app.$feature/route.tsx - `ValidateDataset`'s own `Grid` uses
+ * routes/$feature/route.tsx - `ValidateDataset`'s own `Grid` uses
  * `flex="1"` (validate-dataset/index.tsx:70) to split the viewport between
  * the document and the footer, and `flex: 1` is INERT under a `display:
  * block` parent (a plain `height: 100vh` div, which is what this fixture
@@ -36,7 +36,7 @@ import { buildDocFileFixture } from "./document-file";
  * percentage against a parent with a definite height), not `flex: 1`.
  *
  * G1/T7: mounts the real `Header` above `ValidateDataset`, exactly as
- * routes/app.$feature/validation.tsx's `DocumentValidation` does (`<Header
+ * routes/$feature/validation.tsx's `DocumentValidation` does (`<Header
  * .../><ValidateDataset /></RequireFile>`, `RequireFile` returns its children
  * with no wrapper). It used to be deliberately omitted on the theory that it
  * would drag in i18n/router context this harness avoids - both were already

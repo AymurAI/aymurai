@@ -35,7 +35,7 @@ const inner = cva({
         // Scoped version (tasks/responsive-fixes/plan-version-acotada.md):
         // back to the 1015px cap Figma specced at 1440px. The Responsive page
         // covers only the three validation screens, and none of them goes
-        // through MainContent - verified: routes/app.$feature/validation.tsx
+        // through MainContent - verified: routes/$feature/validation.tsx
         // builds its own layout. So widening this would upscale onboarding,
         // preview, process and finish, which have no design at any width.
         maxWidth: "[1015px]",

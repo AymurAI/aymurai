@@ -9,9 +9,6 @@ import {
 
 export const DATAGENERO_URL = "https://www.datagenero.org/";
 
-/** AI Predict port */
-export const PREDICT_PORT = 8899;
-
 /** Document extensions accepted by the dataset/anonymizer flows. */
 export const DOCUMENT_EXTENSIONS = ["docx", "pdf"];
 
@@ -33,13 +30,6 @@ export const WHITELISTED_EXTENSIONS = [
 /** Dataset Spreadsheet */
 export const DATASET_URL =
   "https://docs.google.com/spreadsheets/d/1pzaGNM5BzRAOlj8p0NYtxnkU4VI_X5UcQsnIMOtLSVY/edit#gid=257379348";
-
-/**
- * AymurAI API URL — fallback only. The active base URL comes from the
- * server-selection page (Zustand `localStore.serverHost`) which patches
- * `api.defaults.baseURL` on connect.
- */
-export const AYMURAI_API_URL = `http://localhost:${PREDICT_PORT}`;
 
 export const FEATURE_ICON: Record<FeatureFlowEnum, Icon> = {
   [FeatureFlowEnum.Dataset]: Database,

@@ -15,7 +15,7 @@ vi.mock("@/services/api", () => ({
   default: { defaults: { baseURL: "http://localhost:3000" } },
 }));
 
-describe("app.$feature route shell", () => {
+describe("$feature route shell", () => {
   it("sizes the outer Stack with viewport-safe units, not 100vw/100vh", () => {
     const RouteComponent = Route.options.component as React.FC;
     const { getByTestId } = render(<RouteComponent />);

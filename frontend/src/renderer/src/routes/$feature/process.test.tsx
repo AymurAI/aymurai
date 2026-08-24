@@ -15,7 +15,7 @@ import { Route } from "./process";
  *
  * These tests mock `useFileParse`/`usePredict`/`useDisambiguate` directly to
  * inject per-file statuses - self-contained, no network/backend, matching
- * the pattern in routes/app.$feature/validation.test.tsx and
+ * the pattern in routes/$feature/validation.test.tsx and
  * components/validate-dataset/index.test.tsx. Because `react-i18next` is
  * mocked with `t: (key) => key`, these tests assert KEY WIRING (the right
  * copy key is chosen for the right status), not that the Spanish copy is

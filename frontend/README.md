@@ -17,7 +17,7 @@ datasheet files
 
 - **pnpm** as _package manager_
 - **biome** as code _linter and formatter_
-- **lefthook** for git hooks (pre-commit + pre-push gates)
+- **prek** for git hooks (pre-commit + pre-push gates)
 
 ##  Getting started
 
@@ -29,9 +29,9 @@ datasheet files
     pnpm install
     ```
 
-1. Run `prepare` to generate the Panda CSS runtime and install the lefthook
-   git hooks (also runs automatically after `pnpm install`, but re-run it
-   after pulling changes that touch `panda.config.ts` or `lefthook.yml`):
+1. Run `prepare` to generate the Panda CSS runtime (also runs automatically
+   after `pnpm install`, but re-run it after pulling changes that touch
+   `panda.config.ts`):
 
     ```bash
     pnpm prepare
@@ -81,11 +81,10 @@ datasheet files
 - `typecheck:node`: runs type checking on the _Electron_ application
 - `typecheck:web`: runs type checking on the _React_ application
 - `validate`: runs linting and type checking on both React and renderer
-- `prepare`: runs `panda codegen` and installs lefthook git hooks (auto-runs after `pnpm install`)
+- `prepare`: runs `panda codegen` (auto-runs after `pnpm install`)
 - `knip`: reports unused exports and dependencies (informational only — every
   rule in `knip.json` is severity `warn`, so it never fails and is not gated
   anywhere)
-- `pre-commit`: runs _LintStaged_
 
 ### Deployment
 

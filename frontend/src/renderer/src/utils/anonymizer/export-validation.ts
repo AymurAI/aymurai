@@ -18,7 +18,7 @@ import type { DocFile, Paragraph } from "@/types/file";
 // existing tests: `constants/i18n/index.ts` calls `i18n.use(initReactI18next)
 // .init(...)` as an IMPORT-TIME side effect, and several existing test files
 // (file-annotator/index.test.tsx, voice-to-text/validation.test.tsx,
-// routes/app.$feature/finish.test.tsx) mock `react-i18next` wholesale without
+// routes/$feature/finish.test.tsx) mock `react-i18next` wholesale without
 // exporting `initReactI18next` - importing the bootstrap transitively through
 // this module (queries.ts -> usePredict.ts -> ... -> here) then crashes
 // those mocks with "No 'initReactI18next' export is defined". (a2)
