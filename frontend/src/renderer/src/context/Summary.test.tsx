@@ -102,9 +102,7 @@ describe("Summary context", () => {
       { wrapper },
     );
     act(() => result.current.dispatch(start("a.docx")));
-    act(() =>
-      result.current.dispatch(finish("Texto generado.", "doc-1")),
-    );
+    act(() => result.current.dispatch(finish("Texto generado.", "doc-1")));
     act(() =>
       result.current.dispatch(
         restoreValidation(
