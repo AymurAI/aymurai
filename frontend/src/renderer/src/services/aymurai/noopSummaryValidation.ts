@@ -14,6 +14,8 @@ export const noopSummaryValidationClient: SummaryValidationClient = {
   },
   async load(documentId) {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${documentId}`);
-    return raw ? (JSON.parse(raw) as SummaryValidation) : null;
+    return raw
+      ? { ...(JSON.parse(raw) as SummaryValidation), hasValidation: true }
+      : null;
   },
 };

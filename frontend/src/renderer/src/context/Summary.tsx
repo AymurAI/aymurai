@@ -11,30 +11,38 @@ export type SummaryStatus =
 export interface SummaryState {
   status: SummaryStatus;
   sourceFileName: string | null;
+  documentId: string | null;
   title: string;
   partialText: string;
   document: JSONContent | null;
   error: string | null;
+  // Set once the user edits the freshly generated document/title. The
+  // restore-on-mount lookup in summary-validation.tsx checks this to avoid
+  // clobbering an in-progress edit with a slow-resolving saved validation.
+  hasUserEdited: boolean;
 }
 
 const initialState: SummaryState = {
   status: "idle",
   sourceFileName: null,
+  documentId: null,
   title: "",
   partialText: "",
   document: null,
   error: null,
+  hasUserEdited: false,
 };
 
 export type SummaryAction =
   | { type: "reset" }
   | { type: "start"; fileName: string }
   | { type: "setPartialText"; text: string }
-  | { type: "finish"; summary: string }
+  | { type: "finish"; summary: string; documentId: string }
   | { type: "error"; message: string }
   | { type: "stop" }
   | { type: "edit"; document: JSONContent }
-  | { type: "editTitle"; title: string };
+  | { type: "editTitle"; title: string }
+  | { type: "restoreValidation"; document: JSONContent; title: string };
 
 export const reset = (): SummaryAction => ({ type: "reset" });
 export const start = (fileName: string): SummaryAction => ({
@@ -45,9 +53,10 @@ export const setPartialText = (text: string): SummaryAction => ({
   type: "setPartialText",
   text,
 });
-export const finish = (summary: string): SummaryAction => ({
+export const finish = (summary: string, documentId: string): SummaryAction => ({
   type: "finish",
   summary,
+  documentId,
 });
 export const error = (message: string): SummaryAction => ({
   type: "error",
@@ -62,6 +71,10 @@ export const editTitle = (title: string): SummaryAction => ({
   type: "editTitle",
   title,
 });
+export const restoreValidation = (
+  document: JSONContent,
+  title: string,
+): SummaryAction => ({ type: "restoreValidation", document, title });
 
 function summaryReducer(
   state: SummaryState,
@@ -83,6 +96,7 @@ function summaryReducer(
       return {
         ...state,
         status: "completed",
+        documentId: action.documentId,
         document: documentFromMarkdown(action.summary),
       };
     case "error":
@@ -90,9 +104,11 @@ function summaryReducer(
     case "stop":
       return { ...state, status: "stopped" };
     case "edit":
-      return { ...state, document: action.document };
+      return { ...state, document: action.document, hasUserEdited: true };
     case "editTitle":
-      return { ...state, title: action.title };
+      return { ...state, title: action.title, hasUserEdited: true };
+    case "restoreValidation":
+      return { ...state, document: action.document, title: action.title };
     default:
       return state;
   }

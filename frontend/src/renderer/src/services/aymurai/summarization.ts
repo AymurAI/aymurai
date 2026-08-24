@@ -14,6 +14,7 @@ export interface SummarizationStep {
 }
 
 export interface SummarizationResponse {
+  documentId: string;
   summary: string;
   model: string;
   chunks_used: number;
@@ -21,7 +22,7 @@ export interface SummarizationResponse {
 }
 
 export type SummaryStreamEvent =
-  | { type: "meta"; model?: string }
+  | { type: "meta"; model?: string; document_id?: string }
   | { type: "token"; chunk_index?: number; source?: string; text: string }
   | {
       type: "summary";
@@ -69,7 +70,8 @@ export async function summarizeStream(
 ): Promise<SummarizationResponse> {
   const url = apiUrl("/llm/summarize/stream");
 
-  let finalResponse: SummarizationResponse | null = null;
+  let documentId: string | null = null;
+  let finalResponse: Omit<SummarizationResponse, "documentId"> | null = null;
 
   try {
     const response = await fetch(url, {
@@ -102,7 +104,9 @@ export async function summarizeStream(
       buffer = parsed.remainder;
 
       for (const event of parsed.events) {
-        if (event.type === "token") {
+        if (event.type === "meta") {
+          documentId = event.document_id ?? documentId;
+        } else if (event.type === "token") {
           tokens.push(event.text);
           onPartialText?.(tokens.join(""));
         } else if (event.type === "summary") {
@@ -130,8 +134,13 @@ export async function summarizeStream(
       "Summarization stream ended without a final summary event",
     );
   }
+  if (!documentId) {
+    throw new FatalStreamError(
+      "Summarization stream ended without a document_id",
+    );
+  }
 
-  return finalResponse;
+  return { ...finalResponse, documentId };
 }
 
 export async function summarize(

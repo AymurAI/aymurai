@@ -4,6 +4,7 @@ import DocumentSearchPanel from "@/components/summarizer/document-search-panel";
 import {
   edit,
   editTitle,
+  restoreValidation,
   useSummary,
   useSummaryDispatch,
 } from "@/context/Summary";
@@ -13,14 +14,9 @@ import { summaryValidationClient } from "@/services/aymurai/summaryValidationCli
 import { css } from "@/styled/css";
 import { Grid } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import {
-  Button,
-  Callout,
-  RichTextEditor,
-  serializeDocumentToPlainText,
-} from "@aymurai/ui";
+import { Button, Callout, RichTextEditor } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // Grid items stretch to the row height by default, but their content can
@@ -61,6 +57,61 @@ export default function SummaryValidation() {
     fingerprint: string;
   } | null>(null);
 
+  // The restore-on-mount effect below fires once when `documentId` first
+  // appears and its `load()` call is a real network round-trip — by the time
+  // it resolves, the user may already be typing over the freshly generated
+  // summary. Mirroring `summary` into a ref (reassigned every render, so the
+  // effect's stale closure can still read the latest value) lets the .then()
+  // check the up-to-date `hasUserEdited` flag instead of the one captured
+  // when the effect was scheduled.
+  const summaryRef = useRef(summary);
+  summaryRef.current = summary;
+
+  // Restore-on-mount: the summarizer always regenerates a fresh summary for
+  // the current document (see useSummarize), so reopening a document that
+  // was previously human-validated would otherwise silently discard the
+  // saved edits in favor of the freshly generated text. `hasValidation`
+  // distinguishes a genuine saved validation from the backend's
+  // markdown-fallback shape (never validated) — only the former should
+  // overwrite what's on screen.
+  useEffect(() => {
+    const documentId = summary.documentId;
+    if (!documentId) return;
+
+    let active = true;
+    const controller = new AbortController();
+
+    summaryValidationClient
+      .load(documentId, controller.signal)
+      .then((result) => {
+        if (!active || !result?.hasValidation) return;
+        // The user may have started editing while this lookup was in
+        // flight — don't clobber a fresh, in-progress edit with a
+        // slow-resolving saved validation.
+        if (summaryRef.current.hasUserEdited) return;
+
+        const restoredDocument = result.editedSummary;
+        // A document validated with every word deleted must not become a
+        // permanent dead end: restoring it would zero out `document.content`,
+        // which `hasSummary` below turns into the missingSummary error
+        // Callout in place of the editor, with reopening the document
+        // forever loading that same empty save. Keep the freshly generated
+        // (always non-empty) summary visible instead.
+        if ((restoredDocument.content?.length ?? 0) === 0) return;
+
+        dispatch(restoreValidation(restoredDocument, result.title));
+      })
+      .catch(() => {
+        // Best-effort: the freshly generated summary already on screen is a
+        // reasonable fallback if the lookup fails.
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [summary.documentId, dispatch]);
+
   const runSave = (payload: SummaryValidationPayload): Promise<boolean> => {
     setSaving(true);
     setSaveFailed(false);
@@ -85,17 +136,20 @@ export default function SummaryValidation() {
   // Resolves to `false` only when the save actually failed — lets callers
   // that navigate away decide whether to wait for a clean save first.
   const handleSave = (): Promise<boolean> => {
-    if (!file || !summary.document) return Promise.resolve(true);
+    if (!file || !summary.document || !summary.documentId) {
+      return Promise.resolve(true);
+    }
 
     const payload: SummaryValidationPayload = {
-      // A stable id, not the display filename: two different documents can
-      // share a filename (e.g. two rulings both exported as "sentencia.docx"
-      // from different case folders), and the filename is the entire
-      // storage key downstream.
-      documentId: file.paragraphs?.[0]?.document_id ?? file.data.name,
+      // The backend's text_to_uuid(text) identity for this summarization
+      // (threaded through from the /llm/summarize response) — not a display
+      // string and not a paragraph-level id from a different id namespace,
+      // either of which the backend's UUID5-keyed validation route would
+      // reject or silently miss.
+      documentId: summary.documentId,
       title: summary.title,
       generatedSummary: summary.partialText,
-      editedSummary: serializeDocumentToPlainText(summary.document),
+      editedSummary: summary.document,
     };
     const fingerprint = JSON.stringify(payload);
 

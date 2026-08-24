@@ -42,6 +42,17 @@ describe("parseSseMessages", () => {
   });
 });
 
+function sseResponse(frames: string[]): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const frame of frames) controller.enqueue(encoder.encode(frame));
+      controller.close();
+    },
+  });
+  return { ok: true, body } as unknown as Response;
+}
+
 describe("summarizeStream", () => {
   const originalFetch = global.fetch;
 
@@ -92,5 +103,36 @@ describe("summarizeStream", () => {
       summarizeStream("texto", { signal: controller.signal }),
     ).rejects.toThrow("No server selected");
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("resolves with the documentId carried in the meta event", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        sseResponse([
+          `data: ${JSON.stringify({ type: "meta", document_id: "doc-1" })}\n\n`,
+          `data: ${JSON.stringify({ type: "summary", summary: "Resumen." })}\n\n`,
+        ]),
+      );
+
+    const result = await summarizeStream("texto", {});
+    expect(result).toEqual(
+      expect.objectContaining({ documentId: "doc-1", summary: "Resumen." }),
+    );
+  });
+
+  // Regression: the "summary" event alone never carried document_id (only
+  // "meta" does), so a stream that never sent — or lost — its meta event
+  // must not silently resolve with an unusable id.
+  it("throws when the stream ends without a document_id", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        sseResponse([
+          `data: ${JSON.stringify({ type: "summary", summary: "Resumen." })}\n\n`,
+        ]),
+      );
+
+    await expect(summarizeStream("texto", {})).rejects.toThrow("document_id");
   });
 });

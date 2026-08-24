@@ -1,4 +1,5 @@
 import { summarizeDocumentStream } from "@/services/aymurai/summarize";
+import { summaryValidationClient } from "@/services/aymurai/summaryValidationClient";
 import type { DocFile } from "@/types/file";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -15,6 +16,7 @@ vi.mock("@/services/aymurai/summarize", () => ({
       onPartialText?.("Hola");
       onPartialText?.("Hola mundo");
       return {
+        documentId: "doc-1",
         summary: "Hola mundo",
         model: "mock",
         chunks_used: 1,
@@ -22,6 +24,14 @@ vi.mock("@/services/aymurai/summarize", () => ({
       };
     },
   ),
+}));
+
+// No prior validation for these tests' document ids — a real network call
+// here would hit the backend adapter and only ever fail (ECONNREFUSED) in
+// the test environment, which useSummarize already treats as best-effort via
+// its own .catch(), but leaves noisy connection-error logs otherwise.
+vi.mock("@/services/aymurai/summaryValidationClient", () => ({
+  summaryValidationClient: { load: vi.fn().mockResolvedValue(null) },
 }));
 
 function makeFile(name: string, text: string): DocFile {
@@ -63,6 +73,37 @@ describe("useSummarize", () => {
     );
   });
 
+  it("prefers a stored human validation over the freshly (re)generated summary once one exists", async () => {
+    const dispatch = vi.fn();
+    const file = makeFile("acta.docx", "Texto original.");
+    const validatedDocument = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Texto validado a mano." }],
+        },
+      ],
+    };
+    vi.mocked(summaryValidationClient.load).mockResolvedValueOnce({
+      documentId: "doc-1",
+      title: "Título guardado",
+      generatedSummary: "Hola mundo",
+      editedSummary: validatedDocument,
+      hasValidation: true,
+    });
+
+    renderWithClient(() => useSummarize(file, { dispatch }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "restoreValidation",
+        document: validatedDocument,
+        title: "Título guardado",
+      }),
+    );
+  });
+
   it("does nothing when there is no file", () => {
     const dispatch = vi.fn();
     renderWithClient(() => useSummarize(undefined, { dispatch }));
@@ -87,6 +128,7 @@ describe("useSummarize", () => {
     // simulate it settling *after* file B's session has already started.
     let resolveA:
       | ((value: {
+          documentId: string;
           summary: string;
           model: string;
           chunks_used: number;
@@ -130,6 +172,7 @@ describe("useSummarize", () => {
     // window where A's mutation observer callback could still be attached
     // when A's stale result arrives — the exact race under test.
     resolveA?.({
+      documentId: "doc-a",
       summary: "Stale A summary",
       model: "mock",
       chunks_used: 1,

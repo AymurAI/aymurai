@@ -11,10 +11,12 @@ function makeSummaryState(overrides: Partial<SummaryState>): SummaryState {
   return {
     status: "idle",
     sourceFileName: null,
+    documentId: null,
     title: "",
     partialText: "",
     document: null,
     error: null,
+    hasUserEdited: false,
     ...overrides,
   };
 }
