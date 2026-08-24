@@ -14,7 +14,8 @@ node_modules/*
 .husky
 
 # production
-/build
+# NOTE: /build is electron-builder's buildResources dir (icons, entitlements) — source
+# inputs that must be committed, not build output. Actual outputs are /dist and /out.
 /dist
 /out
 
