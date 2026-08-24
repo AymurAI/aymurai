@@ -109,6 +109,7 @@ services:
         environment:
             TORCH_DEVICE: cpu
             LLAMACPP_BASE_URL: http://llamacpp:8080/v1
+            TRANSCRIBE_BASE_URL: http://coro:8000/v1
 
     aymurai-api-full-gpu:
         <<: *api-full
@@ -118,6 +119,7 @@ services:
         environment:
             TORCH_DEVICE: cuda
             LLAMACPP_BASE_URL: http://llamacpp-gpu:8080/v1
+            TRANSCRIBE_BASE_URL: http://coro:8000/v1
         deploy:
             resources:
                 reservations:
