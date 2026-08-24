@@ -42,6 +42,7 @@ let mockSummaryState = {
   documentId: "doc-0",
   title: "Resumen acta.docx",
   sourceFileName: "acta.docx",
+  hasUserEdited: false,
 };
 
 vi.mock("@/context/Summary", () => ({
@@ -89,6 +90,7 @@ describe("SummaryValidation", () => {
       documentId: "doc-0",
       title: "Resumen acta.docx",
       sourceFileName: "acta.docx",
+      hasUserEdited: false,
     };
   });
 
@@ -308,6 +310,64 @@ describe("SummaryValidation", () => {
         document: documentFromPlainText("Texto validado a mano."),
         title: "Título guardado",
       }),
+    );
+  });
+
+  // Adversary: the tests above only ever resolve `load()` before the user has
+  // touched anything. But the restore effect fires as soon as `documentId` is
+  // set — right when the freshly generated summary first renders — and
+  // `load()` is a real network round-trip. If the user starts typing before
+  // it resolves, an unconditional restore would silently throw those
+  // keystrokes away the moment the (possibly stale) saved validation lands.
+  it("does not restore a saved validation over an edit the user already started making", async () => {
+    let resolveLoad!: (value: unknown) => void;
+    mockLoad.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+
+    const { rerender } = render(<SummaryValidation />);
+
+    // The user starts editing while the lookup is still in flight.
+    mockSummaryState = { ...mockSummaryState, hasUserEdited: true };
+    rerender(<SummaryValidation />);
+
+    resolveLoad({
+      documentId: "doc-0",
+      title: "Título guardado",
+      generatedSummary: "Resumen generado.",
+      editedSummary: "Texto validado a mano.",
+      hasValidation: true,
+    });
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+
+    expect(mockDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "restoreValidation" }),
+    );
+  });
+
+  // Adversary: a document validated with every word deleted (e.g. "this
+  // ruling needs no summary") must not become a permanent dead end. Restoring
+  // an empty document would zero out `document.content`, which
+  // `summary-validation.tsx`'s `hasSummary` check turns into the
+  // `missingSummary` error Callout in place of the editor — with no path back
+  // in, since reopening the document keeps loading that same empty save.
+  it("does not restore an intentionally emptied validation, keeping the freshly generated summary visible", async () => {
+    mockLoad.mockResolvedValue({
+      documentId: "doc-0",
+      title: "Sin resumen",
+      generatedSummary: "Resumen generado.",
+      editedSummary: "",
+      hasValidation: true,
+    });
+
+    render(<SummaryValidation />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+
+    expect(mockDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "restoreValidation" }),
     );
   });
 });

@@ -16,6 +16,7 @@ function makeSummaryState(overrides: Partial<SummaryState>): SummaryState {
     partialText: "",
     document: null,
     error: null,
+    hasUserEdited: false,
     ...overrides,
   };
 }

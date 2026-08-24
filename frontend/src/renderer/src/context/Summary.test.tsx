@@ -122,6 +122,39 @@ describe("Summary context", () => {
     expect(result.current.state.title).toBe("Título validado");
   });
 
+  it("edit()/editTitle() mark the summary as user-edited", () => {
+    const { result } = renderHook(
+      () => ({ state: useSummary(), dispatch: useSummaryDispatch() }),
+      { wrapper },
+    );
+    act(() => result.current.dispatch(start("a.docx")));
+    act(() => result.current.dispatch(finish("Texto.", "doc-1")));
+    expect(result.current.state.hasUserEdited).toBe(false);
+
+    act(() =>
+      result.current.dispatch(
+        edit({ type: "doc", content: [{ type: "paragraph" }] }),
+      ),
+    );
+    expect(result.current.state.hasUserEdited).toBe(true);
+  });
+
+  it("start() resets hasUserEdited for the next document", () => {
+    const { result } = renderHook(
+      () => ({ state: useSummary(), dispatch: useSummaryDispatch() }),
+      { wrapper },
+    );
+    act(() => result.current.dispatch(start("a.docx")));
+    act(() => result.current.dispatch(finish("Texto.", "doc-1")));
+    act(() =>
+      result.current.dispatch(
+        edit({ type: "doc", content: [{ type: "paragraph" }] }),
+      ),
+    );
+    act(() => result.current.dispatch(start("b.docx")));
+    expect(result.current.state.hasUserEdited).toBe(false);
+  });
+
   it("reset() returns to the initial state", () => {
     const { result } = renderHook(
       () => ({ state: useSummary(), dispatch: useSummaryDispatch() }),

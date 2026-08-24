@@ -63,6 +63,16 @@ export default function SummaryValidation() {
     fingerprint: string;
   } | null>(null);
 
+  // The restore-on-mount effect below fires once when `documentId` first
+  // appears and its `load()` call is a real network round-trip — by the time
+  // it resolves, the user may already be typing over the freshly generated
+  // summary. Mirroring `summary` into a ref (reassigned every render, so the
+  // effect's stale closure can still read the latest value) lets the .then()
+  // check the up-to-date `hasUserEdited` flag instead of the one captured
+  // when the effect was scheduled.
+  const summaryRef = useRef(summary);
+  summaryRef.current = summary;
+
   // Restore-on-mount: the summarizer always regenerates a fresh summary for
   // the current document (see useSummarize), so reopening a document that
   // was previously human-validated would otherwise silently discard the
@@ -81,12 +91,21 @@ export default function SummaryValidation() {
       .load(documentId, controller.signal)
       .then((result) => {
         if (!active || !result?.hasValidation) return;
-        dispatch(
-          restoreValidation(
-            documentFromPlainText(result.editedSummary),
-            result.title,
-          ),
-        );
+        // The user may have started editing while this lookup was in
+        // flight — don't clobber a fresh, in-progress edit with a
+        // slow-resolving saved validation.
+        if (summaryRef.current.hasUserEdited) return;
+
+        const restoredDocument = documentFromPlainText(result.editedSummary);
+        // A document validated with every word deleted must not become a
+        // permanent dead end: restoring it would zero out `document.content`,
+        // which `hasSummary` below turns into the missingSummary error
+        // Callout in place of the editor, with reopening the document
+        // forever loading that same empty save. Keep the freshly generated
+        // (always non-empty) summary visible instead.
+        if ((restoredDocument.content?.length ?? 0) === 0) return;
+
+        dispatch(restoreValidation(restoredDocument, result.title));
       })
       .catch(() => {
         // Best-effort: the freshly generated summary already on screen is a

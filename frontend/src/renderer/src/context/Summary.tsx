@@ -16,6 +16,10 @@ export interface SummaryState {
   partialText: string;
   document: JSONContent | null;
   error: string | null;
+  // Set once the user edits the freshly generated document/title. The
+  // restore-on-mount lookup in summary-validation.tsx checks this to avoid
+  // clobbering an in-progress edit with a slow-resolving saved validation.
+  hasUserEdited: boolean;
 }
 
 const initialState: SummaryState = {
@@ -26,6 +30,7 @@ const initialState: SummaryState = {
   partialText: "",
   document: null,
   error: null,
+  hasUserEdited: false,
 };
 
 export type SummaryAction =
@@ -99,9 +104,9 @@ function summaryReducer(
     case "stop":
       return { ...state, status: "stopped" };
     case "edit":
-      return { ...state, document: action.document };
+      return { ...state, document: action.document, hasUserEdited: true };
     case "editTitle":
-      return { ...state, title: action.title };
+      return { ...state, title: action.title, hasUserEdited: true };
     case "restoreValidation":
       return { ...state, document: action.document, title: action.title };
     default:
