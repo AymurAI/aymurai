@@ -1,3 +1,4 @@
+import { normalizeServerHost } from "@/services/api-base-url";
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
@@ -21,7 +22,7 @@ interface LocalStorageStore {
   setGroupOrder: (order: Record<string, string[]>) => void;
 }
 
-const useLocalStore = create<LocalStorageStore>()(
+export const useLocalStore = create<LocalStorageStore>()(
   devtools(
     persist(
       (set, get) => ({
@@ -49,6 +50,25 @@ const useLocalStore = create<LocalStorageStore>()(
       }),
       {
         name: "local-storage",
+        // v0 stored whatever the user typed, and the 1.x desktop app required
+        // the /api suffix. v1 stores the bare base URL; /api is appended by
+        // services/api-base-url.ts. Runs once per install.
+        version: 1,
+        migrate: (persisted: unknown) => {
+          const state = (persisted ?? {}) as { serverHost?: string | null };
+          if (!state.serverHost) return state;
+
+          try {
+            return {
+              ...state,
+              serverHost: normalizeServerHost(state.serverHost),
+            };
+          } catch {
+            // An unparseable stored value must not wedge boot — drop it and let
+            // the user reconnect from /home/host.
+            return { ...state, serverHost: null };
+          }
+        },
         // groupOrder holds canonical UUIDs regenerated each session, so
         // persisting it would only accumulate stale data across sessions.
         partialize: (state) => ({
