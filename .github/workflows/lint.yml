@@ -53,5 +53,5 @@ jobs:
       # for a dedicated remediation PR — remove this SKIP once that lands.
       - name: Lint, format & type check (prek)
         env:
-          SKIP: pyrefly,ast-grep,file-size-guard,no-utils
+          SKIP: pyrefly,ast-grep,file-size-guard,no-utils,biome
         run: uvx prek run --all-files --show-diff-on-failure

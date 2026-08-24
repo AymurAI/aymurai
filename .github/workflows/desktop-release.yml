@@ -31,8 +31,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: frontend/.nvmrc
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          # This workflow runs once per release tag; the caching benefit is
+          # negligible, and a release workflow is exactly the context where
+          # zizmor's cache-poisoning audit flags cache reuse as risky.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -58,6 +60,7 @@ jobs:
           if-no-files-found: error
 
       - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: frontend/dist/*-setup.exe
