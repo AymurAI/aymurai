@@ -1,12 +1,17 @@
 # AymurAI
 Language: **English** | [Español](README.es.md)
 
-AymurAI provides an integrated application, API, and ML pipelines for processing judicial rulings through two main workflows:
+AymurAI provides an integrated application, API, and ML pipelines for processing judicial rulings through four workflows:
 
 - `anonymizer`: extract named entities and produce anonymized documents.
 - `data-public`: extract structured information for public dataset curation.
+- `summarization`: condense a document into a structured summary via an LLM backend.
+- `transcription`: turn audio into speaker-attributed text via an ASR backend.
 
-This repository contains the React/Electron frontend, FastAPI service, production pipeline configurations, and database persistence used by both workflows.
+The first two are AymurAI ML pipelines. The last two orchestrate external
+services (`llama-server` and `coro`) and are inactive until those are configured.
+
+This repository contains the React/Electron frontend, FastAPI service, production pipeline configurations, and database persistence used by these workflows.
 
 ## About AymurAI
 AymurAI is a project focused on supporting the generation of anonymized and structured judicial data for gender-based violence (GBV) cases in Latin America. The application guides users through document ingestion, ML inference, manual review, validation, and export for operational and research uses.
@@ -16,9 +21,12 @@ The frontend can run as a web application served by FastAPI or as an Electron de
 ## Documentation
 - Technical docs index: [docs/README.md](docs/README.md)
 - API reference: [docs/api/README.md](docs/api/README.md)
+- Configuration reference: [docs/configuration/README.md](docs/configuration/README.md)
 - Pipelines index: [docs/pipelines/README.md](docs/pipelines/README.md)
 - Anonymizer flow: [docs/pipelines/anonymizer/README.md](docs/pipelines/anonymizer/README.md)
 - Datapublic flow: [docs/pipelines/datapublic/README.md](docs/pipelines/datapublic/README.md)
+- Summarization flow: [docs/pipelines/summarization/README.md](docs/pipelines/summarization/README.md)
+- Transcription (ASR) flow: [docs/pipelines/transcription/README.md](docs/pipelines/transcription/README.md)
 - Internal database schema: [docs/database/README.md](docs/database/README.md)
 - Frontend development and packaging: [frontend/README.md](frontend/README.md)
 
@@ -43,10 +51,15 @@ Optional: GPU runtime (requires NVIDIA Container Toolkit):
 
 ```bash
 docker run -d --name aymurai-backend-gpu --gpus all \
-  -e TORCH_DEVICE=cuda \
   -p 8899:8899 \
   ghcr.io/aymurai/api:full
 ```
+
+> Exposing a GPU to the container is not enough to run inference on it. Both
+> production pipeline configs hardcode `"device": "cpu"`, and no environment
+> variable overrides them — `TORCH_DEVICE` is set by `docker-compose.yml` but
+> read by nothing. Edit the `device` fields in
+> `resources/pipelines/production/*/pipeline.json` to place models on GPU.
 
 Open Swagger UI:
 
@@ -84,6 +97,21 @@ make api-logs
 # or make api-full-logs
 ```
 
+### Speech-to-text backend (coro)
+
+Transcription proxies a [`coro`](https://github.com/collectiveai-team/coro)
+server. It lives behind the `asr` compose profile, so a plain
+`docker compose up` does not start it:
+
+```bash
+make coro-up                        # CPU
+CORO_SERVICE=coro-gpu make coro-up  # GPU
+make coro-logs
+```
+
+The API reaches it via `TRANSCRIBE_BASE_URL`; without that, every `/api/asr/*`
+route answers `500 Configuration error`.
+
 ### LLM backend (llama.cpp)
 
 Summarization runs against a `llama-server` speaking the OpenAI-compatible API.
@@ -120,6 +148,12 @@ reasoning: raise `max_tokens`, or set `LLM_THINK_BUDGET=0`.
 - Production pipeline configs:
   - `resources/pipelines/production/flair-anonymizer/pipeline.json`
   - `resources/pipelines/production/datapublic/pipeline.json`
+- Optional external services:
+  - `llama-server` for summarization (`LLAMACPP_BASE_URL`)
+  - `coro` for transcription (`TRANSCRIBE_BASE_URL`)
+
+Every runtime variable is listed in the
+[configuration reference](docs/configuration/README.md).
 
 ## Main Public Endpoints
 - `GET /api/server/healthcheck`
@@ -132,6 +166,11 @@ reasoning: raise `max_tokens`, or set `LLM_THINK_BUDGET=0`.
 - `POST /api/datapublic/predict/{document_id}`
 - `GET /api/datapublic/validation/document/{document_id}`
 - `POST /api/datapublic/validation/document/{document_id}`
+- `POST /api/llm/summarize` and `POST /api/llm/summarize/stream`
+- `GET|POST /api/llm/summarize/validation/document/{document_id}`
+- `POST /api/asr/transcribe` and `POST /api/asr/transcribe/stream`
+- `GET|POST /api/asr/validation/document/{document_id}`
+- `POST /api/convert/{pdf,docx,odt}/{pdf,docx,odt}` (document conversion)
 
 For full request/response contracts and examples, see [docs/api/README.md](docs/api/README.md).
 
