@@ -37,7 +37,11 @@ These entities correspond to the taxonomy extracted from judicial rulings by the
 
 ## Subcategories and validation fields
 - Many of these entities have subclassification or validation-specific controlled vocabularies.
-- Historical validation options are captured in the Label Studio template: [../../../resources/annotations/label-studio/datapublic/label-studio-config.xml](../../../resources/annotations/label-studio/datapublic/label-studio-config.xml)
+- Historical validation options were captured in a Label Studio annotation
+  template (`label-studio-config.xml`). It is **not** distributed with this
+  repository: `resources/` is git-ignored in full, so the file is only present
+  in working copies that received it out of band. Ask the maintainers if you
+  need it.
 - A broader explanatory glossary is available here (Spanish): https://docs.google.com/document/d/123B9T2abCEqBaxxOl5c7HBJZRdIMtKDWo6IKHIVil04/edit
 
 ## Related docs
