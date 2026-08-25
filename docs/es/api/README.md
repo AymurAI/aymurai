@@ -23,12 +23,24 @@ Este documento describe la API pública actualmente montada en `aymurai/api/main
 | `POST` | `/api/datapublic/predict/{document_id}` | Predicción para flujo data-public |
 | `GET` | `/api/datapublic/validation/document/{document_id}` | Lee validación a nivel documento |
 | `POST` | `/api/datapublic/validation/document/{document_id}` | Guarda validación a nivel documento |
+| `POST` | `/api/llm/summarize` | Resume un documento vía el backend de LLM |
+| `POST` | `/api/llm/summarize/stream` | Igual, en streaming con server-sent events |
+| `GET` | `/api/llm/summarize/validation/document/{document_id}` | Lee un resumen guardado y su validación humana |
+| `POST` | `/api/llm/summarize/validation/document/{document_id}` | Guarda el resumen validado por la persona |
+| `POST` | `/api/asr/transcribe` | Transcribe un archivo de audio subido |
+| `POST` | `/api/asr/transcribe/stream` | Igual, en streaming con server-sent events |
+| `GET` | `/api/asr/validation/document/{document_id}` | Lee una transcripción guardada y su validación |
+| `POST` | `/api/asr/validation/document/{document_id}` | Guarda la transcripción validada por la persona |
 | `POST` | `/api/convert/pdf/odt` | Convierte PDF a ODT |
 | `POST` | `/api/convert/pdf/docx` | Convierte PDF a DOCX |
 | `POST` | `/api/convert/docx/odt` | Convierte DOCX a ODT |
 | `POST` | `/api/convert/docx/pdf` | Convierte DOCX a PDF |
 | `POST` | `/api/convert/odt/pdf` | Convierte ODT a PDF |
 | `POST` | `/api/convert/odt/docx` | Convierte ODT a DOCX |
+
+Las rutas bajo `/api/llm/*` y `/api/asr/*` hacen de proxy sobre servicios externos
+(`llama-server` y `coro` respectivamente) y solo son usables una vez configurados.
+Responden `500 Configuration error` cuando su base URL no está seteada.
 
 ## Contratos de datos principales
 
@@ -281,6 +293,192 @@ curl -s -X POST http://localhost:8899/api/datapublic/validation/document/7e6b6f3
   -d '{"materia":"penal","violencia_de_genero":"si"}'
 ```
 
+### Sumarización (LLM)
+
+Estas rutas necesitan un `llama-server` corriendo; ver la sección de backend de
+LLM en el [README del repositorio](../../../README.es.md) y la
+[referencia de configuración](../configuration/README.md). Si `LLAMACPP_BASE_URL`
+no está seteada, responden `500 Configuration error`.
+
+La identidad de cache es **solo el texto fuente** — la config de generación nunca
+se compara. Por eso regenerar requiere `use_cache=false` explícito, y hacerlo
+borra cualquier validación humana almacenada.
+
+#### `POST /api/llm/summarize`
+- Body: `SummarizationRequest`
+- Query param: `use_cache=true|false` (default `true`)
+- Respuesta `200`: `SummarizationResponse`
+
+```json
+{
+  "text": "Texto de entrada a resumir.",
+  "model": null,
+  "system_prompt": null,
+  "information_to_extract": null,
+  "entities_to_identify": null,
+  "options": {"max_tokens": 4096, "temperature": null, "top_p": null, "seed": null, "stop": null}
+}
+```
+
+`model` es inerte en un `llama-server` de un solo modelo: el server sirve aquello
+con lo que fue lanzado e informa su propio id. `system_prompt` reemplaza el
+template de `resources/llm/summarization.yml`; `information_to_extract` y
+`entities_to_identify` completan los placeholders de ese template en lugar de
+reemplazarlo.
+
+Respuesta:
+
+```json
+{
+  "document_id": "f2b25507-cf88-5b11-8f2a-c0b6f940b7f8",
+  "summary": "## Resumen del documento\n...",
+  "model": "qwen3-8b",
+  "system_prompt": "Eres un asistente especializado ...",
+  "options": {"max_tokens": 4096},
+  "chunks_used": 3,
+  "steps": [{"chunk_index": 0, "input_tokens": 3820, "source": "chunk"}],
+  "config": {"model": "qwen3-8b", "system_prompt": "...", "options": {"max_tokens": 4096}}
+}
+```
+
+```bash
+curl -s -X POST "http://localhost:8899/api/llm/summarize?use_cache=true" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Buenos Aires, 17 de noviembre de 2024. AUTOS Y VISTOS ..."}'
+```
+
+Errores comunes:
+- `400` texto de entrada vacío
+- `422` la ventana de contexto del server no alcanza para el prompt más `max_tokens`
+- `500` `LLAMACPP_BASE_URL` sin configurar
+- `502` el server de LLM está inalcanzable o falló
+
+#### `POST /api/llm/summarize/stream`
+Mismo body y mismo `use_cache`; responde `text/event-stream`. Ante un hit de cache
+reproduce el resumen almacenado sin llamar al proveedor y sin tocar la validación.
+
+Cada frame es `data: {json}` con un discriminador `type`:
+
+| `type` | Payload |
+|---|---|
+| `meta` | `{document_id, model, system_prompt, options}` — siempre primero |
+| `token` | `{chunk_index, source, text}` — texto generado incremental |
+| `summary` | `{summary, chunks_used, steps, model}` — éxito terminal; la fila se persiste justo antes de este frame |
+| `error` | `{message}` — el modelo devolvió una completion vacía; el stream termina |
+
+```bash
+curl -N -X POST http://localhost:8899/api/llm/summarize/stream \
+  -H "Content-Type: application/json" \
+  -d '{"text":"AUTOS Y VISTOS ..."}'
+```
+
+Un `summary` vacío suele significar que el modelo gastó todo su presupuesto de
+`max_tokens` en tokens de razonamiento; subí `max_tokens` o lanzá el server con
+`LLM_THINK_BUDGET=0`.
+
+#### `GET /api/llm/summarize/validation/document/{document_id}`
+- Path param: `document_id` (`UUID5`, el `text_to_uuid` del texto fuente)
+- Respuesta `200`: `SummarizationValidationResponse`
+- Respuesta `404`: no hay resumen almacenado para ese id
+
+Devuelve el `summary` del modelo (markdown) **y** la `validation` humana
+(`JSONContent` de TipTap, `null` hasta validarse) lado a lado; el cliente elige
+cuál renderizar. Deliberadamente no se colapsan.
+
+```json
+{
+  "document_id": "f2b25507-cf88-5b11-8f2a-c0b6f940b7f8",
+  "title": "Resolución 1234/2024",
+  "text": "AUTOS Y VISTOS ...",
+  "summary": "## Resumen del documento\n...",
+  "validation": {"type": "doc", "content": []},
+  "chunks_used": 3,
+  "steps": [],
+  "config": {"model": "qwen3-8b", "system_prompt": "...", "options": {}}
+}
+```
+
+#### `POST /api/llm/summarize/validation/document/{document_id}`
+- Body: `{"title": "...", "validation": {...}}` — `title` es opcional y un `title`
+  nulo deja intacto el almacenado
+- Respuesta `200`: body vacío
+- Respuesta `404`: no hay resumen almacenado para ese id
+
+Guarda el documento del editor tal cual. Acá nunca se toca la columna `summary`.
+
+### Transcripción (ASR)
+
+Estas rutas actúan de proxy sobre un server [`coro`](https://github.com/collectiveai-team/coro)
+que habla la API de audio compatible con OpenAI. Requieren `TRANSCRIBE_BASE_URL`;
+sin eso responden `500 Configuration error`. En compose, `coro` vive detrás del
+perfil `asr` — ver la [referencia de configuración](../configuration/README.md).
+
+La identidad de cache es un hash de los **bytes del audio**, así que volver a
+subir el mismo archivo es gratis.
+
+#### `POST /api/asr/transcribe`
+- Request: `multipart/form-data` con `file`
+- Query param: `use_cache=true|false` (default `true`)
+- Respuesta `200`: `ASRDocument`
+
+```json
+{
+  "document_id": "9b2f0e5c-8a1d-5f3e-b7c4-2d6a91e04f88",
+  "title": "audiencia-2024-11-17.mp3",
+  "document": [
+    {
+      "speaker_no": 0,
+      "speaker_name": null,
+      "start": "PT0S",
+      "end": "PT12S",
+      "text": "Buenos días, damos inicio a la audiencia.",
+      "paragraph_id": "3f9c1a72-55de-5b60-9a11-7c0e8d2b4a63"
+    }
+  ],
+  "speaker_turns": []
+}
+```
+
+```bash
+curl -s -X POST "http://localhost:8899/api/asr/transcribe?use_cache=true" \
+  -F "file=@audiencia.mp3"
+```
+
+#### `POST /api/asr/transcribe/stream`
+Mismo request y mismo `use_cache`; responde `text/event-stream`. Ante un hit de
+cache emite `meta`, `segments`, `done` sin llamar a `coro`.
+
+| `type` | Payload |
+|---|---|
+| `meta` | `{document_id, duration}` — `duration` es `null` si no se puede sondear |
+| `delta` | `{text, progress?}` — texto incremental; `progress` se omite si no hay duración |
+| `segments` | `{document}` — la lista final de párrafos |
+| `done` | `{progress: 1.0}` — éxito terminal |
+| `error` | `{detail}` — falla upstream o interna |
+
+`progress` es una estimación suavizada derivada de los caracteres vistos contra la
+duración esperada, no un valor informado por el server de ASR. Se acerca al ~90%
+cuando la estimación por caracteres cree que terminó, y salta a `1.0` en `done`.
+
+#### `GET /api/asr/validation/document/{document_id}`
+- Respuesta `200`: `ASRDocument` — devuelve `validation` cuando no está vacía, y
+  la `transcription` del modelo en caso contrario
+- Respuesta `404`: no hay transcripción almacenada para ese id
+
+#### `POST /api/asr/validation/document/{document_id}`
+- Body: o bien `{"title": "...", "document": [ASRParagraphRequest]}`, o bien una
+  lista `[ASRParagraphRequest]` pelada (forma legacy)
+- Respuesta `200`: body vacío
+- Respuesta `404`: no hay transcripción almacenada para ese id
+
+```bash
+curl -s -X POST http://localhost:8899/api/asr/validation/document/9b2f0e5c-8a1d-5f3e-b7c4-2d6a91e04f88 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Audiencia 17/11","document":[{"speaker_no":0,"start":"00:00:00","end":"00:00:12","text":"Buenos días."}]}'
+```
+
+`start` y `end` aceptan strings `HH:MM:SS` o segundos numéricos.
+
 ### Conversión de documentos
 
 Todos los endpoints de conversión usan `multipart/form-data` con campo `file`.
@@ -314,7 +512,7 @@ Las siguientes rutas existen en código pero no están incluidas en `core.router
 - `aymurai/api/endpoints/routers/datapublic/dataset.py`
   - define `/api/datapublic/dataset/*`, pero ese router no está montado.
 - `aymurai/api/endpoints/routers/anonymizer/database.py`
-  - define `/api/anonymizer/database/*`, pero su include está comentado.
+  - define `/api/anonymizer/database/*`, pero `core.router` nunca importa el módulo.
 - `aymurai/api/endpoints/routers/database/*`
   - rutas administrativas de DB, sin montaje en `core.router`.
 
