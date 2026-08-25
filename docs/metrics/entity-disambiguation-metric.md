@@ -1,4 +1,10 @@
 # Métrica de evaluación para el desambiguador de entidades
+Idioma: **Español** (este documento no tiene traducción al inglés)
+
+> Documento de diseño. Describe una métrica **propuesta** para evaluar la
+> desambiguación de entidades canónicas; no hay hoy un evaluador cableado en el
+> repositorio que la calcule sobre cada corrida. Contexto y relación con lo que
+> sí está implementado: [../anonymization/README.md](../anonymization/README.md).
 
 Este documento describe la métrica con la que evaluamos el módulo de **desambiguación de entidades canónicas** en documentos judiciales. La métrica es independiente del NER (que se evalúa por separado con F1 por clase) y se centra en medir la calidad de la resolución de entidades.
 
