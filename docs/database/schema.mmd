@@ -46,8 +46,29 @@ erDiagram
         INTEGER order
     }
 
+    llm_summarization {
+        UUID id PK
+        TEXT title
+        TEXT text
+        TEXT summary
+        JSON validation
+        JSON config
+        JSON steps
+        INTEGER chunks_used
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    audio_transcription {
+        UUID id PK
+        TEXT name
+        JSON transcription
+        JSON validation
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
     anonymization_document ||--o{ anonymization_document_paragraph : links
     anonymization_paragraph ||--o{ anonymization_document_paragraph : links
-
     datapublic_document ||--o{ datapublic_document_paragraph : links
     datapublic_paragraph ||--o{ datapublic_document_paragraph : links

@@ -17,12 +17,90 @@ Código relacionado:
 - `aymurai/settings.py`
 - `aymurai/api/startup/database.py`
 - `aymurai/api/main.py`
-- `aymurai/database/versions/13f78d08e925_create_database.py`
+- `aymurai/database/versions/13f78d08e925_create_database.py` (esquema base)
+- `aymurai/database/versions/49b3f24f7ad0_add_audio_transcription_table.py`
+- `aymurai/database/versions/8f2c6a10b7d3_add_llm_summarization_table.py` (head)
 
 ## Diagrama ER
-![Diagrama ER de la base de datos](../../database/schema.png)
+Se renderiza inline para que no pueda quedar desfasado respecto de una imagen
+vieja. El mismo diagrama vive suelto en [`schema.mmd`](../../database/schema.mmd).
 
-Fuente editable: [../../database/schema.mmd](../../database/schema.mmd)
+```mermaid
+erDiagram
+    anonymization_document {
+        UUID id PK
+        DATETIME created_at
+        DATETIME updated_at
+        TEXT name
+    }
+
+    anonymization_paragraph {
+        UUID id PK
+        TEXT text
+        JSON prediction
+        JSON validation
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    anonymization_document_paragraph {
+        UUID id PK
+        UUID document_id PK, FK
+        UUID paragraph_id PK, FK
+        INTEGER order
+    }
+
+    datapublic_document {
+        UUID id PK
+        JSON prediction
+        JSON validation
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    datapublic_paragraph {
+        UUID id PK
+        TEXT text
+        JSON prediction
+        JSON validation
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    datapublic_document_paragraph {
+        UUID id PK
+        UUID document_id PK, FK
+        UUID paragraph_id PK, FK
+        INTEGER order
+    }
+
+    llm_summarization {
+        UUID id PK
+        TEXT title
+        TEXT text
+        TEXT summary
+        JSON validation
+        JSON config
+        JSON steps
+        INTEGER chunks_used
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    audio_transcription {
+        UUID id PK
+        TEXT name
+        JSON transcription
+        JSON validation
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    anonymization_document ||--o{ anonymization_document_paragraph : links
+    anonymization_paragraph ||--o{ anonymization_document_paragraph : links
+    datapublic_document ||--o{ datapublic_document_paragraph : links
+    datapublic_paragraph ||--o{ datapublic_document_paragraph : links
+```
 
 ## Tablas
 
@@ -83,6 +161,45 @@ La clave primaria es compuesta por `id`, `document_id`, `paragraph_id`.
 
 La clave primaria es compuesta por `id`, `document_id`, `paragraph_id`.
 
+### `llm_summarization`
+Escrita por el flujo de sumarización. Es autónoma: no tiene claves foráneas a las
+tablas de párrafos, porque un resumen se indexa por el texto fuente completo.
+
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Clave primaria, `text_to_uuid(text)` del documento fuente |
+| `title` | `TEXT` | sí | Título asignado por la persona, escrito por el endpoint de validación |
+| `text` | `TEXT` | no | Texto fuente que se resumió |
+| `summary` | `TEXT` | no | Resumen generado por el modelo (markdown) |
+| `validation` | `JSON` | sí | Resumen editado por la persona (`JSONContent` de TipTap); `null` hasta validarse |
+| `config` | `JSON` | no | `SummarizationConfig` que produjo el resumen (`model`, `system_prompt`, `options`) |
+| `steps` | `JSON` | no | Lista de `SummarizationStep` por chunk (`chunk_index`, `input_tokens`, `source`) |
+| `chunks_used` | `INTEGER` | no | Cantidad de chunks que consumió la sumarización rolling |
+| `created_at` | `DATETIME` | no | Default del server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza al modificar la fila |
+
+`summary` y `validation` deliberadamente **no** se colapsan en una sola columna:
+son artefactos distintos (markdown vs. documento de editor) y el cliente elige
+cuál renderizar.
+
+### `audio_transcription`
+Escrita por el flujo de ASR. También autónoma, indexada por un hash de los bytes
+del audio y no de un texto.
+
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Clave primaria, `data_to_uuid(audio_bytes)` |
+| `name` | `TEXT` | no | Nombre de archivo original, o el id del documento si no hay |
+| `transcription` | `JSON` | no | Transcripción del modelo (`list[ASRParagraph]`) |
+| `validation` | `JSON` | no | Párrafos corregidos por la persona (`list[ASRParagraph]`); lista vacía hasta validarse |
+| `created_at` | `DATETIME` | no | Default del server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza al modificar la fila |
+
+A diferencia de `llm_summarization`, acá las lecturas **sí** colapsan:
+`ASRDocument.from_transcription` devuelve `validation or transcription`, así que
+una transcripción validada tapa a la del modelo.
+
+
 ## Mapeo endpoint -> persistencia
 
 ### Anonymizer
@@ -108,6 +225,29 @@ La clave primaria es compuesta por `id`, `document_id`, `paragraph_id`.
   - Lee `datapublic_document.validation`.
 - `POST /api/datapublic/validation/document/{document_id}`
   - Hace upsert de `datapublic_document.validation`.
+
+### Sumarización
+- `POST /api/llm/summarize` y `POST /api/llm/summarize/stream`
+  - Leen `llm_summarization` por `text_to_uuid(text)` cuando `use_cache=true`.
+  - Si no hay hit, insertan o reemplazan la fila; escribir un resumen nuevo
+    **borra** cualquier `validation` almacenada.
+  - Un hit de cache reproduce la fila almacenada sin llamar al proveedor y deja
+    `validation` intacta.
+- `GET /api/llm/summarize/validation/document/{document_id}`
+  - Lee la fila completa; `404` si no existe.
+- `POST /api/llm/summarize/validation/document/{document_id}`
+  - Escribe `validation` (y `title` si se envía). Nunca toca `summary`.
+
+### Transcripción (ASR)
+- `POST /api/asr/transcribe` y `POST /api/asr/transcribe/stream`
+  - Leen `audio_transcription` por `data_to_uuid(audio_bytes)` cuando `use_cache=true`.
+  - Si no hay hit, insertan o reemplazan la fila con la `transcription` del modelo.
+- `GET /api/asr/validation/document/{document_id}`
+  - Lee la fila; `404` si no existe. Devuelve `validation` cuando no está vacía,
+    y `transcription` en caso contrario.
+- `POST /api/asr/validation/document/{document_id}`
+  - Escribe `validation` (y `name` cuando se envía un `title`).
+
 
 ## Nota legacy
 Los módulos de rutas para CRUD de dataset (`/api/datapublic/dataset/*`) existen en código pero no están montados en el router público. No deben tratarse como API pública activa hasta su exposición en `core.router`.
