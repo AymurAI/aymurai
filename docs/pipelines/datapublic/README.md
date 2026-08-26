@@ -9,7 +9,7 @@ This flow extracts structured information from paragraphs and supports document-
 ## Diagram
 ```mermaid
 flowchart TD
-    A["document (.docx / .pdf / .odt)"] --> B["POST /api/misc/document-extract"]
+    A["document (.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
     B --> C["normalized paragraphs"]
     C --> D["POST /api/datapublic/predict/{document_id}"]
 

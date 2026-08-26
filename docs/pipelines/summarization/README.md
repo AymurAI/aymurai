@@ -34,7 +34,7 @@ no weights — you supply a GGUF. See the
 
 ```mermaid
 flowchart TD
-    A["document<br/>(.docx / .pdf / .odt)"] --> B["POST /api/misc/document-extract"]
+    A["document<br/>(.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
     B --> C["paragraphs joined into source text"]
     C --> D["POST /api/llm/summarize<br/>(or /summarize/stream)"]
     D --> E{"cached row for<br/>text_to_uuid(text)?"}

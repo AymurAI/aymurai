@@ -87,11 +87,14 @@ for (const { src, out, maxWidth } of DIAGRAMS) {
   }, diagram)
 
   // Quantizing to a 128-colour palette is what actually keeps these under the
-  // size limit — these are line drawings, so the loss is invisible.
+  // size limit — these are line drawings, so the loss is invisible. dither: 0
+  // is not cosmetic: sharp's default dithering is non-deterministic, so without
+  // it an unchanged diagram re-renders to different bytes and shows up as a
+  // spurious diff on every run.
   const png = await sharp(Buffer.from(dataUrl.split(',')[1], 'base64'))
     .flatten({ background: '#ffffff' })
     .resize({ width: maxWidth, withoutEnlargement: true })
-    .png({ palette: true, colours: 128, compressionLevel: 9 })
+    .png({ palette: true, colours: 128, dither: 0, compressionLevel: 9 })
     .toBuffer()
 
   fs.writeFileSync(path.join(REPO, out), png)

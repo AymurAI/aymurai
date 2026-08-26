@@ -35,7 +35,7 @@ llama.cpp no incluye pesos — el GGUF lo provee quien despliega. Ver la
 
 ```mermaid
 flowchart TD
-    A["documento<br/>(.docx / .pdf / .odt)"] --> B["POST /api/misc/document-extract"]
+    A["documento<br/>(.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
     B --> C["párrafos unidos en el texto fuente"]
     C --> D["POST /api/llm/summarize<br/>(o /summarize/stream)"]
     D --> E{"¿fila cacheada para<br/>text_to_uuid(text)?"}

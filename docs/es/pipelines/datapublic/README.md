@@ -9,7 +9,7 @@ Este flujo extrae información estructurada a partir de párrafos y soporta pers
 ## Diagrama
 ```mermaid
 flowchart TD
-    A["documento (.docx / .pdf / .odt)"] --> B["POST /api/misc/document-extract"]
+    A["documento (.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
     B --> C["párrafos normalizados"]
     C --> D["POST /api/datapublic/predict/{document_id}"]
 

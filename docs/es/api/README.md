@@ -173,7 +173,9 @@ curl -s http://localhost:8899/api/server/stats/summary
 #### `POST /api/misc/document-extract`
 #### `POST /api/document-extract` (alias deprecado)
 - Request: `multipart/form-data` con `file`
-- MIME types soportados en extracción: DOCX, ODT, PDF
+- Formatos de entrada aceptados: DOCX, PDF
+- El extractor todavía parsea ODT, pero el formato está **deprecado** como
+  entrada: la aplicación rechaza los `.odt`, así que no conviene depender de él.
 - Respuesta `200`:
 
 ```json
