@@ -26,8 +26,6 @@ flowchart LR
     C --> D["CRF"]
     D --> E["BIO-tagged spans"]
 ```
-<sub>Architecture as described below; the diagram is derived from this model
-card's own text, not from training artifacts.</sub>
 
 Following the Flair guidelines for training a NER model, we trained this model on top of [BETO embeddings](https://huggingface.co/dccuchile/bert-base-spanish-wwm-uncased), a Spanish version of BERT trained on a Spanish corpus, with a BiLSTM-CRF architecture.
 

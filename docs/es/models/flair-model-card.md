@@ -26,8 +26,6 @@ flowchart LR
     C --> D["CRF"]
     D --> E["spans etiquetados en BIO"]
 ```
-<sub>Arquitectura según se describe abajo; el diagrama se deriva del texto de
-esta misma model card, no de artefactos de entrenamiento.</sub>
 
 Siguiendo las guías de Flair para entrenar un modelo de NER, este modelo se entrenó sobre [embeddings BETO](https://huggingface.co/dccuchile/bert-base-spanish-wwm-uncased), una versión en español de BERT entrenada sobre un corpus en español, con una arquitectura BiLSTM-CRF.
 
