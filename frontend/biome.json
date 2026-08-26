@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
   "vcs": {
     "enabled": false,
     "clientKind": "git",
@@ -7,38 +7,37 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": [
-      "node_modules",
-      "build",
-      "dist",
-      ".husky",
-      "out",
-      "routeTree.gen.ts",
-      "src/renderer/src/styled/**",
-      "playwright/.cache/**",
-      "playwright-report",
-      "test-results",
-      ".worktrees",
-      ".claude/settings.local.json",
-      ".orquestalite",
-      "tasks",
-      "team.json",
-      "flows.json",
-      "prompts",
-      "schemas"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/build",
+      "!**/dist",
+      "!**/.husky",
+      "!**/out",
+      "!**/routeTree.gen.ts",
+      "!**/src/renderer/src/styled",
+      "!**/playwright/.cache",
+      "!**/playwright-report",
+      "!**/test-results",
+      "!**/.worktrees",
+      "!**/.claude/settings.local.json",
+      "!**/.orquestalite",
+      "!**/tasks",
+      "!**/team.json",
+      "!**/flows.json",
+      "!**/prompts",
+      "!**/schemas"
     ]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space"
   },
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "performance": {
         "noAccumulatingSpread": "warn",
         "noDelete": "warn"
@@ -57,9 +56,7 @@
         "useSelfClosingElements": {
           "fix": "safe",
           "level": "error"
-        }
-      },
-      "nursery": {
+        },
         "noRestrictedImports": {
           "level": "error",
           "options": {
@@ -70,12 +67,30 @@
           }
         }
       },
+      "nursery": {},
       "suspicious": {
-        "noConsoleLog": "warn"
+        "noConsole": {
+          "level": "warn",
+          "options": {
+            "allow": [
+              "error",
+              "warn",
+              "info",
+              "debug",
+              "trace",
+              "assert",
+              "table",
+              "group",
+              "groupEnd"
+            ]
+          }
+        }
       },
       "a11y": {
         "noSvgWithoutTitle": "off",
-        "useKeyWithClickEvents": "off"
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "warn",
+        "useSemanticElements": "warn"
       }
     }
   },
