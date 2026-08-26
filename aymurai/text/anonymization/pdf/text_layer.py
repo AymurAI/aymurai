@@ -127,18 +127,23 @@ def _merge_word_runs(
     return merged
 
 
-def _rebuild_page_text_layer(page: pymupdf.Page, token_ops: list[dict]) -> None:
+def _collect_page_text_runs(
+    page: pymupdf.Page, token_ops: list[dict]
+) -> list[tuple[str, Any]]:
     """
-    Re-serializes a scan page's text layer in reading order.
+    Collects a scan page's reading-order runs and strips its text layer.
 
-    Replacement tokens are re-rendered inline between the surrounding words
-    so text selection and copy/paste follow the visual reading order instead
-    of trailing the page (tokens are otherwise appended after all original
-    content by the redaction pipeline).
+    The text layer is stripped here (rather than after collection) so the
+    page's hidden OCR text does not linger past this point: downstream
+    document sanitization scrubs hidden text, which would otherwise remove
+    the runs collected here before they get a chance to be re-inserted.
 
     Args:
         page (pymupdf.Page): The PDF page being processed.
         token_ops (list[dict]): The rendered token operations on the page.
+
+    Returns:
+        list[tuple[str, Any]]: The merged (kind, payload) reading-order runs.
     """
     anchors = [
         (rect, op) for op in token_ops if (rect := _op_anchor_rect(op)) is not None
@@ -170,6 +175,22 @@ def _rebuild_page_text_layer(page: pymupdf.Page, token_ops: list[dict]) -> None:
         text=pymupdf.PDF_REDACT_TEXT_REMOVE,
     )
 
+    return runs
+
+
+def _apply_page_text_runs(page: pymupdf.Page, runs: list[tuple[str, Any]]) -> None:
+    """
+    Re-serializes a scan page's text layer in reading order.
+
+    Replacement tokens are re-rendered inline between the surrounding words
+    so text selection and copy/paste follow the visual reading order instead
+    of trailing the page (tokens are otherwise appended after all original
+    content by the redaction pipeline).
+
+    Args:
+        page (pymupdf.Page): The PDF page being processed.
+        runs (list[tuple[str, Any]]): The merged (kind, payload) reading-order runs.
+    """
     for kind, payload in runs:
         if kind == "token":
             _, op = payload
@@ -179,29 +200,33 @@ def _rebuild_page_text_layer(page: pymupdf.Page, token_ops: list[dict]) -> None:
             _insert_invisible_text(page, run_rect, run_text)
 
 
-def _rebuild_scan_text_layers(
+def _scan_pages_pending_rebuild(
     doc: pymupdf.Document,
     page_ops: dict[int, list[dict]],
     signature_widget_ops: dict[int, list[dict]],
-) -> None:
+) -> dict[int, list[dict]]:
     """
-    Rebuilds the text layers of scanned pages that received redactions.
+    Finds pages backed by a page-sized scan image that received redactions.
 
-    Only pages backed by a page-sized scan image are rebuilt: their text
-    layer is invisible (painted under the scan), so re-serializing it cannot
-    change the page's appearance while it restores the reading order of the
+    Only such pages need their text layer rebuilt: their text layer is
+    invisible (painted under the scan), so re-serializing it cannot change
+    the page's appearance while it restores the reading order of the
     extracted text.
 
     Args:
         doc (pymupdf.Document): The PDF document being processed.
         page_ops (dict[int, list[dict]]): The applied page operations grouped by page index.
         signature_widget_ops (dict[int, list[dict]]): The applied signature operations grouped by page index.
+
+    Returns:
+        dict[int, list[dict]]: The token operations of pages pending rebuild, grouped by page index.
     """
     token_ops_by_page: dict[int, list[dict]] = {}
     for ops_by_page in (page_ops, signature_widget_ops):
         for page_index, ops in ops_by_page.items():
             token_ops_by_page.setdefault(page_index, []).extend(ops)
 
+    pending: dict[int, list[dict]] = {}
     for page_index, ops in token_ops_by_page.items():
         if not ops:
             continue
@@ -211,5 +236,52 @@ def _rebuild_scan_text_layers(
         if not any(_is_page_background_image(page, rect) for rect in image_rects):
             continue
 
-        logger.info("rebuilding text layer in reading order: page=%s", page_index)
-        _rebuild_page_text_layer(page, ops)
+        pending[page_index] = ops
+
+    return pending
+
+
+def _collect_scan_text_layers(
+    doc: pymupdf.Document,
+    page_ops: dict[int, list[dict]],
+    signature_widget_ops: dict[int, list[dict]],
+) -> dict[int, list[tuple[str, Any]]]:
+    """
+    Collects and strips the text layers of scanned pages that received redactions.
+
+    Must run before document-wide hidden-text scrubbing: it strips each
+    page's own text layer immediately after reading it, so scrubbing never
+    sees (and cannot remove) the runs collected here.
+
+    Args:
+        doc (pymupdf.Document): The PDF document being processed.
+        page_ops (dict[int, list[dict]]): The applied page operations grouped by page index.
+        signature_widget_ops (dict[int, list[dict]]): The applied signature operations grouped by page index.
+
+    Returns:
+        dict[int, list[tuple[str, Any]]]: The collected runs grouped by page index.
+    """
+    pending = _scan_pages_pending_rebuild(doc, page_ops, signature_widget_ops)
+
+    runs_by_page: dict[int, list[tuple[str, Any]]] = {}
+    for page_index, ops in pending.items():
+        logger.info("collecting text layer in reading order: page=%s", page_index)
+        runs_by_page[page_index] = _collect_page_text_runs(doc[page_index], ops)
+
+    return runs_by_page
+
+
+def _reapply_scan_text_layers(
+    doc: pymupdf.Document,
+    runs_by_page: dict[int, list[tuple[str, Any]]],
+) -> None:
+    """
+    Re-inserts the previously collected text layers of scanned pages.
+
+    Args:
+        doc (pymupdf.Document): The PDF document being processed.
+        runs_by_page (dict[int, list[tuple[str, Any]]]): The collected runs grouped by page index.
+    """
+    for page_index, runs in runs_by_page.items():
+        logger.info("reapplying text layer in reading order: page=%s", page_index)
+        _apply_page_text_runs(doc[page_index], runs)

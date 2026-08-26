@@ -25,7 +25,10 @@ from aymurai.text.anonymization.pdf.sanitize import (
     _sanitize_document,
 )
 from aymurai.text.anonymization.pdf.sweep import _collect_sweep_redactions
-from aymurai.text.anonymization.pdf.text_layer import _rebuild_scan_text_layers
+from aymurai.text.anonymization.pdf.text_layer import (
+    _collect_scan_text_layers,
+    _reapply_scan_text_layers,
+)
 from aymurai.text.anonymization.pdf.watermark import add_pdf_footer_watermark
 
 
@@ -95,13 +98,18 @@ class PdfAnonymizer(BaseAnonymizer):
             for page_index, ops in sweep_ops.items():
                 page_ops.setdefault(page_index, []).extend(ops)
             _apply_redactions(doc, page_ops, widget_ops, signature_widget_ops)
-            _rebuild_scan_text_layers(doc, page_ops, signature_widget_ops)
+            scan_text_runs = _collect_scan_text_layers(
+                doc,
+                page_ops,
+                signature_widget_ops,
+            )
             cleanup_rects = _collect_link_cleanup_rects(
                 page_ops,
                 widget_ops,
                 signature_widget_ops,
             )
             _sanitize_document(doc, cleanup_rects)
+            _reapply_scan_text_layers(doc, scan_text_runs)
             add_pdf_footer_watermark(doc)
 
             os.makedirs(output_dir, exist_ok=True)
