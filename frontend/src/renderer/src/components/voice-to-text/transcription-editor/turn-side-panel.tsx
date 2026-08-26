@@ -1,6 +1,14 @@
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  SidePanel,
+  TooltipProvider,
+} from "@aymurai/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-
 import SidePanelColumn from "@/components/layout/side-panel-column";
 import { formatTime } from "@/components/voice-to-text/format-time";
 import { showToast } from "@/features/showToast";
@@ -26,15 +34,6 @@ import type {
   Transcription,
   Turn,
 } from "@/types/transcription";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  SidePanel,
-  TooltipProvider,
-} from "@aymurai/ui";
 import { parseTimestampToMs } from "./parse-timestamp";
 
 // A newly-inserted turn needs a real (non-zero) time span, or it can never

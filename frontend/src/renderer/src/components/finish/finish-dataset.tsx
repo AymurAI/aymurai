@@ -1,11 +1,11 @@
+import { Button } from "@aymurai/ui";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFiles } from "@/hooks/useFiles";
 import filesystem from "@/services/filesystem";
 import { HStack } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
 import { submitValidations } from "@/utils/file";
-import { Button } from "@aymurai/ui";
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import FileCheck from "../file-check";
 import Footer from "../layout/footer";
 import FinishMainContent from "./finish-main-content";

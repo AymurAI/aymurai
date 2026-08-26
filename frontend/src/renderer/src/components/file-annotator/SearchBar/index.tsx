@@ -1,12 +1,11 @@
+import { Button, Toolbar } from "@aymurai/ui";
 import { useEffect, useRef, useState } from "react";
-
 import AnonymizerLabelSelect from "@/components/anonymizer/anonymizer-label-select";
 import { useExcludedTagsConfig } from "@/store/useLocal";
 import { css } from "@/styled/css";
 import { styled } from "@/styled/jsx";
 import type { SelectOption } from "@/types/select";
 import { getActiveAnonymizerLabelOptions } from "@/utils/anonymizer/labels";
-import { Button, Toolbar } from "@aymurai/ui";
 import { SEARCH_MIN_LENGTH } from "../annotations";
 
 const toolbarContainer = css({

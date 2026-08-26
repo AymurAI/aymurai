@@ -1,20 +1,3 @@
-import HiddenInput from "@/components/hidden-input";
-import Footer from "@/components/layout/footer";
-import Header from "@/components/layout/header";
-import MainContent from "@/components/layout/main-content";
-import BackButton from "@/components/ui/back-button";
-import ScrollArea from "@/components/ui/scroll-area";
-import { MEDIA_EXTENSIONS } from "@/constants/config";
-import RequireFile from "@/features/RequireFile";
-import { useFileDispatch, useFiles } from "@/hooks";
-import { useTranscribe } from "@/hooks/useTranscribe";
-import { useTranscriptionDispatch } from "@/hooks/useTranscriptions";
-import { SectionTitle } from "@/layout/section-title";
-import { addFiles, removeAllFiles } from "@/reducers/file/actions";
-import taskbar from "@/services/taskbar";
-import { css } from "@/styled/css";
-import { HStack, Stack, styled } from "@/styled/jsx";
-import { FeatureFlowEnum } from "@/types/features";
 import {
   ArchiveProgress,
   type ArchiveProgressStatus,
@@ -32,6 +15,23 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import HiddenInput from "@/components/hidden-input";
+import Footer from "@/components/layout/footer";
+import Header from "@/components/layout/header";
+import MainContent from "@/components/layout/main-content";
+import BackButton from "@/components/ui/back-button";
+import ScrollArea from "@/components/ui/scroll-area";
+import { MEDIA_EXTENSIONS } from "@/constants/config";
+import RequireFile from "@/features/RequireFile";
+import { useFileDispatch, useFiles } from "@/hooks";
+import { useTranscribe } from "@/hooks/useTranscribe";
+import { useTranscriptionDispatch } from "@/hooks/useTranscriptions";
+import { SectionTitle } from "@/layout/section-title";
+import { addFiles, removeAllFiles } from "@/reducers/file/actions";
+import taskbar from "@/services/taskbar";
+import { css } from "@/styled/css";
+import { HStack, Stack, styled } from "@/styled/jsx";
+import { FeatureFlowEnum } from "@/types/features";
 
 const previewFrame = css({
   alignSelf: "stretch",

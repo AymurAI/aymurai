@@ -1,8 +1,7 @@
+import { CaretUp } from "phosphor-react";
 import { useState } from "react";
-
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
-import { CaretUp } from "phosphor-react";
 
 const header = css({
   cursor: "pointer",

@@ -1,4 +1,3 @@
-import type { EntityGroup } from "@/hooks/useEntityGroups";
 import {
   Button,
   Dialog,
@@ -6,6 +5,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@aymurai/ui";
+import type { EntityGroup } from "@/hooks/useEntityGroups";
 
 interface MergeDialogProps {
   source: EntityGroup | null;

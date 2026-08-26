@@ -1,6 +1,6 @@
 import installer, {
-  REACT_DEVELOPER_TOOLS,
   EMBER_INSPECTOR,
+  REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
 
 export const installExtensions = async (): Promise<unknown> => {

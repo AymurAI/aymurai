@@ -1,6 +1,6 @@
+import { describe, expect, it } from "vitest";
 import { PERSONA_LABEL_TEMPLATE } from "@/constants/i18n/locales/es/voice-to-text";
 import { SPEAKER_PALETTE, type Transcription } from "@/types/transcription";
-import { describe, expect, it } from "vitest";
 import {
   addPersonaSpeaker,
   clearTranscriptions,

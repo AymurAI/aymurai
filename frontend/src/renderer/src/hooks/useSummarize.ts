@@ -3,9 +3,9 @@ import { CanceledError } from "axios";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  type SummaryAction,
   finish,
   restoreValidation,
+  type SummaryAction,
   setPartialText,
   start,
   stop,

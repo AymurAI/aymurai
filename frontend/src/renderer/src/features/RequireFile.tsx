@@ -1,6 +1,6 @@
-import { useFiles } from "@/hooks";
 import { Navigate, useParams } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { useFiles } from "@/hooks";
 
 interface Props {
   children: ReactNode;

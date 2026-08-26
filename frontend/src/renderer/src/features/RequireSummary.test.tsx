@@ -1,6 +1,6 @@
-import { type SummaryState, useSummary } from "@/context/Summary";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { type SummaryState, useSummary } from "@/context/Summary";
 import RequireSummary from "./RequireSummary";
 
 vi.mock("@/context/Summary", () => ({

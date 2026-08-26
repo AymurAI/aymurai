@@ -1,7 +1,3 @@
-import { FEATURE_ICON } from "@/constants/config";
-import { useFileDispatch } from "@/hooks/useFiles";
-import { removeAllFiles } from "@/reducers/file/actions";
-import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import {
   Button,
   FeaturesMenu as FeaturesMenuGrid,
@@ -14,6 +10,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { DotsNine, Gear } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
+import { FEATURE_ICON } from "@/constants/config";
+import { useFileDispatch } from "@/hooks/useFiles";
+import { removeAllFiles } from "@/reducers/file/actions";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 
 interface FeaturesMenuProps {
   trigger?: ReactElement;

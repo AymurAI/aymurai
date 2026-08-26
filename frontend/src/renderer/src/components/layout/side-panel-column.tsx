@@ -1,5 +1,5 @@
-import { cva, cx } from "@/styled/css";
 import type { ComponentPropsWithoutRef } from "react";
+import { cva, cx } from "@/styled/css";
 
 /**
  * `SidePanelColumn` unifies the two docked-panel implementations that today

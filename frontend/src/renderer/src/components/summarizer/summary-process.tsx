@@ -1,3 +1,16 @@
+import {
+  Button,
+  Callout,
+  Card,
+  CheckCircle,
+  documentFromMarkdown,
+  RichTextEditor,
+  Spinner,
+} from "@aymurai/ui";
+import { useNavigate } from "@tanstack/react-router";
+import { Info } from "phosphor-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
@@ -12,19 +25,6 @@ import taskbar from "@/services/taskbar";
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import {
-  Button,
-  Callout,
-  Card,
-  CheckCircle,
-  RichTextEditor,
-  Spinner,
-  documentFromMarkdown,
-} from "@aymurai/ui";
-import { useNavigate } from "@tanstack/react-router";
-import { Info } from "phosphor-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 const previewFrame = css({
   alignSelf: "stretch",

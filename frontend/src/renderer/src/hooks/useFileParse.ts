@@ -1,10 +1,9 @@
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-
 import { useFileDispatch } from "@/hooks";
 import { addParagraphs } from "@/reducers/file/actions";
 import { fileParser } from "@/services/aymurai/queries";
 import type { DocFile } from "@/types/file";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 import type { PredictStatus } from "./usePredict";
 

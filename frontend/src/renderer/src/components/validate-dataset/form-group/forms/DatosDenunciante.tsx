@@ -1,5 +1,5 @@
-import { LabelType } from "@/types/aymurai";
 import { Select } from "@aymurai/ui";
+import { LabelType } from "@/types/aymurai";
 import Input from "../../../uncontrolled-input";
 import ValidationForm from "../../../validation-form";
 import type { FormProps } from "../FormGroup.types";

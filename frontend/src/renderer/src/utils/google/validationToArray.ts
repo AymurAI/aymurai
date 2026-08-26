@@ -2,10 +2,10 @@ import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
 import type { DocFile } from "@/types/file";
 import { excelStructure, flatValidation } from "@/utils/file";
 import {
+  treateV_X,
   treatFRASES_AGRESION,
   treatORAL_ESCRITA,
   treatVIOLENCIA_FISICA,
-  treateV_X,
 } from "./utils";
 
 /**

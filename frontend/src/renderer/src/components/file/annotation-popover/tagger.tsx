@@ -1,22 +1,19 @@
-import { useState } from "react";
-
-import { sva } from "@/styled/css";
-import { styled } from "@/styled/jsx";
-import { hstack } from "@/styled/patterns";
-
-import AnonymizerLabelSelect from "@/components/anonymizer/anonymizer-label-select";
-import { useAnnotation } from "@/context/Annotation";
-import { useExcludedTagsConfig } from "@/store/useLocal";
-import type { AllLabels } from "@/types/aymurai";
-import type { SelectOption } from "@/types/select";
-import { getActiveAnonymizerLabelOptions } from "@/utils/anonymizer/labels";
-
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@aymurai/ui";
+import { useState } from "react";
+import AnonymizerLabelSelect from "@/components/anonymizer/anonymizer-label-select";
+import { useAnnotation } from "@/context/Annotation";
+import { useExcludedTagsConfig } from "@/store/useLocal";
+import { sva } from "@/styled/css";
+import { styled } from "@/styled/jsx";
+import { hstack } from "@/styled/patterns";
+import type { AllLabels } from "@/types/aymurai";
+import type { SelectOption } from "@/types/select";
+import { getActiveAnonymizerLabelOptions } from "@/utils/anonymizer/labels";
 
 import TaggerButton from "./tagger-button";
 

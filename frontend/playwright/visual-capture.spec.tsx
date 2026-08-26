@@ -1,7 +1,7 @@
+import { expect, test } from "@playwright/experimental-ct-react";
 import { FileAnnotatorFixture } from "@/test/playwright-fixtures/file-annotator-fixture";
 import { TranscriptionEditorFixture } from "@/test/playwright-fixtures/transcription-editor-fixture";
 import { ValidateDatasetFixture } from "@/test/playwright-fixtures/validate-dataset-fixture";
-import { expect, test } from "@playwright/experimental-ct-react";
 
 /**
  * Screenshot capture for visual review — NOT a regression guard.

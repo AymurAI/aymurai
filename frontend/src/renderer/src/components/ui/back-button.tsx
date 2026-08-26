@@ -1,6 +1,6 @@
-import { css, cx } from "@/styled/css";
 import { createLink } from "@tanstack/react-router";
 import { ArrowLeft } from "phosphor-react";
+import { css, cx } from "@/styled/css";
 
 const link = css({
   cursor: "pointer",

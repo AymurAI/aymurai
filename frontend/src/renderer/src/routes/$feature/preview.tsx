@@ -1,15 +1,3 @@
-import { FilePreview } from "@/components";
-import FileSelectionLayout from "@/components/layout/file-selection-layout";
-import Footer from "@/components/layout/footer";
-import Header from "@/components/layout/header";
-import MainContent from "@/components/layout/main-content";
-import BackButton from "@/components/ui/back-button";
-import RequireFile from "@/features/RequireFile";
-import { useFileDispatch, useFiles } from "@/hooks";
-import { useFileParse } from "@/hooks/useFileParse";
-import { removeAllFiles } from "@/reducers/file/actions";
-import { Stack, styled } from "@/styled/jsx";
-import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import { Button, Card } from "@aymurai/ui";
 import {
   createFileRoute,
@@ -17,8 +5,19 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-
+import { FilePreview } from "@/components";
+import FileSelectionLayout from "@/components/layout/file-selection-layout";
+import Footer from "@/components/layout/footer";
+import Header from "@/components/layout/header";
+import MainContent from "@/components/layout/main-content";
+import BackButton from "@/components/ui/back-button";
 import VoicePreview from "@/components/voice-to-text/preview";
+import RequireFile from "@/features/RequireFile";
+import { useFileDispatch, useFiles } from "@/hooks";
+import { useFileParse } from "@/hooks/useFileParse";
+import { removeAllFiles } from "@/reducers/file/actions";
+import { Stack, styled } from "@/styled/jsx";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 
 export const Route = createFileRoute("/$feature/preview")({
   component: RouteComponent,

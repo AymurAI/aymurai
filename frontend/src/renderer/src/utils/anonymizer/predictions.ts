@@ -1,8 +1,8 @@
 import { EXCLUDED_TAGS } from "@/constants/excluded-tags";
 import {
   type AnonymizerLabels,
-  type PredictLabel,
   anonymizerLabels,
+  type PredictLabel,
 } from "@/types/aymurai";
 import {
   normalizeEntityText,

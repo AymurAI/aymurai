@@ -1,5 +1,5 @@
-import { css, cva, cx } from "@/styled/css";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { css, cva, cx } from "@/styled/css";
 
 /**
  * The three reading-column rules from tasks/responsive/plan.md, encoded as

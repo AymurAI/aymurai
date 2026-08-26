@@ -1,3 +1,9 @@
+import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
+import type { DocFile } from "@/types/file";
+import {
+  normalizeEntityText,
+  stripEntityLabelSuffix,
+} from "@/utils/anonymizer/entity-similarity";
 import {
   ActionTypes,
   type AddFilesAction,
@@ -12,10 +18,10 @@ import {
   type RemoveAllPredictionsAction,
   type RemoveFileAction,
   type RemovePrediction,
-  type RemovePredictionValueByCanonicalId,
   type RemovePredictionsAction,
   type RemovePredictionsByCanonicalId,
   type RemovePredictionsByText,
+  type RemovePredictionValueByCanonicalId,
   type ReplaceFileAction,
   type SetDurationAction,
   type UpdatePredictionLabel,
@@ -29,13 +35,6 @@ import {
   replaceFile,
   updateFromState,
 } from "./utils";
-
-import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
-import type { DocFile } from "@/types/file";
-import {
-  normalizeEntityText,
-  stripEntityLabelSuffix,
-} from "@/utils/anonymizer/entity-similarity";
 
 type State = DocFile[];
 

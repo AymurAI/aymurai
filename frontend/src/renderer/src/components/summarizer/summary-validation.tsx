@@ -1,3 +1,7 @@
+import { Button, Callout, RichTextEditor } from "@aymurai/ui";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import DocumentSearchPanel from "@/components/summarizer/document-search-panel";
@@ -14,10 +18,6 @@ import { summaryValidationClient } from "@/services/aymurai/summaryValidationCli
 import { css } from "@/styled/css";
 import { Grid } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import { Button, Callout, RichTextEditor } from "@aymurai/ui";
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 // Grid items stretch to the row height by default, but their content can
 // still overflow that stretched box unless min-height is pinned to 0 —

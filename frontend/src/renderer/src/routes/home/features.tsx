@@ -1,3 +1,11 @@
+import { CardTool } from "@aymurai/ui";
+import {
+  createFileRoute,
+  Link,
+  type LinkComponentProps,
+} from "@tanstack/react-router";
+import type { Icon } from "phosphor-react";
+import { useTranslation } from "react-i18next";
 import BuiltBy from "@/components/brand/built-by";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
@@ -6,14 +14,6 @@ import APIProtected from "@/features/APIProtected";
 import { css } from "@/styled/css";
 import { Grid, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import { CardTool } from "@aymurai/ui";
-import {
-  Link,
-  type LinkComponentProps,
-  createFileRoute,
-} from "@tanstack/react-router";
-import type { Icon } from "phosphor-react";
-import { useTranslation } from "react-i18next";
 
 const featureCard = css({ minH: "[195px]" });
 

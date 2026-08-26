@@ -1,8 +1,8 @@
+import { Button, FileDropZone } from "@aymurai/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type ChangeEventHandler, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-
 import HiddenInput from "@/components/hidden-input";
 import HowItWorks from "@/components/how-it-works";
 import FileSelectionLayout from "@/components/layout/file-selection-layout";
@@ -18,7 +18,6 @@ import { useSetTutorialSeen, useTutorialSeen } from "@/store/useLocal";
 import { HStack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
 import { isAllowed } from "@/utils/file";
-import { Button, FileDropZone } from "@aymurai/ui";
 
 export default function VoiceOnboarding() {
   const { t } = useTranslation("voice-to-text");

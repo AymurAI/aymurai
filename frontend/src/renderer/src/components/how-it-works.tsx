@@ -1,10 +1,10 @@
-import { SectionTitle } from "@/layout/section-title";
-import { Stack } from "@/styled/jsx";
-import { type FeatureFlowEnum, featureNamespace } from "@/types/features";
 import { TutorialGrid, type TutorialStep } from "@aymurai/ui";
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { SectionTitle } from "@/layout/section-title";
+import { Stack } from "@/styled/jsx";
+import { type FeatureFlowEnum, featureNamespace } from "@/types/features";
 
 type FeatureTutorialT = TFunction<(typeof featureNamespace)[FeatureFlowEnum]>;
 

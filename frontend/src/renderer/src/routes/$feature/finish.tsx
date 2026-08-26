@@ -1,20 +1,19 @@
-import FinishAnonymizer from "@/components/finish/finish-anonymizer";
-import FinishDataset from "@/components/finish/finish-dataset";
-import Header from "@/components/layout/header";
-import RequireFile from "@/features/RequireFile";
-import RequireSummary from "@/features/RequireSummary";
-import { useFileDispatch } from "@/hooks";
-import { removeAllFiles } from "@/reducers/file/actions";
-import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import {
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-
+import FinishAnonymizer from "@/components/finish/finish-anonymizer";
+import FinishDataset from "@/components/finish/finish-dataset";
+import Header from "@/components/layout/header";
 import SummaryFinish from "@/components/summarizer/summary-finish";
 import VoiceFinish from "@/components/voice-to-text/finish";
+import RequireFile from "@/features/RequireFile";
+import RequireSummary from "@/features/RequireSummary";
+import { useFileDispatch } from "@/hooks";
+import { removeAllFiles } from "@/reducers/file/actions";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 
 export const Route = createFileRoute("/$feature/finish")({
   component: RouteComponent,

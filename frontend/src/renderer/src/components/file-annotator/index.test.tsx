@@ -1,6 +1,6 @@
-import type { DocFile } from "@/types/file";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { DocFile } from "@/types/file";
 import FileAnnotator from ".";
 
 // G3 issue 06: LabelManager's close button now calls useTranslation

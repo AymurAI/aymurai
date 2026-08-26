@@ -1,6 +1,6 @@
-import api from "@/services/api";
 import { documentFromPlainText } from "@aymurai/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import api from "@/services/api";
 import { noopSummaryValidationClient } from "./noopSummaryValidation";
 import { summaryValidationClient } from "./summaryValidationClient";
 

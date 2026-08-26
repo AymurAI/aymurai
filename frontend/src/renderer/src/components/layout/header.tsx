@@ -1,7 +1,7 @@
-import { useTutorialSeen } from "@/store/useLocal";
-import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import { AppHeader, type AppHeaderSlots } from "@aymurai/ui";
 import { useTranslation } from "react-i18next";
+import { useTutorialSeen } from "@/store/useLocal";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import FeaturesMenu from "../features-menu";
 import HowItWorksModal from "../how-it-works-modal";
 import HeaderLogoLink from "./header-logo-link";

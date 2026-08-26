@@ -1,11 +1,10 @@
+import { ArchiveProgress, type ArchiveProgressStatus } from "@aymurai/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ChangeEventHandler, useRef } from "react";
-
 import HiddenInput from "@/components/hidden-input";
 import { useFileDispatch } from "@/hooks";
 import type { PredictStatus } from "@/hooks/usePredict";
 import { replaceFile } from "@/reducers/file/actions";
-import { ArchiveProgress, type ArchiveProgressStatus } from "@aymurai/ui";
-import { useQueryClient } from "@tanstack/react-query";
 
 const archiveStatus: Record<PredictStatus, ArchiveProgressStatus> = {
   processing: "default",

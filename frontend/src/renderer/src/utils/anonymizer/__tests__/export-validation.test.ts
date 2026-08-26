@@ -6,13 +6,13 @@
 // exercise the real resolved-message path instead of asserting on raw
 // keys - importing the bootstrap module is a side-effect-only import.
 import "@/constants/i18n";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ANONYMIZER_FIXTURE_LABELS,
   ANONYMIZER_FIXTURE_PARAGRAPHS,
 } from "@/services/aymurai/fixtures/anonymizerPredictions";
 import type { PredictLabel } from "@/types/aymurai";
 import type { DocFile, Paragraph } from "@/types/file";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AnonymizerExportValidationError,
   assertValidAnonymizerExportState,

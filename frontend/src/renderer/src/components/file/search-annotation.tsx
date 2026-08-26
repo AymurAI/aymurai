@@ -1,9 +1,9 @@
+import AnnotationPopover from "@/components/file/annotation-popover";
 import type {
   Annotation,
   Metadata,
   SearchAnnotation as SearchAnnotationType,
 } from "@/components/file-annotator/types";
-import AnnotationPopover from "@/components/file/annotation-popover";
 import { useAnnotation } from "@/context/Annotation";
 import { cva, cx } from "@/styled/css";
 import type { AllLabels } from "@/types/aymurai";

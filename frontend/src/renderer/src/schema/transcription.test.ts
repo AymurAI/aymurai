@@ -1,9 +1,9 @@
+import { describe, expect, it } from "vitest";
 import {
   LEGACY_SPEAKER_COLORS,
   SPEAKER_COLORS,
   SPEAKER_PALETTE,
 } from "@/types/transcription";
-import { describe, expect, it } from "vitest";
 import { SpeakerSchema } from "./transcription";
 
 describe("speaker colors", () => {

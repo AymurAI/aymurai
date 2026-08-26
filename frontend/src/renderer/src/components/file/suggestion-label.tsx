@@ -1,8 +1,8 @@
+import { Suggestion } from "@aymurai/ui";
+import { type ComponentPropsWithoutRef, forwardRef } from "react";
 import { css, cx } from "@/styled/css";
 import { HStack, styled } from "@/styled/jsx";
 import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
-import { Suggestion } from "@aymurai/ui";
-import { type ComponentPropsWithoutRef, forwardRef } from "react";
 
 interface SuggestionLabelProps
   extends Omit<ComponentPropsWithoutRef<"mark">, "translate" | "color"> {

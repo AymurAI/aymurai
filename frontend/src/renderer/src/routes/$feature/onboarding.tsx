@@ -1,31 +1,28 @@
+import { Button, FileDropZone } from "@aymurai/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
-
+import { File as FileIcon } from "phosphor-react";
+import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import HiddenInput from "@/components/hidden-input";
 import HowItWorks from "@/components/how-it-works";
 import FileSelectionLayout from "@/components/layout/file-selection-layout";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
+import VoiceOnboarding from "@/components/voice-to-text/onboarding";
 import { DOCUMENT_EXTENSIONS } from "@/constants/config";
 import { useFileDispatch } from "@/hooks";
 import { addFiles, removeAllFiles } from "@/reducers/file/actions";
 import { useSetTutorialSeen, useTutorialSeen } from "@/store/useLocal";
 import { HStack, styled } from "@/styled/jsx";
-import { featureNamespace } from "@/types/features";
+import { FeatureFlowEnum, featureNamespace } from "@/types/features";
 import { isAllowed } from "@/utils/file";
 import { filesForFeatureLoad } from "@/utils/file/preview-files";
-import { Button, FileDropZone } from "@aymurai/ui";
-import { useQueryClient } from "@tanstack/react-query";
-import { File as FileIcon } from "phosphor-react";
-import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
-
-import VoiceOnboarding from "@/components/voice-to-text/onboarding";
-import { FeatureFlowEnum } from "@/types/features";
 
 // FIRST step of the processing workflow
 export const Route = createFileRoute("/$feature/onboarding")({

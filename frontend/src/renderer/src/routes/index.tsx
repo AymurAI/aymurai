@@ -1,7 +1,7 @@
-import Loading from "@/layout/loading";
-import { isWebApp } from "@/utils/app-mode";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import Loading from "@/layout/loading";
+import { isWebApp } from "@/utils/app-mode";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,

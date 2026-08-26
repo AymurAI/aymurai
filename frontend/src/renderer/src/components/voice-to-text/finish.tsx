@@ -1,7 +1,15 @@
+import {
+  Avatar,
+  Button,
+  Card,
+  Select,
+  type SelectOption,
+  Switch,
+  TooltipProvider,
+} from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
@@ -13,15 +21,6 @@ import { useExportTranscription } from "@/services/export/use-export-transcripti
 import { css } from "@/styled/css";
 import { Divider, Grid, HStack, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
-import {
-  Avatar,
-  Button,
-  Card,
-  Select,
-  type SelectOption,
-  Switch,
-  TooltipProvider,
-} from "@aymurai/ui";
 import { formatDuration } from "./use-audio-snippet";
 
 const switchRow = css({

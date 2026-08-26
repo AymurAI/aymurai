@@ -1,21 +1,19 @@
+import { Button } from "@aymurai/ui";
 import { CheckCircle } from "phosphor-react";
 import {
   Children,
+  cloneElement,
   type FormEvent,
   type FormEventHandler,
+  isValidElement,
   type ReactElement,
   type ReactNode,
-  cloneElement,
-  isValidElement,
   useEffect,
   useState,
 } from "react";
-
-import type { NativeComponent } from "@/types/component";
-import { Button } from "@aymurai/ui";
-
 import { css } from "@/styled/css";
 import { styled } from "@/styled/jsx";
+import type { NativeComponent } from "@/types/component";
 
 // `translate` (`"yes" | "no"`) and `color` (React's non-standard legacy DOM
 // attribute, `string`) are both plain HTML attributes on every element, but

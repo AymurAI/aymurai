@@ -1,5 +1,5 @@
-import { backendSummaryValidationClient } from "./summaryValidation";
 import type { SummaryValidationClient } from "./summaryValidation";
+import { backendSummaryValidationClient } from "./summaryValidation";
 
 // Single switch point: `/llm/summarize/validation/document/:id` exists
 // server-side (aymurai/api/endpoints/routers/llm/summary_validation.py), so

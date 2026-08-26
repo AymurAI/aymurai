@@ -1,7 +1,7 @@
+import { expect, test } from "@playwright/experimental-ct-react";
 import Header from "@/components/layout/header";
 import { STEPPER_HIDE_BELOW } from "@/components/layout/stepper-visibility";
 import { FeatureFlowEnum } from "@/types/features";
-import { expect, test } from "@playwright/experimental-ct-react";
 
 /**
  * Issue 01 (docs/responsive-test-2026-07-30/REPORT.md): AppHeader's

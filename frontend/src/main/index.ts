@@ -1,5 +1,5 @@
 import { electronApp, optimizer } from "@electron-toolkit/utils";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 
 import createWindow from "./createWindow";
 import { installExtensions } from "./extensions";

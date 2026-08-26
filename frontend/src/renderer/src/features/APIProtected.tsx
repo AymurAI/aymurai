@@ -1,6 +1,6 @@
-import api from "@/services/api";
 import { Navigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import api from "@/services/api";
 
 interface Props {
   children: ReactNode;

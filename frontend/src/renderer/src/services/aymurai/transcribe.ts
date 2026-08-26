@@ -6,7 +6,7 @@ import {
   USE_MOCK_STT,
 } from "@/constants/config";
 import type { Transcription } from "@/types/transcription";
-import { MOCK_PREVIEW_CHUNKS, buildFixture } from "./fixtures/transcription";
+import { buildFixture, MOCK_PREVIEW_CHUNKS } from "./fixtures/transcription";
 import { transcribeStream } from "./transcribeStream";
 
 export interface TranscribeOptions {

@@ -1,9 +1,9 @@
+import { ArchiveTabs, Button } from "@aymurai/ui";
+import { CaretLeft, CaretRight } from "phosphor-react";
 import { useFiles } from "@/hooks";
 import { css } from "@/styled/css";
 import { HStack } from "@/styled/jsx";
 import type { DocFile } from "@/types/file";
-import { ArchiveTabs, Button } from "@aymurai/ui";
-import { CaretLeft, CaretRight } from "phosphor-react";
 import { canMoveLeft as checkLeft, canMoveRight as checkRight } from "./utils";
 
 const carousel = css({

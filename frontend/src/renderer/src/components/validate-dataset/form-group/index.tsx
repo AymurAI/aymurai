@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useFileDispatch, useForm } from "@/hooks";
 import { appendValidation } from "@/reducers/file/actions";
 import type { DocFile } from "@/types/file";
-import { Suggester, countDecisiones } from "@/utils/predictions";
+import { countDecisiones, Suggester } from "@/utils/predictions";
 import DecisionTabs from "../../decision-tabs";
 import containerStyles from "./FormGroup.styles";
 import {

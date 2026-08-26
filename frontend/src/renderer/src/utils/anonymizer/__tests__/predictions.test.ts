@@ -1,5 +1,5 @@
-import type { AnonymizerLabels, PredictLabel } from "@/types/aymurai";
 import { describe, expect, it } from "vitest";
+import type { AnonymizerLabels, PredictLabel } from "@/types/aymurai";
 import {
   anonymizeQuerySignature,
   filterActivePredictions,

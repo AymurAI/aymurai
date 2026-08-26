@@ -1,4 +1,5 @@
 import RegexEscape from "regex-escape";
+
 /**
  * Hashes a word using _base64_ encoding.
  * @param word The word to be hashed.

@@ -1,5 +1,7 @@
+import { Button } from "@aymurai/ui";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
-
+import { useTranslation } from "react-i18next";
 import Footer from "@/components/layout/footer";
 import { useFileDispatch, useFiles } from "@/hooks";
 import { SectionTitle } from "@/layout/section-title";
@@ -8,9 +10,6 @@ import { css } from "@/styled/css";
 import { Grid, HStack, Stack } from "@/styled/jsx";
 import { featureNamespace } from "@/types/features";
 import { isFileValidated, isValidationCompleted } from "@/utils/file";
-import { Button } from "@aymurai/ui";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
 import FileAnnotator from "../file-annotator";
 import FileStepper from "../file-stepper";
 import FormGroup from "./form-group";

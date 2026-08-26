@@ -1,10 +1,10 @@
+import { ArchiveRow, ArchiveView, Button } from "@aymurai/ui";
+import { File as FileIcon, Trash } from "phosphor-react";
+import { useTranslation } from "react-i18next";
 import type { PredictStatus } from "@/hooks/usePredict";
 import { css } from "@/styled/css";
 import type { DocFile } from "@/types/file";
 import { formatFileSize } from "@/utils/file";
-import { ArchiveRow, ArchiveView, Button } from "@aymurai/ui";
-import { File as FileIcon, Trash } from "phosphor-react";
-import { useTranslation } from "react-i18next";
 
 const escapeMarkup = (value: string) =>
   value

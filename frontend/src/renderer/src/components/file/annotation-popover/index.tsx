@@ -1,8 +1,8 @@
-import { css } from "@/styled/css";
-import type { AllLabels } from "@/types/aymurai";
 import { Popover, PopoverContent, PopoverTrigger } from "@aymurai/ui";
 import type { FocusEventHandler, ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { css } from "@/styled/css";
+import type { AllLabels } from "@/types/aymurai";
 import Tagger from "./tagger";
 
 const CLOSE_DELAY_MS = 120;
