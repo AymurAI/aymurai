@@ -27,7 +27,7 @@ Este documento describe la API pública actualmente montada en `aymurai/api/main
 | `POST` | `/api/llm/summarize/stream` | Igual, en streaming con server-sent events |
 | `GET` | `/api/llm/summarize/validation/document/{document_id}` | Lee un resumen guardado y su validación humana |
 | `POST` | `/api/llm/summarize/validation/document/{document_id}` | Guarda el resumen validado por la persona |
-| `POST` | `/api/asr/transcribe` | Transcribe un archivo de audio subido |
+| `POST` | `/api/asr/transcribe` | Transcribe un archivo de audio o video subido |
 | `POST` | `/api/asr/transcribe/stream` | Igual, en streaming con server-sent events |
 | `GET` | `/api/asr/validation/document/{document_id}` | Lee una transcripción guardada y su validación |
 | `POST` | `/api/asr/validation/document/{document_id}` | Guarda la transcripción validada por la persona |
@@ -415,11 +415,15 @@ que habla la API de audio compatible con OpenAI. Requieren `TRANSCRIBE_BASE_URL`
 sin eso responden `500 Configuration error`. En compose, `coro` vive detrás del
 perfil `asr` — ver la [referencia de configuración](../configuration/README.md).
 
-La identidad de cache es un hash de los **bytes del audio**, así que volver a
-subir el mismo archivo es gratis.
+La identidad de cache es un hash de los **bytes subidos**, así que volver a subir
+el mismo archivo es gratis.
 
 #### `POST /api/asr/transcribe`
 - Request: `multipart/form-data` con `file`
+- Acepta: audio (`.mp3`, `.wav`, `.m4a`, `.webm`, `.ogg`, `.flac`) y video
+  (`.mp4`, `.mov`, `.mkv`, `.avi`, `.m4v`). El video se transcribe desde su pista
+  de audio. El backend no impone whitelist — `coro` decodifica con ffmpeg — así que
+  este es el conjunto que ofrece la aplicación, no un límite duro de la API.
 - Query param: `use_cache=true|false` (default `true`)
 - Respuesta `200`: `ASRDocument`
 

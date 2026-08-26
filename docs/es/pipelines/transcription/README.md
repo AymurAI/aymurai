@@ -4,8 +4,8 @@ Idioma: [English](../../../pipelines/transcription/README.md) | **Español**
 Referencia técnica orientada al flujo de transcripción de voz a texto.
 
 ## Alcance
-Este flujo convierte un archivo de audio en párrafos con hablante y marcas de
-tiempo, y los persiste junto a una versión corregida por una persona.
+Este flujo convierte un archivo de audio o video en párrafos con hablante y
+marcas de tiempo, y los persiste junto a una versión corregida por una persona.
 
 Igual que [sumarización](../summarization/README.md), **no** es un pipeline de ML
 de AymurAI: no tiene entrada bajo `resources/pipelines/production/`. AymurAI hace
@@ -35,7 +35,7 @@ para las variables de backend y modelo.
 - `POST /api/asr/validation/document/{document_id}`
 
 ## Flujo paso a paso
-1. La subida (`/api/asr/transcribe`) hashea los bytes del audio en un
+1. La subida (`/api/asr/transcribe`) hashea los bytes subidos en un
    `document_id` y busca una fila cacheada en `audio_transcription`.
 2. Si no hay hit, el request se reenvía a `coro`, y sus segmentos se pliegan en
    entradas `ASRParagraph` con número de hablante, inicio, fin y texto.
@@ -46,7 +46,7 @@ para las variables de backend y modelo.
 
 ```mermaid
 flowchart TD
-    A["archivo de audio"] --> B["POST /api/asr/transcribe<br/>(o /transcribe/stream)"]
+    A["archivo de audio o video"] --> B["POST /api/asr/transcribe<br/>(o /transcribe/stream)"]
     B --> C{"¿fila cacheada para<br/>data_to_uuid(bytes)?"}
     C -->|"sí, use_cache=true"| D["reproduce la fila guardada<br/>(sin llamar a coro)"]
     C -->|no| E["reenvía a coro<br/>ASR + diarización"]
@@ -60,6 +60,23 @@ flowchart TD
 ```
 
 ## Componentes técnicos
+
+### Formatos de medios aceptados
+El backend **no** impone una whitelist de formatos: reenvía los bytes subidos a
+`coro`, que los decodifica con ffmpeg, y sondea la duración con `ffprobe`.
+Cualquier container decodificable por ffmpeg funciona entonces a nivel de API.
+
+Lo que acepta la aplicación es más acotado, y es el conjunto sobre el que
+conviene diseñar (`AUDIO_EXTENSIONS` y `VIDEO_EXTENSIONS` en
+`frontend/src/renderer/src/constants/config.ts`):
+
+| Tipo | Extensiones |
+|---|---|
+| Audio | `.mp3`, `.wav`, `.m4a`, `.webm`, `.ogg`, `.flac` |
+| Video | `.mp4`, `.mov`, `.mkv`, `.avi`, `.m4v` |
+
+El video se transcribe desde su pista de audio; ffmpeg lo demuxea aguas arriba,
+así que nada en AymurAI le saca el stream de video antes.
 
 ### Formas de datos
 - `ASRParagraph` — `speaker_no`, `speaker_name` opcional, `start`, `end`, `text`,
@@ -100,7 +117,7 @@ Tablas que toca este flujo:
 Ver [la referencia de base de datos](../../database/README.md#audio_transcription).
 
 ## Notas
-- La identidad de cache es un hash de los bytes del audio, así que volver a subir
+- La identidad de cache es un hash de los bytes subidos, así que volver a subir
   el mismo archivo nunca vuelve a correr ASR, sin importar el nombre.
 - El endpoint de validación acepta tanto un objeto `{title, document}` como una
   lista pelada de párrafos; esta última es una forma legacy que se mantiene para

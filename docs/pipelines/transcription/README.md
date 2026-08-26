@@ -4,8 +4,8 @@ Language: **English** | [Español](../../es/pipelines/transcription/README.md)
 Workflow-oriented technical reference for speech-to-text transcription.
 
 ## Scope
-This flow turns an uploaded audio file into speaker-attributed, timestamped
-paragraphs and persists them alongside a human-corrected version.
+This flow turns an uploaded audio or video file into speaker-attributed,
+timestamped paragraphs and persists them alongside a human-corrected version.
 
 Like [summarization](../summarization/README.md), it is **not** an AymurAI ML
 pipeline: there is no entry under `resources/pipelines/production/`. AymurAI
@@ -34,8 +34,8 @@ for the backend and model variables.
 - `POST /api/asr/validation/document/{document_id}`
 
 ## Step-by-step flow
-1. Upload (`/api/asr/transcribe`) hashes the audio bytes into a `document_id` and
-   checks `audio_transcription` for a cached row.
+1. Upload (`/api/asr/transcribe`) hashes the uploaded bytes into a `document_id`
+   and checks `audio_transcription` for a cached row.
 2. On a miss, the request is forwarded to `coro`, whose segments are folded into
    `ASRParagraph` entries with speaker number, start, end and text.
 3. The result is stored and returned as an `ASRDocument`.
@@ -45,7 +45,7 @@ for the backend and model variables.
 
 ```mermaid
 flowchart TD
-    A["audio file"] --> B["POST /api/asr/transcribe<br/>(or /transcribe/stream)"]
+    A["audio or video file"] --> B["POST /api/asr/transcribe<br/>(or /transcribe/stream)"]
     B --> C{"cached row for<br/>data_to_uuid(bytes)?"}
     C -->|"yes, use_cache=true"| D["replay stored row<br/>(no coro call)"]
     C -->|no| E["forward to coro<br/>ASR + diarization"]
@@ -59,6 +59,23 @@ flowchart TD
 ```
 
 ## Technical components
+
+### Accepted media formats
+The backend imposes **no** format whitelist: it forwards the uploaded bytes to
+`coro`, which decodes them with ffmpeg, and probes duration with `ffprobe`. Any
+ffmpeg-decodable container will therefore work at the API level.
+
+What the application accepts is narrower, and is the set to design against
+(`AUDIO_EXTENSIONS` and `VIDEO_EXTENSIONS` in
+`frontend/src/renderer/src/constants/config.ts`):
+
+| Kind | Extensions |
+|---|---|
+| Audio | `.mp3`, `.wav`, `.m4a`, `.webm`, `.ogg`, `.flac` |
+| Video | `.mp4`, `.mov`, `.mkv`, `.avi`, `.m4v` |
+
+Video is transcribed from its audio track; ffmpeg demuxes it upstream, so
+nothing in AymurAI strips the video stream first.
 
 ### Data shapes
 - `ASRParagraph` — `speaker_no`, optional `speaker_name`, `start`, `end`, `text`,
@@ -99,7 +116,7 @@ Tables touched by this flow:
 See [the database reference](../../database/README.md#audio_transcription).
 
 ## Notes
-- Cache identity is a hash of the audio bytes, so re-uploading the same file
+- Cache identity is a hash of the uploaded bytes, so re-uploading the same file
   never re-runs ASR regardless of filename.
 - The validation endpoint accepts both a `{title, document}` object and a bare
   paragraph list; the latter is a legacy form kept for older clients.

@@ -6,7 +6,7 @@ AymurAI provee una aplicación integrada, una API y pipelines de ML para procesa
 - `anonymizer`: extracción de entidades y generación de documentos anonimizados.
 - `data-public`: extracción de información estructurada para curación de dataset público.
 - `summarization`: condensa un documento en un resumen estructurado vía un backend de LLM.
-- `transcription`: convierte audio en texto con hablantes vía un backend de ASR.
+- `transcription`: convierte audio o video en texto con hablantes vía un backend de ASR.
 
 Los dos primeros son pipelines de ML de AymurAI. Los dos últimos orquestan
 servicios externos (`llama-server` y `coro`) y están inactivos hasta que se los
