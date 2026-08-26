@@ -10,7 +10,7 @@ Este flujo extrae entidades del texto judicial y compila documentos anonimizados
 ![Diagrama del pipeline de anonymizer](../../../pipelines/anonymizer/pipeline.png)
 
 Fuente editable: [../../../pipelines/anonymizer/pipeline.excalidraw](../../../pipelines/anonymizer/pipeline.excalidraw).
-Regenerá el PNG con `node scripts/render-excalidraw.mjs` después de editar la escena.
+Regenerá el PNG con `node scripts/render-excalidraw.mjs` después de editar el diagrama fuente.
 
 ## Entrypoints de runtime
 - `POST /api/misc/document-extract`

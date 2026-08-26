@@ -10,7 +10,7 @@ This flow extracts entities from judicial text and compiles anonymized output do
 ![Anonymizer pipeline diagram](pipeline.png)
 
 Editable source: [pipeline.excalidraw](pipeline.excalidraw). Regenerate the PNG
-with `node scripts/render-excalidraw.mjs` after editing the scene.
+with `node scripts/render-excalidraw.mjs` after editing the source diagram.
 
 ## Runtime entrypoints
 - `POST /api/misc/document-extract`
