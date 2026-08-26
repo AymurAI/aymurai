@@ -28,7 +28,7 @@ jobs:
         run: corepack enable
         working-directory: .
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           # This workflow runs once per release tag; the caching benefit is
@@ -53,7 +53,7 @@ jobs:
       - name: Build installer
         run: pnpm run build:win
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: aymurai-windows-installer
           path: frontend/dist/*-setup.exe
@@ -61,6 +61,6 @@ jobs:
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: frontend/dist/*-setup.exe
