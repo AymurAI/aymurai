@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Render the tracked `.excalidraw` sources under docs/ to the `.png` files the
-// docs embed. The scenes are the source of truth; the PNGs are build output that
+// docs embed. The diagrams are the source of truth; the PNGs are build output that
 // happens to be committed (GitHub cannot render `.excalidraw` inline).
 //
 //   node scripts/render-excalidraw.mjs
@@ -10,7 +10,7 @@
 // CHROME_PATH=/path/to/binary to point at one explicitly.
 //
 // PNGs are downscaled and quantized to stay under the 750 KB `check-added-large-files`
-// prek limit. If a redrawn scene pushes a PNG over the limit, lower its `maxWidth`.
+// prek limit. If a redrawn diagram pushes a PNG over the limit, lower its `maxWidth`.
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 // maxWidth caps the committed PNG's pixel width; it is the only knob that
-// meaningfully moves file size once the scene is fixed.
+// meaningfully moves file size once the diagram is fixed.
 const DIAGRAMS = [
   { src: 'docs/pipelines/anonymizer/pipeline.excalidraw', out: 'docs/pipelines/anonymizer/pipeline.png', maxWidth: 5200 },
   { src: 'docs/anonymization/pipeline.excalidraw', out: 'docs/anonymization/pipeline.png', maxWidth: 4300 },
@@ -64,13 +64,13 @@ await page.goto('file://' + path.join(work, 'page.html'))
 await page.waitForFunction(() => !!window.ExcalidrawLib, null, { timeout: 60_000 })
 
 for (const { src, out, maxWidth } of DIAGRAMS) {
-  const scene = JSON.parse(fs.readFileSync(path.join(REPO, src), 'utf8'))
-  const dataUrl = await page.evaluate(async (scene) => {
+  const diagram = JSON.parse(fs.readFileSync(path.join(REPO, src), 'utf8'))
+  const dataUrl = await page.evaluate(async (diagram) => {
     const blob = await window.ExcalidrawLib.exportToBlob({
-      elements: scene.elements,
-      files: scene.files || {},
+      elements: diagram.elements,
+      files: diagram.files || {},
       appState: {
-        ...(scene.appState || {}),
+        ...(diagram.appState || {}),
         exportBackground: true,
         viewBackgroundColor: '#ffffff',
         exportWithDarkMode: false,
@@ -84,7 +84,7 @@ for (const { src, out, maxWidth } of DIAGRAMS) {
       reader.onload = () => resolve(reader.result)
       reader.readAsDataURL(blob)
     })
-  }, scene)
+  }, diagram)
 
   // Quantizing to a 128-colour palette is what actually keeps these under the
   // size limit — these are line drawings, so the loss is invisible.

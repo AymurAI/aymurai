@@ -153,7 +153,7 @@ persistence, update the corresponding docs in the same PR.
 
 **This repository is bilingual.** Every page under `docs/` has a Spanish
 counterpart under `docs/es/`, and `README.md` is mirrored by `README.es.md`.
-Update both, or the translations drift — which is exactly how they drifted before.
+Update both, or the translations drift.
 
 | English | Spanish |
 |---|---|
@@ -179,7 +179,7 @@ If the change is user-facing, documentation should land together with the code.
 - Mermaid diagrams are written inline in the markdown; GitHub renders them
   natively and they diff as text. Prefer these.
 - The two Excalidraw diagrams under `docs/` are committed as both the `.excalidraw`
-  scene and a rendered `.png`. After editing a scene, regenerate its PNG:
+  diagram and a rendered `.png`. After editing a diagram, regenerate its PNG:
 
   ```bash
   node scripts/render-excalidraw.mjs
