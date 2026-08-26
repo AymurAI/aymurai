@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { ValidateDatasetFixture } from "@/test/playwright-fixtures/validate-dataset-fixture";
 import { expect, test } from "@playwright/experimental-ct-react";
+import { ValidateDatasetFixture } from "@/test/playwright-fixtures/validate-dataset-fixture";
 
 const SHOTS_DIR = resolve(__dirname, "../tasks/responsive/shots");
 

@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { FileAnnotatorFixture } from "@/test/playwright-fixtures/file-annotator-fixture";
 import { expect, test } from "@playwright/experimental-ct-react";
+import { FileAnnotatorFixture } from "@/test/playwright-fixtures/file-annotator-fixture";
 
 const SHOTS_DIR = resolve(__dirname, "../tasks/responsive/shots");
 

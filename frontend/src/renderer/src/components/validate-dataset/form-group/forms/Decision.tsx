@@ -1,5 +1,5 @@
-import { LabelDecisiones } from "@/types/aymurai";
 import { Select } from "@aymurai/ui";
+import { LabelDecisiones } from "@/types/aymurai";
 import { Radio, RadioGroup } from "../../../radio";
 import Stack from "../../../stack";
 import Input from "../../../uncontrolled-input";

@@ -1,14 +1,13 @@
+import { TooltipProvider } from "@aymurai/ui";
 import {
-  RouterProvider,
   createMemoryHistory,
   createRouter,
+  RouterProvider,
 } from "@tanstack/react-router";
 import { Toaster } from "react-hot-toast";
-
 import { ThemeProvider } from "@/components";
 import * as TanstackReactQuery from "@/features/ReactQueryProvider";
 import { isElectronApp } from "@/utils/app-mode";
-import { TooltipProvider } from "@aymurai/ui";
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";

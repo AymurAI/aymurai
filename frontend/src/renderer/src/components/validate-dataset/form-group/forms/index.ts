@@ -4,4 +4,4 @@ import Decision from "./Decision";
 import InfoGral from "./InfoGral";
 import InfoHecho from "./InfoHecho";
 
-export { InfoGral, DatosDenunciante, DatosAcusado, InfoHecho, Decision };
+export { DatosAcusado, DatosDenunciante, Decision, InfoGral, InfoHecho };

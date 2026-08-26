@@ -1,5 +1,5 @@
-import { SPEAKER_COLORS } from "@/types/transcription";
 import { z } from "zod";
+import { SPEAKER_COLORS } from "@/types/transcription";
 
 export const SpeakerSchema = z.object({
   id: z.string(),

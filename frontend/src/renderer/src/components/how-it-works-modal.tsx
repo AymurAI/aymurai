@@ -1,5 +1,3 @@
-import type { FeatureFlowEnum } from "@/types/features";
-import { featureNamespace } from "@/types/features";
 import {
   Tooltip,
   TooltipContent,
@@ -9,6 +7,8 @@ import {
 import { Question } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
+import type { FeatureFlowEnum } from "@/types/features";
+import { featureNamespace } from "@/types/features";
 import { buildTutorialSteps } from "./how-it-works";
 
 interface HowItWorksModalProps {

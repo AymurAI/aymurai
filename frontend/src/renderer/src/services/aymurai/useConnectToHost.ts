@@ -1,10 +1,7 @@
-import { setApiBaseUrl } from "@/services/api";
-import api from "@/services/api";
-import { toApiBaseUrl } from "@/services/api-base-url";
-
-import z from "zod";
-
 import { useMutation } from "@tanstack/react-query";
+import z from "zod";
+import api, { setApiBaseUrl } from "@/services/api";
+import { toApiBaseUrl } from "@/services/api-base-url";
 
 export const useConnectToHost = () => {
   return useMutation({

@@ -1,6 +1,6 @@
-import type { Paragraph } from "@/types/file";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { Paragraph } from "@/types/file";
 import DocumentSearchPanel from "./document-search-panel";
 
 // jsdom doesn't implement scrollIntoView at all.

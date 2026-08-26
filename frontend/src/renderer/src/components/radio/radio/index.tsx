@@ -1,12 +1,11 @@
+import { Radio as UiRadio } from "@aymurai/ui";
 import {
-  type ReactNode,
   forwardRef,
+  type ReactNode,
   useEffect,
   useImperativeHandle,
   useState,
 } from "react";
-
-import { Radio as UiRadio } from "@aymurai/ui";
 
 export interface Props {
   children?: ReactNode;
@@ -26,15 +25,11 @@ export default forwardRef<{ value: boolean }, Props>(function Radio(
   }, [checked]);
 
   // Only exposes `value` object to the parent component
-  useImperativeHandle(
-    ref,
-    () => {
-      return {
-        value: isChecked,
-      };
-    },
-    [isChecked],
-  );
+  useImperativeHandle(ref, () => {
+    return {
+      value: isChecked,
+    };
+  }, [isChecked]);
 
   const handleChange = (nextChecked: boolean) => {
     setIsChecked(nextChecked);

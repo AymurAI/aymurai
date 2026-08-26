@@ -1,22 +1,3 @@
-import AnonymizerLabelSelect from "@/components/anonymizer/anonymizer-label-select";
-import {
-  ANONYMIZER_CATEGORY_NAMES,
-  getAnonymizerCategoryForLabel,
-  getLabelsPrioritizingCategory,
-} from "@/constants/anonymizer-categories";
-import { useFileDispatch, useFiles } from "@/hooks";
-import { useEntityGroups } from "@/hooks/useEntityGroups";
-import {
-  mergeGroups,
-  moveMentionToGroup,
-  removePredictionValueByCanonicalId,
-  removePredictionsByCanonicalId,
-  updatePredictionsByCanonicalId,
-} from "@/reducers/file/actions";
-import { useHoverState } from "@/store/useHoverState";
-import { css } from "@/styled/css";
-import { HStack, Stack, styled } from "@/styled/jsx";
-import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
 import {
   Tooltip,
   TooltipContent,
@@ -24,6 +5,7 @@ import {
   TooltipTrigger,
 } from "@aymurai/ui";
 import {
+  closestCenter,
   DndContext,
   type DragEndEvent,
   type DragOverEvent,
@@ -31,14 +13,13 @@ import {
   type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
-  closestCenter,
   useDraggable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
   arrayMove,
+  SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -51,13 +32,31 @@ import {
   XCircle,
 } from "phosphor-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-
+import AnonymizerLabelSelect from "@/components/anonymizer/anonymizer-label-select";
+import {
+  ANONYMIZER_CATEGORY_NAMES,
+  getAnonymizerCategoryForLabel,
+  getLabelsPrioritizingCategory,
+} from "@/constants/anonymizer-categories";
+import { useFileDispatch, useFiles } from "@/hooks";
 import type { EntityGroup } from "@/hooks/useEntityGroups";
+import { useEntityGroups } from "@/hooks/useEntityGroups";
+import {
+  mergeGroups,
+  moveMentionToGroup,
+  removePredictionsByCanonicalId,
+  removePredictionValueByCanonicalId,
+  updatePredictionsByCanonicalId,
+} from "@/reducers/file/actions";
+import { useHoverState } from "@/store/useHoverState";
 import {
   useExcludedTagsConfig,
   useGroupOrder,
   useGroupOrderActions,
 } from "@/store/useLocal";
+import { css } from "@/styled/css";
+import { HStack, Stack, styled } from "@/styled/jsx";
+import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
 import { normalizeEntityText } from "@/utils/anonymizer/entity-similarity";
 import { filterActivePredictions } from "@/utils/anonymizer/predictions";
 import MergeDialog from "./merge-dialog";

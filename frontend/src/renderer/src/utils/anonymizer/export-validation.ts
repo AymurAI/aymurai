@@ -1,6 +1,3 @@
-import ANONYMIZER_ES from "@/constants/i18n/locales/es/anonymizer";
-import type { PredictLabel } from "@/types/aymurai";
-import type { DocFile, Paragraph } from "@/types/file";
 // G8 F1: `AnonymizerExportValidationError`'s message used to be one hardcoded
 // string ("... offsets inválidos, duplicados o solapados") for all nine issue
 // codes, which is what sent the bug report chasing an unrelated question
@@ -45,6 +42,9 @@ import type { DocFile, Paragraph } from "@/types/file";
 // vitest isolates the module registry per file and every OTHER test file in
 // this repo sees the i18next singleton uninitialized exactly like this one.
 import i18n from "i18next";
+import ANONYMIZER_ES from "@/constants/i18n/locales/es/anonymizer";
+import type { PredictLabel } from "@/types/aymurai";
+import type { DocFile, Paragraph } from "@/types/file";
 import { stripEntityLabelSuffix } from "./entity-similarity";
 
 type ExportValidationIssueCode =

@@ -1,5 +1,5 @@
-import type { SpeakerColor } from "@/types/transcription";
 import { Avatar } from "@aymurai/ui";
+import type { SpeakerColor } from "@/types/transcription";
 
 interface SpeakerAvatarProps {
   speaker: { initials: string; color: SpeakerColor };

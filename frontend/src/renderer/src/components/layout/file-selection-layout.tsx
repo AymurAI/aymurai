@@ -1,8 +1,8 @@
+import type { ReactNode } from "react";
 import BackButton from "@/components/ui/back-button";
 import { SectionTitle } from "@/layout/section-title";
 import { css } from "@/styled/css";
 import { HStack, Stack } from "@/styled/jsx";
-import type { ReactNode } from "react";
 
 const viewport = css({
   minH: "full",

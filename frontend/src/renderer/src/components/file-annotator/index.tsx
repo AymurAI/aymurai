@@ -7,9 +7,6 @@ import {
   useState,
   useTransition,
 } from "react";
-
-import { SearchBar } from "./SearchBar";
-
 import ReadingColumn from "@/components/layout/reading-column";
 import SidePanelColumn from "@/components/layout/side-panel-column";
 import AnnotationProvider, { useAnnotation } from "@/context/Annotation";
@@ -24,15 +21,16 @@ import { filterActivePredictions } from "@/utils/anonymizer/predictions";
 import LabelManager from "../anonymizer/label-manager";
 import SearchAnnotation from "../file/search-annotation";
 import TagAnnotation from "../file/tag-annotation";
-import * as S from "./FileAnnotator.styles";
 import {
-  type SearchMatch,
   createAnnotationsWithSearch,
   createSearchMatches,
   predictionsToMap,
+  type SearchMatch,
   searchMatchesToMap,
 } from "./annotations";
+import * as S from "./FileAnnotator.styles";
 import { generateSplits } from "./generateSplits";
+import { SearchBar } from "./SearchBar";
 
 const labelManagerWrapper = css({
   display: "flex",

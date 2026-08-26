@@ -1,11 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
-
-import { css } from "@/styled/css";
-import { Stack, styled } from "@/styled/jsx";
-import type {
-  ManualEntityResolution,
-  SimilarEntityGroupCandidate,
-} from "@/utils/anonymizer/entity-similarity";
 import {
   Button,
   Dialog,
@@ -15,6 +7,13 @@ import {
   DialogTitle,
   Select,
 } from "@aymurai/ui";
+import { useEffect, useMemo, useState } from "react";
+import { css } from "@/styled/css";
+import { Stack, styled } from "@/styled/jsx";
+import type {
+  ManualEntityResolution,
+  SimilarEntityGroupCandidate,
+} from "@/utils/anonymizer/entity-similarity";
 
 export interface ManualEntityResolutionRequest {
   text: string;

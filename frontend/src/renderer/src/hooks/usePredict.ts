@@ -1,5 +1,5 @@
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-
 import { useFileDispatch } from "@/hooks";
 import { addPredictions, removePredictions } from "@/reducers/file/actions";
 import predict from "@/services/aymurai/predict";
@@ -7,7 +7,6 @@ import { predictParagraph } from "@/services/aymurai/queries";
 import getStoredValidation from "@/services/aymurai/validation";
 import type { Workflows } from "@/types/aymurai";
 import type { DocFile } from "@/types/file";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 // Limit concurrent in-flight predict requests to avoid browser connection exhaustion
 const MAX_CONCURRENT = 100;

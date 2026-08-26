@@ -1,18 +1,3 @@
-import Footer from "@/components/layout/footer";
-import Header from "@/components/layout/header";
-import MainContent from "@/components/layout/main-content";
-import { DOCUMENT_EXTENSIONS } from "@/constants/config";
-import { useSummary } from "@/context/Summary";
-import { SectionTitle } from "@/layout/section-title";
-import { downloadBlob } from "@/services/export/download-blob";
-import {
-  type SummaryExportFormat,
-  exportSummary,
-} from "@/services/export/export-summary";
-import { css } from "@/styled/css";
-import { Divider, Grid, HStack, Stack, styled } from "@/styled/jsx";
-import { FeatureFlowEnum } from "@/types/features";
-import { sanitizeFileName } from "@/utils/sanitize-file-name";
 import {
   Button,
   Callout,
@@ -25,6 +10,21 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import Footer from "@/components/layout/footer";
+import Header from "@/components/layout/header";
+import MainContent from "@/components/layout/main-content";
+import { DOCUMENT_EXTENSIONS } from "@/constants/config";
+import { useSummary } from "@/context/Summary";
+import { SectionTitle } from "@/layout/section-title";
+import { downloadBlob } from "@/services/export/download-blob";
+import {
+  exportSummary,
+  type SummaryExportFormat,
+} from "@/services/export/export-summary";
+import { css } from "@/styled/css";
+import { Divider, Grid, HStack, Stack, styled } from "@/styled/jsx";
+import { FeatureFlowEnum } from "@/types/features";
+import { sanitizeFileName } from "@/utils/sanitize-file-name";
 
 // Alphabetical by extension, matching the VTT finish screen's format list.
 const FORMAT_IDS: SummaryExportFormat[] = ["odt", "pdf", "txt"];

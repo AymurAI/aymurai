@@ -1,6 +1,6 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import api from "@/services/api";
 import type { Transcription } from "@/types/transcription";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveValidation } from "./asrValidation";
 
 describe("saveValidation", () => {

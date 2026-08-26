@@ -1,7 +1,7 @@
-import { normalizeServerHost } from "@/services/api-base-url";
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
+import { normalizeServerHost } from "@/services/api-base-url";
 import type { AnonymizerLabels } from "../types/aymurai";
 import { FeatureFlowEnum } from "../types/features";
 

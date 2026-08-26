@@ -1,8 +1,8 @@
+import { Toolbar } from "@aymurai/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { css } from "@/styled/css";
 import { styled } from "@/styled/jsx";
 import type { Paragraph } from "@/types/file";
-import { Toolbar } from "@aymurai/ui";
-import { useEffect, useMemo, useRef, useState } from "react";
 
 const highlight = css({ bg: "category.yellow-light" });
 const activeHighlight = css({ bg: "category.orange-light" });

@@ -1,9 +1,3 @@
-import { normalizeServerHost } from "@/services/api-base-url";
-import { useConnectToHost } from "@/services/aymurai";
-import * as localStore from "@/store/useLocal";
-import { css } from "@/styled/css";
-import { Stack, styled } from "@/styled/jsx";
-import { isElectronApp } from "@/utils/app-mode";
 import { Button, TextField } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
@@ -14,6 +8,12 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ZodError } from "zod";
+import { normalizeServerHost } from "@/services/api-base-url";
+import { useConnectToHost } from "@/services/aymurai";
+import * as localStore from "@/store/useLocal";
+import { css } from "@/styled/css";
+import { Stack, styled } from "@/styled/jsx";
+import { isElectronApp } from "@/utils/app-mode";
 
 export default function ConnectToHost() {
   const navigate = useNavigate();

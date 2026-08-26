@@ -1,16 +1,3 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-
-import { useFileDispatch } from "@/hooks";
-import {
-  removePredictionValueByCanonicalId,
-  removePredictionsByCanonicalId,
-  updatePredictionsByCanonicalId,
-} from "@/reducers/file/actions";
-import { css, sva } from "@/styled/css";
-import { HStack } from "@/styled/jsx";
-import { stack } from "@/styled/patterns";
-import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
 import {
   Tooltip,
   TooltipContent,
@@ -18,6 +5,18 @@ import {
   TooltipTrigger,
 } from "@aymurai/ui";
 import { X } from "phosphor-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useFileDispatch } from "@/hooks";
+import {
+  removePredictionsByCanonicalId,
+  removePredictionValueByCanonicalId,
+  updatePredictionsByCanonicalId,
+} from "@/reducers/file/actions";
+import { css, sva } from "@/styled/css";
+import { HStack } from "@/styled/jsx";
+import { stack } from "@/styled/patterns";
+import type { AllLabels, AllLabelsWithSufix } from "@/types/aymurai";
 import LabelConfigTab from "./config-tab";
 import LabelEntityTab from "./entity-tab";
 import LabelManagerTab from "./tab";

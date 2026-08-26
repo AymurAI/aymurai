@@ -231,7 +231,9 @@ function buildSections(
           return labelMatches(label, query);
         });
 
-      labels.forEach((label) => seen.add(label.id));
+      labels.forEach((label) => {
+        seen.add(label.id);
+      });
 
       return { category, labels };
     })

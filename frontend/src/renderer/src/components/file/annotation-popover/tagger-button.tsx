@@ -1,5 +1,3 @@
-import { css } from "@/styled/css";
-import { styled } from "@/styled/jsx";
 import {
   ToolButton,
   type ToolButtonAction,
@@ -8,6 +6,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@aymurai/ui";
+import { css } from "@/styled/css";
+import { styled } from "@/styled/jsx";
 
 const tooltipContent = css({
   bg: "action.hover",

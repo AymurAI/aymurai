@@ -1,7 +1,7 @@
-import { css } from "@/styled/css";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { css } from "@/styled/css";
 
 const logoLink = css({
   display: "inline-flex",

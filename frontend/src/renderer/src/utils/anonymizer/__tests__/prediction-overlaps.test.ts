@@ -1,5 +1,5 @@
-import type { PredictLabel } from "@/types/aymurai";
 import { describe, expect, it } from "vitest";
+import type { PredictLabel } from "@/types/aymurai";
 import {
   findOverlapConflict,
   hasInternalOverlap,

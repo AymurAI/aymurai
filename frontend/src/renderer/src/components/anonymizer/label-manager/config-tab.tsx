@@ -1,17 +1,3 @@
-import { HStack, Stack, styled } from "@/styled/jsx";
-import type { AnonymizerLabels } from "@/types/aymurai";
-import { useState } from "react";
-
-import {
-  ANONYMIZER_CATEGORY_NAMES,
-  getAnonymizerLabelsForCategory,
-} from "@/constants/anonymizer-categories";
-import { EXCLUDED_TAGS } from "@/constants/excluded-tags";
-import {
-  useExcludedTagsConfig,
-  useExcludedTagsConfigActions,
-} from "@/store/useLocal";
-import { css } from "@/styled/css";
 import {
   Switch as BaseSwitch,
   Button,
@@ -29,6 +15,20 @@ import {
   TooltipTrigger,
 } from "@aymurai/ui";
 import { Trash } from "phosphor-react";
+import { useState } from "react";
+
+import {
+  ANONYMIZER_CATEGORY_NAMES,
+  getAnonymizerLabelsForCategory,
+} from "@/constants/anonymizer-categories";
+import { EXCLUDED_TAGS } from "@/constants/excluded-tags";
+import {
+  useExcludedTagsConfig,
+  useExcludedTagsConfigActions,
+} from "@/store/useLocal";
+import { css } from "@/styled/css";
+import { HStack, Stack, styled } from "@/styled/jsx";
+import type { AnonymizerLabels } from "@/types/aymurai";
 import { Label } from "./label";
 import LabelManagerSection from "./section";
 

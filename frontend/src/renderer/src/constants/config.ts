@@ -1,4 +1,3 @@
-import { FeatureFlowEnum } from "@/types/features";
 import {
   Article,
   Database,
@@ -6,6 +5,7 @@ import {
   FileAudio,
   type Icon,
 } from "phosphor-react";
+import { FeatureFlowEnum } from "@/types/features";
 
 export const DATAGENERO_URL = "https://www.datagenero.org/";
 

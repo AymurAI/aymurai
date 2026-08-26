@@ -1,6 +1,6 @@
+import { useRef, useState } from "react";
 import { LabelDecisiones, type LabelType } from "@/types/aymurai";
 import nArray from "@/utils/nArray";
-import { useRef, useState } from "react";
 import type { FormData, RegisterFunction, SubmitFunction } from "./types";
 
 /**

@@ -1,7 +1,7 @@
-import { css } from "@/styled/css";
 import { Player, type PlayerHandle } from "@aymurai/ui";
 import type { ReactNode, Ref } from "react";
 import { useTranslation } from "react-i18next";
+import { css } from "@/styled/css";
 
 // Keep the player's rightSlot (e.g. the "Finalizar" button) from sitting flush
 // against the time readout.

@@ -1,7 +1,7 @@
-import { FeatureFlowEnum } from "@/types/features";
 import { render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FeatureFlowEnum } from "@/types/features";
 import Header from "./header";
 
 let tutorialSeen = false;
@@ -109,8 +109,10 @@ describe("document Header", () => {
     expect(
       screen.getByRole("link", { name: "header.homeAria" }),
     ).toHaveAttribute("href", "/home/features");
+    // Case-sensitive attribute selectors don't match SVG attributes under
+    // jsdom 30 (nwsapi regression); the `i` flag works around it.
     expect(
-      document.querySelector('svg[viewBox="48 7 109 25.2"]'),
+      document.querySelector('svg[viewBox="48 7 109 25.2" i]'),
     ).not.toBeNull();
   });
 });

@@ -1,5 +1,7 @@
+import { TextField } from "@aymurai/ui";
 import {
   type ChangeEventHandler,
+  forwardRef,
   type KeyboardEventHandler,
   type MouseEventHandler,
   type ReactNode,
@@ -8,10 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-
 import type { NativeComponent } from "@/types/component";
-import { TextField } from "@aymurai/ui";
-import { forwardRef } from "react";
 
 export type InputRefValue = { value: string };
 interface Props
@@ -48,15 +47,11 @@ export default forwardRef<{ value: string }, Props>(function UncontrolledInput(
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Only exposes `selected` object to the parent component
-  useImperativeHandle(
-    ref,
-    () => {
-      return {
-        value,
-      };
-    },
-    [value],
-  );
+  useImperativeHandle(ref, () => {
+    return {
+      value,
+    };
+  }, [value]);
 
   const updateValue = (newValue: string) => {
     if (type === "number") {

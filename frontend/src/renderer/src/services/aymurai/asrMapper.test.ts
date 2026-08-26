@@ -1,5 +1,5 @@
-import type { ASRDocument } from "@/schema/asr";
 import { describe, expect, it } from "vitest";
+import type { ASRDocument } from "@/schema/asr";
 import { mapASRDocumentToTranscription } from "./asrMapper";
 
 const audioFile = new File(["audio"], "audiencia.29.06.final.mp3", {

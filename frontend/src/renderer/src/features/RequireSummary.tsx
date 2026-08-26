@@ -1,6 +1,6 @@
-import { useSummary } from "@/context/Summary";
 import { Navigate, useParams } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { useSummary } from "@/context/Summary";
 
 interface Props {
   children: ReactNode;

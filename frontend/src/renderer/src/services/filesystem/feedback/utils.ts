@@ -59,9 +59,9 @@ export function joinValidation({
       return !predictionList.find((pred) => pred.attrs.aymurai_label === key);
     });
 
-    filtered.forEach((label) =>
-      result.push(newLabel(label, val[label] ?? null)),
-    );
+    filtered.forEach((label) => {
+      result.push(newLabel(label, val[label] ?? null));
+    });
   });
 
   return result;

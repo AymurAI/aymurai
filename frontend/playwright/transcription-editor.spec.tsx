@@ -1,9 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { TranscriptionEditorFixture } from "@/test/playwright-fixtures/transcription-editor-fixture";
-import { TurnSidePanelFixture } from "@/test/playwright-fixtures/turn-side-panel-fixture";
 import { Button } from "@aymurai/ui";
 import { expect, test } from "@playwright/experimental-ct-react";
+import { TranscriptionEditorFixture } from "@/test/playwright-fixtures/transcription-editor-fixture";
+import { TurnSidePanelFixture } from "@/test/playwright-fixtures/turn-side-panel-fixture";
 
 const SHOTS_DIR = resolve(__dirname, "../tasks/responsive/shots");
 

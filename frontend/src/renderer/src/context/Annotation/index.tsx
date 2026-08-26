@@ -1,10 +1,19 @@
+import { Check, WarningCircle } from "phosphor-react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+import ManualEntityResolutionDialog, {
+  type ManualEntityResolutionRequest,
+} from "@/components/file/manual-entity-resolution-dialog";
 import type {
   LabelAnnotation,
   SearchAnnotation,
 } from "@/components/file-annotator/types";
-import ManualEntityResolutionDialog, {
-  type ManualEntityResolutionRequest,
-} from "@/components/file/manual-entity-resolution-dialog";
 import { getAnonymizerCategoryForLabel } from "@/constants/anonymizer-categories";
 import { EXCLUDED_TAGS } from "@/constants/excluded-tags";
 import { showToast } from "@/features/showToast";
@@ -32,8 +41,8 @@ import type {
 import { anonymizerLabels } from "@/types/aymurai";
 import type { DocFile, Paragraph } from "@/types/file";
 import {
-  type ManualEntityResolution,
   findSimilarEntityGroups,
+  type ManualEntityResolution,
   normalizeEntityText,
   stripEntityLabelSuffix,
 } from "@/utils/anonymizer/entity-similarity";
@@ -44,15 +53,6 @@ import {
   rangesOverlap,
 } from "@/utils/anonymizer/prediction-overlaps";
 import { filterActivePredictions } from "@/utils/anonymizer/predictions";
-import { Check, WarningCircle } from "phosphor-react";
-import {
-  type ReactNode,
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
 import { findSearchIndexes, getSelectionAnnotationRange } from "./utils";
 
 interface AnnotationContextValues {

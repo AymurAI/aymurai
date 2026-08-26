@@ -1,3 +1,4 @@
+import { Switch, Toolbar, TranscriptBlock } from "@aymurai/ui";
 import { Info, PencilSimple } from "phosphor-react";
 import {
   type ReactNode,
@@ -8,7 +9,6 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-
 import ReadingColumn, {
   readingInsetChildOverride,
   readingInsetToolbarOverride,
@@ -17,7 +17,6 @@ import { useTranscriptionDispatch } from "@/hooks/useTranscriptions";
 import { renameTranscription } from "@/reducers/transcription/actions";
 import { css, cx } from "@/styled/css";
 import type { Transcription } from "@/types/transcription";
-import { Switch, Toolbar, TranscriptBlock } from "@aymurai/ui";
 import AudioPlayer, { type AudioPlayerHandle } from "../audio-player";
 import { formatTime } from "../format-time";
 import { useActiveTurn } from "../use-active-turn";

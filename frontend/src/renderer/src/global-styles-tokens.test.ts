@@ -1,5 +1,5 @@
-import { token } from "@/styled/tokens";
 import { describe, expect, it } from "vitest";
+import { token } from "@/styled/tokens";
 
 // panda.config.ts's globalCss (`mark.predicted-word button.remove-tag`) was
 // migrated off raw hex literals onto these two tokens (RSP-12a). This

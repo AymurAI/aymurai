@@ -1,6 +1,6 @@
+import { XCircle } from "phosphor-react";
 import { css } from "@/styled/css";
 import { HStack, styled } from "@/styled/jsx";
-import { XCircle } from "phosphor-react";
 
 interface LabelProps {
   children: string | string[];

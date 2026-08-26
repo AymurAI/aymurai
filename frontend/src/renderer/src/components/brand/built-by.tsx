@@ -1,7 +1,7 @@
+import { useTranslation } from "react-i18next";
 import { DATAGENERO_URL } from "@/constants/config";
 import { styled } from "@/styled/jsx";
 import { type StackStyles, stack } from "@/styled/patterns";
-import { useTranslation } from "react-i18next";
 
 interface BuiltByProps {
   size?: number;

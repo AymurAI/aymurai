@@ -1,6 +1,6 @@
+import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { Tab } from "@/components/tabs";
 import { css } from "@/styled/css";
-import { type ButtonHTMLAttributes, forwardRef } from "react";
 
 const button = css({
   cursor: "pointer",

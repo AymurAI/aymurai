@@ -1,5 +1,5 @@
-import type { Transcription } from "@/types/transcription";
 import { describe, expect, it, vi } from "vitest";
+import type { Transcription } from "@/types/transcription";
 import { exportTranscription } from "./export-transcription";
 import { DEFAULT_EXPORT_OPTIONS } from "./types";
 

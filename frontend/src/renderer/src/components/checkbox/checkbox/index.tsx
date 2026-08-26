@@ -1,11 +1,10 @@
+import { Checkbox as UiCheckbox } from "@aymurai/ui";
 import {
-  type ReactNode,
   forwardRef,
+  type ReactNode,
   useImperativeHandle,
   useState,
 } from "react";
-
-import { Checkbox as UiCheckbox } from "@aymurai/ui";
 
 export interface Props {
   children?: ReactNode;
@@ -21,15 +20,11 @@ export default forwardRef<{ value: boolean }, Props>(function Checkbox(
   const [isChecked, setIsChecked] = useState(checked);
 
   // Only exposes `value` object to the parent component
-  useImperativeHandle(
-    ref,
-    () => {
-      return {
-        value: isChecked,
-      };
-    },
-    [isChecked],
-  );
+  useImperativeHandle(ref, () => {
+    return {
+      value: isChecked,
+    };
+  }, [isChecked]);
 
   const handleToggle = (nextChecked: boolean) => {
     setIsChecked(nextChecked);
