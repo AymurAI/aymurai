@@ -45,7 +45,7 @@ classifiers = [
     # Specify the Python versions you support here.
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.13",
 ]
 
 dependencies = [
