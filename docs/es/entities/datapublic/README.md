@@ -37,7 +37,11 @@ Estas entidades corresponden a la taxonomía extraída de resoluciones judiciale
 
 ## Subcategorías y campos de validación
 - Muchas de estas entidades tienen subclasificaciones o vocabularios controlados específicos para validación.
-- Las opciones históricas de validación están capturadas en el template de Label Studio: [../../../../resources/annotations/label-studio/datapublic/label-studio-config.xml](../../../../resources/annotations/label-studio/datapublic/label-studio-config.xml)
+- Las opciones históricas de validación estaban capturadas en un template de
+  anotación de Label Studio (`label-studio-config.xml`). **No** se distribuye con
+  este repositorio: `resources/` está git-ignoreado por completo, así que el
+  archivo solo está en copias de trabajo que lo recibieron por otra vía.
+  Pedíselo a quienes mantienen el proyecto si lo necesitás.
 - Un glosario explicativo más amplio está disponible aquí: https://docs.google.com/document/d/123B9T2abCEqBaxxOl5c7HBJZRdIMtKDWo6IKHIVil04/edit
 
 ## Documentación relacionada

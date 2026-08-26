@@ -7,7 +7,33 @@ Workflow-oriented technical reference for the datapublic information extraction 
 This flow extracts structured information from paragraphs and supports document-level validation persistence for public dataset curation.
 
 ## Diagram
-![Datapublic pipeline diagram](pipeline.png)
+```mermaid
+flowchart TD
+    A["document (.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
+    B --> C["normalized paragraphs"]
+    C --> D["POST /api/datapublic/predict/{document_id}"]
+
+    subgraph P ["datapublic pipeline"]
+        direction TB
+        PRE["preprocess<br/>FlairTextNormalize"]
+        M1["FlairModel<br/>aymurai/flair-ner-spanish-judicial"]
+        M2["DecisionEmbeddingBagBinRegex<br/>return_only_with_detalle=true"]
+        PO1["RegexSubcategorizer"]
+        PO2["DatetimeFormatter"]
+        PO3["SentenceTransformerSubcategorizer ×4<br/>CONDUCTA · CONDUCTA_DESCRIPCION<br/>DETALLE · OBJETO_DE_LA_RESOLUCION"]
+        PO4["ArticleSubcategorizer"]
+        PRE --> M1 --> M2 --> PO1 --> PO2 --> PO3 --> PO4
+    end
+
+    D --> PRE
+    PO4 --> E["DocumentInformation<br/>(labels + subcategories)"]
+    E --> F["cached in datapublic_paragraph<br/>when use_cache=true"]
+    E --> G["document-level review in UI"]
+    G --> H["POST /api/datapublic/validation/document/{document_id}"]
+    H --> I["datapublic_document.validation"]
+```
+
+Component order mirrors `resources/pipelines/production/datapublic/pipeline.json`.
 
 ## Runtime entrypoints
 - `POST /api/misc/document-extract`

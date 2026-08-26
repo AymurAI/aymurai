@@ -19,9 +19,13 @@ pipeline_tag: token-classification
 Idioma: [English](../../models/flair-model-card.md) | **Español**
 
 # Descripción del modelo
-<p style="text-align:center;">
-<img src="../../models/assets/ner-schema.png" width="35%" style="background-color:white" alt="schema"/>
-</p>
+```mermaid
+flowchart LR
+    A["párrafo judicial"] --> B["BETO<br/>bert-base-spanish-wwm-uncased"]
+    B --> C["BiLSTM"]
+    C --> D["CRF"]
+    D --> E["spans etiquetados en BIO"]
+```
 
 Siguiendo las guías de Flair para entrenar un modelo de NER, este modelo se entrenó sobre [embeddings BETO](https://huggingface.co/dccuchile/bert-base-spanish-wwm-uncased), una versión en español de BERT entrenada sobre un corpus en español, con una arquitectura BiLSTM-CRF.
 

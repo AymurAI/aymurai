@@ -45,17 +45,22 @@ datasheet files
 
 ## Run Aymurai API
 
-1. First download the image
+The frontend talks to the API on `http://localhost:8899`. From the repository
+root:
 
-    ```sh
-    docker pull registry.gitlab.com/collective.ai/datagenero-public/aymurai-api-prod
-    ```
+```sh
+make api-up          # lightweight profile
+# or make api-full-up  # includes production resources
+```
 
-2. And then create the corresponding container
+Or run the published image directly:
 
-    ```sh
-    docker run -p 8899:8899 -h -d registry.gitlab.com/collective.ai/datagenero-public/aymurai-api-prod:latest
-    ```
+```sh
+docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/api:full
+```
+
+See the [repository README](../README.md) for GPU variants, cache volumes and
+the optional LLM and ASR backends.
 
 ## Scripts
 
@@ -81,18 +86,29 @@ datasheet files
 - `typecheck:node`: runs type checking on the _Electron_ application
 - `typecheck:web`: runs type checking on the _React_ application
 - `validate`: runs linting and type checking on both React and renderer
-- `prepare`: runs `panda codegen` (auto-runs after `pnpm install`)
+- `prepare` / `panda:codegen`: runs `panda codegen` (`prepare` auto-runs after `pnpm install`)
 - `knip`: reports unused exports and dependencies (informational only — every
   rule in `knip.json` is severity `warn`, so it never fails and is not gated
   anywhere)
 
+### Testing
+
+- `test`: runs the unit test suite once (_Vitest_)
+- `test:watch`: runs the same suite in watch mode
+- `test:responsive`: runs the _Playwright_ component tests
+- `test:visual`: captures the visual-regression baselines
+
+Playwright component tests are deliberately not part of the CI gate — they
+download browsers and run in a separate, non-blocking job.
+
 ### Deployment
 
 - `build:unpack`: builds and creates an unpacked distribution directory
-- `build:[win|mac|linux]`: builds and packages the application for the desired target
-- `package`: cleans build directory, builds, and packages the app with Electron Forge
-- `make`: cleans build directory, builds, and creates distributables with Electron Forge
-- `postinstall`: installs app dependencies for Electron Builder
+- `build:[win|mac|linux]`: builds and packages the application for the desired target with _electron-builder_
+- `postinstall`: installs native app dependencies for electron-builder
+
+The Windows installer is built in CI from the same tag as the container image,
+so the two never report different versions (`.github/workflows/desktop-release.yml`).
 
 ##  Colaborators
 

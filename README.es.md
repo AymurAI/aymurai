@@ -1,12 +1,18 @@
 # AymurAI
 Idioma: [English](README.md) | **Español**
 
-AymurAI provee una aplicación integrada, una API y pipelines de ML para procesar resoluciones judiciales mediante dos flujos principales:
+AymurAI provee una aplicación integrada, una API y pipelines de ML para procesar resoluciones judiciales mediante cuatro flujos:
 
 - `anonymizer`: extracción de entidades y generación de documentos anonimizados.
 - `data-public`: extracción de información estructurada para curación de dataset público.
+- `summarization`: condensa un documento en un resumen estructurado vía un backend de LLM.
+- `transcription`: convierte audio o video en texto con hablantes vía un backend de ASR.
 
-Este repositorio contiene el frontend React/Electron, el servicio FastAPI, las configuraciones de pipelines de producción y la persistencia en base de datos para ambos flujos.
+Los dos primeros son pipelines de ML de AymurAI. Los dos últimos orquestan
+servicios externos (`llama-server` y `coro`) y están inactivos hasta que se los
+configura.
+
+Este repositorio contiene el frontend React/Electron, el servicio FastAPI, las configuraciones de pipelines de producción y la persistencia en base de datos para estos flujos.
 
 ## Qué es AymurAI
 AymurAI es un proyecto orientado a facilitar la generación de datos judiciales anonimizados y estructurados para casos de violencia de género (VG) en América Latina. La aplicación guía la ingesta de documentos, la inferencia de modelos, la revisión manual, la validación y la exportación de resultados para usos operativos y de investigación.
@@ -16,9 +22,12 @@ El frontend puede ejecutarse como aplicación web servida por FastAPI o como apl
 ## Documentación
 - Índice técnico: [docs/es/README.md](docs/es/README.md)
 - Referencia de API: [docs/es/api/README.md](docs/es/api/README.md)
+- Referencia de configuración: [docs/es/configuration/README.md](docs/es/configuration/README.md)
 - Índice de pipelines: [docs/es/pipelines/README.md](docs/es/pipelines/README.md)
 - Flujo anonymizer: [docs/es/pipelines/anonymizer/README.md](docs/es/pipelines/anonymizer/README.md)
 - Flujo datapublic: [docs/es/pipelines/datapublic/README.md](docs/es/pipelines/datapublic/README.md)
+- Flujo de sumarización: [docs/es/pipelines/summarization/README.md](docs/es/pipelines/summarization/README.md)
+- Flujo de transcripción (ASR): [docs/es/pipelines/transcription/README.md](docs/es/pipelines/transcription/README.md)
 - Esquema de base de datos interna: [docs/es/database/README.md](docs/es/database/README.md)
 - Desarrollo y empaquetado del frontend: [frontend/README.md](frontend/README.md)
 
@@ -43,10 +52,15 @@ Opcional: runtime con GPU (requiere NVIDIA Container Toolkit):
 
 ```bash
 docker run -d --name aymurai-backend-gpu --gpus all \
-  -e TORCH_DEVICE=cuda \
   -p 8899:8899 \
   ghcr.io/aymurai/api:full
 ```
+
+> Exponer una GPU al container no alcanza para correr inferencia en ella. Las dos
+> configs de pipeline de producción tienen `"device": "cpu"` hardcodeado, y
+> ninguna variable de entorno las sobreescribe — `TORCH_DEVICE` la setea
+> `docker-compose.yml` pero no la lee nadie. Hay que editar los campos `device` en
+> `resources/pipelines/production/*/pipeline.json` para poner los modelos en GPU.
 
 Abrir Swagger UI:
 
@@ -84,6 +98,21 @@ make api-logs
 # o make api-full-logs
 ```
 
+### Backend de voz a texto (coro)
+
+La transcripción hace de proxy sobre un server
+[`coro`](https://github.com/collectiveai-team/coro). Vive detrás del perfil `asr`
+de compose, así que un `docker compose up` pelado no lo levanta:
+
+```bash
+make coro-up                        # CPU
+CORO_SERVICE=coro-gpu make coro-up  # GPU
+make coro-logs
+```
+
+La API lo alcanza vía `TRANSCRIBE_BASE_URL`; sin eso, toda ruta `/api/asr/*`
+responde `500 Configuration error`.
+
 ### Backend de LLM (llama.cpp)
 
 La sumarización corre contra un `llama-server` que habla la API compatible con
@@ -120,6 +149,12 @@ razonamiento: subí `max_tokens`, o poné `LLM_THINK_BUDGET=0`.
 - Configs de pipeline de producción:
   - `resources/pipelines/production/flair-anonymizer/pipeline.json`
   - `resources/pipelines/production/datapublic/pipeline.json`
+- Servicios externos opcionales:
+  - `llama-server` para sumarización (`LLAMACPP_BASE_URL`)
+  - `coro` para transcripción (`TRANSCRIBE_BASE_URL`)
+
+Todas las variables de runtime están listadas en la
+[referencia de configuración](docs/es/configuration/README.md).
 
 ## Endpoints públicos principales
 - `GET /api/server/healthcheck`
@@ -132,6 +167,11 @@ razonamiento: subí `max_tokens`, o poné `LLM_THINK_BUDGET=0`.
 - `POST /api/datapublic/predict/{document_id}`
 - `GET /api/datapublic/validation/document/{document_id}`
 - `POST /api/datapublic/validation/document/{document_id}`
+- `POST /api/llm/summarize` y `POST /api/llm/summarize/stream`
+- `GET|POST /api/llm/summarize/validation/document/{document_id}`
+- `POST /api/asr/transcribe` y `POST /api/asr/transcribe/stream`
+- `GET|POST /api/asr/validation/document/{document_id}`
+- `POST /api/convert/{pdf,docx,odt}/{pdf,docx,odt}` (conversión de documentos)
 
 Para contratos request/response y ejemplos completos, ver [docs/es/api/README.md](docs/es/api/README.md).
 

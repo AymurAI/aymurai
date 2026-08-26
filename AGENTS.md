@@ -47,8 +47,8 @@ A consistently too-expensive step is a signal of poor code that needs optimizati
 Each rule is a **CES — Collective Engineering Standard** (`CES-<issue#>` is the citable code;
 the kebab-case slug is the machine id used by tooling and `# ast-grep-ignore: <slug>`
 suppressions). `[ast-grep]` / `[prek]` rules are enforced automatically by `prek`; `[judgment]`
-rules are reviewer/agent judgment; `[snippet]` ships canonical drop-in code. Full convention:
-`docs/engineering-standards.md`.
+rules are reviewer/agent judgment; `[snippet]` ships canonical drop-in code. Per-rule detail
+lives in `.agents/rules/`, with drop-in reference code in `.agents/snippets/`.
 
 ### Standards
 

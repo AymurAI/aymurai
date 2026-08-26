@@ -7,7 +7,33 @@ Referencia técnica orientada al flujo de extracción de información del datapu
 Este flujo extrae información estructurada a partir de párrafos y soporta persistencia de validación a nivel documento para curación de dataset público.
 
 ## Diagrama
-![Diagrama del pipeline de datapublic](../../../pipelines/datapublic/pipeline.png)
+```mermaid
+flowchart TD
+    A["documento (.docx / .pdf)"] --> B["POST /api/misc/document-extract"]
+    B --> C["párrafos normalizados"]
+    C --> D["POST /api/datapublic/predict/{document_id}"]
+
+    subgraph P ["pipeline datapublic"]
+        direction TB
+        PRE["preprocess<br/>FlairTextNormalize"]
+        M1["FlairModel<br/>aymurai/flair-ner-spanish-judicial"]
+        M2["DecisionEmbeddingBagBinRegex<br/>return_only_with_detalle=true"]
+        PO1["RegexSubcategorizer"]
+        PO2["DatetimeFormatter"]
+        PO3["SentenceTransformerSubcategorizer ×4<br/>CONDUCTA · CONDUCTA_DESCRIPCION<br/>DETALLE · OBJETO_DE_LA_RESOLUCION"]
+        PO4["ArticleSubcategorizer"]
+        PRE --> M1 --> M2 --> PO1 --> PO2 --> PO3 --> PO4
+    end
+
+    D --> PRE
+    PO4 --> E["DocumentInformation<br/>(labels + subcategorías)"]
+    E --> F["cacheado en datapublic_paragraph<br/>cuando use_cache=true"]
+    E --> G["revisión a nivel documento en la UI"]
+    G --> H["POST /api/datapublic/validation/document/{document_id}"]
+    H --> I["datapublic_document.validation"]
+```
+
+El orden de los componentes espeja `resources/pipelines/production/datapublic/pipeline.json`.
 
 ## Entrypoints de runtime
 - `POST /api/misc/document-extract`

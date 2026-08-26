@@ -1,11 +1,19 @@
 # Pipelines
 Language: **English** | [Español](../es/pipelines/README.md)
 
-This section documents AymurAI backend production pipelines by workflow.
+This section documents the AymurAI backend workflows by flow.
 
-## Flow docs
+Two of them are AymurAI ML pipelines, configured by a JSON file under
+`resources/pipelines/production/`. The other two orchestrate external services
+and have no pipeline config of their own.
+
+## ML pipelines
 - Anonymizer: [anonymizer/README.md](anonymizer/README.md)
 - Datapublic: [datapublic/README.md](datapublic/README.md)
+
+## Service-backed flows
+- Summarization (llama.cpp): [summarization/README.md](summarization/README.md)
+- Transcription / ASR (coro): [transcription/README.md](transcription/README.md)
 
 ## Related model docs
 - Models index: [../models/README.md](../models/README.md)
@@ -16,10 +24,22 @@ This section documents AymurAI backend production pipelines by workflow.
 - Anonymizer config: `resources/pipelines/production/flair-anonymizer/pipeline.json`
 - Datapublic config: `resources/pipelines/production/datapublic/pipeline.json`
 
+Both configs hardcode `"device": "cpu"` for every model. There is no environment
+variable that overrides this — the `TORCH_DEVICE` variable set by
+`docker-compose.yml` is read by nothing. Running inference on GPU means editing
+the `device` fields in these files. See the
+[configuration reference](../configuration/README.md#inference).
+
 ## API mapping
-- `POST /api/anonymizer/predict` -> `flair-anonymizer`
-- `POST /api/datapublic/predict/{document_id}` -> `datapublic`
+| Flow | Entry route | Backing |
+|---|---|---|
+| `anonymizer` | `POST /api/anonymizer/predict` | `flair-anonymizer` pipeline |
+| `datapublic` | `POST /api/datapublic/predict/{document_id}` | `datapublic` pipeline |
+| summarization | `POST /api/llm/summarize` | external `llama-server` |
+| transcription | `POST /api/asr/transcribe` | external `coro` server |
 
 ## Related docs
 - API reference: [../api/README.md](../api/README.md)
+- Configuration: [../configuration/README.md](../configuration/README.md)
 - Internal database: [../database/README.md](../database/README.md)
+- Entity disambiguation design notes: [../anonymization/README.md](../anonymization/README.md)
