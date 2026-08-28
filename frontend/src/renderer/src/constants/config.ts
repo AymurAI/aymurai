@@ -49,14 +49,17 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
   import.meta.env.VITE_SUMMARIZE_MOCK_DELAY_MS ?? 300,
 );
 
-// Fase 1 of docs/defensoria/PLAN.md (catalogs backend) isn't implemented on this branch
-// yet — the Fase 7 frontend is built against the exact documented contract, but served
-// from an in-memory fake until the real endpoints land. Flip to false once they do.
+// Opt-in, like USE_MOCK_STT/USE_MOCK_SUMMARIZE above — Fase 1 of
+// docs/defensoria/PLAN.md (catalogs backend) doesn't exist on this branch yet, so
+// leaving this false (the default) means catalog calls hit a real endpoint that
+// isn't there and fail. Set VITE_USE_MOCK_CATALOGS=true locally to serve from the
+// in-memory fake instead, until the real backend lands.
 export const USE_MOCK_CATALOGS =
   import.meta.env.VITE_USE_MOCK_CATALOGS === "true";
 
-// Fase 2 of docs/defensoria/PLAN.md (organigram backend) isn't implemented on this
-// branch yet — same provisional-mock rationale as USE_MOCK_CATALOGS above.
+// Opt-in, same rationale as USE_MOCK_CATALOGS above — Fase 2's organigram backend
+// doesn't exist on this branch yet either. Set VITE_USE_MOCK_ORGANIGRAM=true locally
+// to serve from the in-memory fake instead, until the real backend lands.
 export const USE_MOCK_ORGANIGRAM =
   import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
 
