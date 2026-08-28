@@ -28,3 +28,7 @@ export const subtopicsSchema = z.array(subtopicSchema);
 export const categoryUsageSchema = z.object({
   count: z.number(),
 });
+
+export const reassignResultSchema = z.object({
+  success: z.literal(true),
+});
