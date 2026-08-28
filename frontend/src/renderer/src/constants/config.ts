@@ -52,8 +52,14 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
 // only the two Defensoría-specific screens and their nav entries are.
-export const DEFENSORIA_ENABLED =
-  import.meta.env.VITE_DEFENSORIA_ENABLED === "true";
+//
+// Exported as a function (not a frozen const) so callers always read the live
+// value instead of one captured at first import — mirrors `isElectronApp()` in
+// `utils/app-mode.ts`, which solves the same `vi.stubEnv`-per-test /
+// module-caching problem for `VITE_APP_MODE`.
+export function isDefensoriaEnabled(): boolean {
+  return import.meta.env.VITE_DEFENSORIA_ENABLED === "true";
+}
 
 // Cache ON in production, OFF in dev. Override with VITE_ASR_USE_CACHE=true|false.
 export const USE_ASR_CACHE =

@@ -65,7 +65,7 @@ export const useLocalStore = create<LocalStorageStore>()(
             };
           } catch {
             // An unparseable stored value must not wedge boot — drop it and let
-            // the user reconnect from /home/host.
+            // the user reconnect from /home/settings/server.
             return { ...state, serverHost: null };
           }
         },

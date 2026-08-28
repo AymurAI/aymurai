@@ -50,7 +50,7 @@ describe("FeaturesMenu", () => {
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
   });
 
-  it("navigates to /home/host and clears files only after the navigation resolves", async () => {
+  it("navigates to /home/settings/server and clears files only after the navigation resolves", async () => {
     let resolveNavigate: () => void = () => {};
     navigate.mockImplementationOnce(
       () =>
@@ -64,7 +64,7 @@ describe("FeaturesMenu", () => {
     fireEvent.click(screen.getByText("common:settings"));
 
     expect(navigate).toHaveBeenCalledWith({
-      to: "/home/host",
+      to: "/home/settings/server",
       viewTransition: false,
     });
     expect(dispatch).not.toHaveBeenCalled();

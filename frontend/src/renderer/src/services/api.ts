@@ -11,11 +11,12 @@ const api = axios.create();
  *
  *  1. VITE_DEV_HOST — dev-only escape hatch so `pnpm dev:web` can render the
  *     APIProtected screens without walking the connect flow.
- *  2. A host the user explicitly saved on /home/host — wins on both platforms.
+ *  2. A host the user explicitly saved on /home/settings/server — wins on both
+ *     platforms.
  *  3. The web app's own origin — the deployed SPA is served by the very API it
  *     talks to, so no manual configuration should ever be required.
  *  4. Nothing. The desktop app with no saved server stays unset; APIProtected
- *     then bounces to /, which routes on to /home/host.
+ *     then bounces to /, which routes on to /home/settings/server.
  *
  * Every branch goes through `toApiBaseUrl`, so `/api` is appended exactly once
  * and a stored 1.x value that already ends in /api does not become /api/api.
@@ -40,7 +41,7 @@ function resolveInitialBaseUrl(): string | undefined {
   return undefined;
 }
 
-/** A corrupt stored value must send the user to /home/host, never crash boot. */
+/** A corrupt stored value must send the user to /home/settings/server, never crash boot. */
 function safeApiBaseUrl(host: string): string | undefined {
   try {
     return toApiBaseUrl(host);

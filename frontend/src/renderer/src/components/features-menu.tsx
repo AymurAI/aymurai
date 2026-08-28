@@ -53,7 +53,7 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
   };
 
   const goToSettings = async () => {
-    await navigate({ to: "/home/host", viewTransition: false });
+    await navigate({ to: "/home/settings/server", viewTransition: false });
     handleClearFiles();
   };
 
