@@ -46,12 +46,25 @@ import {
  * "list" endpoints need a route handler. The `/catalogs/subtopics` route is
  * still registered as a defensive no-op (returns `[]`) in case that
  * assumption ever changes.
+ *
+ * Viewport note (final-review Fix 2): both screens' `Grid` now stacks to a
+ * single column below `lg` (1024px, see taxonomy-screen.tsx /
+ * organigram-screen.tsx) so `SidePanelColumn`'s below-`lg` styles can engage,
+ * per its own docblock. `playwright-ct.config.ts` runs this file against six
+ * viewport projects and only one of them ("768x1024") is narrower than
+ * `lg` - the master/detail panels are stacked there by design, not a bug, so
+ * the side-by-side geometry assertion below is skipped for that project only
+ * (chosen over restricting which projects this file's tests run under,
+ * since `playwright-ct.config.ts`'s project list is shared by every CT spec
+ * in this repo - skipping one assertion in one file is the smaller, more
+ * localized change). Both panels are still asserted visible at every
+ * viewport, including "768x1024".
  */
 
 test("Taxonomía: master and detail panels render side by side", async ({
   mount,
   page,
-}) => {
+}, testInfo) => {
   await page.route("**/catalogs/topics", (route) =>
     route.fulfill({
       json: [
@@ -90,7 +103,13 @@ test("Taxonomía: master and detail panels render side by side", async ({
   // `sizes.panel.side` width followed by a flexible detail column
   // (`gridTemplateColumns: "[token(sizes.panel.side) minmax(0, 1fr)]"`), so
   // the master heading's right edge must land at or before the detail
-  // panel's left edge.
+  // panel's left edge. Only applies at/above `lg` (1024px) - below that the
+  // Grid stacks to a single column by design (see the docblock's "Viewport
+  // note" above), so this geometric check is skipped there.
+  const viewportWidth = testInfo.project.use.viewport?.width ?? 0;
+  if (viewportWidth < 1024) {
+    return;
+  }
   const masterBox = await masterHeading.boundingBox();
   const detailBox = await detailEmpty.boundingBox();
   if (masterBox === null || detailBox === null) {
@@ -104,7 +123,7 @@ test("Taxonomía: master and detail panels render side by side", async ({
 test("Organigrama: tree and detail panel render side by side", async ({
   mount,
   page,
-}) => {
+}, testInfo) => {
   await page.route("**/organigram/units", (route) =>
     route.fulfill({
       json: [
@@ -137,7 +156,11 @@ test("Organigrama: tree and detail panel render side by side", async ({
   );
   await expect(detailEmpty).toBeVisible();
 
-  // Same side-by-side check as the Taxonomía test above.
+  // Same side-by-side check as the Taxonomía test above, same `lg` gating.
+  const viewportWidth = testInfo.project.use.viewport?.width ?? 0;
+  if (viewportWidth < 1024) {
+    return;
+  }
   const masterBox = await masterHeading.boundingBox();
   const detailBox = await detailEmpty.boundingBox();
   if (masterBox === null || detailBox === null) {
