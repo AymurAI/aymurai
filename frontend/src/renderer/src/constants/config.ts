@@ -49,6 +49,12 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
   import.meta.env.VITE_SUMMARIZE_MOCK_DELAY_MS ?? 300,
 );
 
+// Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
+// surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
+// only the two Defensoría-specific screens and their nav entries are.
+export const DEFENSORIA_ENABLED =
+  import.meta.env.VITE_DEFENSORIA_ENABLED === "true";
+
 // Cache ON in production, OFF in dev. Override with VITE_ASR_USE_CACHE=true|false.
 export const USE_ASR_CACHE =
   import.meta.env.VITE_ASR_USE_CACHE !== undefined
