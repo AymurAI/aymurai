@@ -45,7 +45,12 @@ export default function TopicsPanel({
   );
   const [newTopicName, setNewTopicName] = useState("");
 
-  const { data: usage } = useQuery({
+  // `isLoading` (rather than the lower-level `isPending`) is TanStack Query
+  // v5's dedicated "first fetch in progress" flag (`isPending && isFetching`)
+  // — it's what should gate the confirm button, since `isPending` alone
+  // stays true even while the query is disabled (dialog closed, no data
+  // yet), which isn't the "still loading" case this button needs to guard.
+  const { data: usage, isLoading: isUsageLoading } = useQuery({
     ...catalogsService.topicUsage(pendingDeactivation?.id ?? ""),
     enabled: pendingDeactivation !== null,
   });
@@ -108,7 +113,15 @@ export default function TopicsPanel({
             key={topic.id}
             justify="space-between"
             className={cx(row, topic.id === selectedTopicId && selectedRow)}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectTopic(topic.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelectTopic(topic.id);
+              }
+            }}
           >
             <span>{topic.name}</span>
             <button
@@ -117,6 +130,15 @@ export default function TopicsPanel({
               onClick={(e) => {
                 e.stopPropagation();
                 setPendingDeactivation(topic);
+              }}
+              onKeyDown={(e) => {
+                // Prevent Enter/Space on this nested button from also
+                // bubbling into the row's own onKeyDown above (which would
+                // otherwise select the row in addition to — or instead of —
+                // opening the deactivate dialog), mirroring the row-select
+                // isolation the onClick handler above already does via
+                // `e.stopPropagation()`.
+                e.stopPropagation();
               }}
             >
               {t("taxonomy.topics.deactivateAction")}
@@ -142,6 +164,7 @@ export default function TopicsPanel({
             </button>
             <button
               type="button"
+              disabled={isUsageLoading}
               onClick={() =>
                 pendingDeactivation &&
                 updateTopic({ id: pendingDeactivation.id, active: false })

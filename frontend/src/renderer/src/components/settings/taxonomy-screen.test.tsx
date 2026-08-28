@@ -73,6 +73,14 @@ const subtopicsByTopic: Record<string, unknown[]> = {
 
 const createTopicMock = vi.fn();
 const createSubtopicMock = vi.fn();
+const updateSubtopicMock = vi.fn();
+
+// Deferred so tests can control exactly when `topicUsage`'s query resolves —
+// `resolveTopicUsage` starts as a no-op reassigned inside a fresh Promise
+// each time `topicUsage` is invoked (i.e. each time the deactivate dialog's
+// usage query is (re)enabled), so a test can assert the "still loading"
+// state before calling it.
+let resolveTopicUsage: (value: { count: number }) => void = () => {};
 
 vi.mock("@/services/aymurai", () => ({
   catalogsService: {
@@ -85,10 +93,13 @@ vi.mock("@/services/aymurai", () => ({
     updateTopic: () => ({ mutationFn: vi.fn() }),
     topicUsage: (id: string) => ({
       queryKey: ["usage", id],
-      queryFn: async () => ({ count: 2 }),
+      queryFn: () =>
+        new Promise<{ count: number }>((resolve) => {
+          resolveTopicUsage = resolve;
+        }),
     }),
     createSubtopic: () => ({ mutationFn: createSubtopicMock }),
-    updateSubtopic: () => ({ mutationFn: vi.fn() }),
+    updateSubtopic: () => ({ mutationFn: updateSubtopicMock }),
     reassignSubtopic: () => ({ mutationFn: vi.fn() }),
   },
 }));
@@ -105,6 +116,7 @@ function renderWithClient(ui: React.ReactElement) {
 describe("TaxonomyScreen — master-detail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resolveTopicUsage = () => {};
   });
 
   it("lists topics in the master panel", async () => {
@@ -120,6 +132,39 @@ describe("TaxonomyScreen — master-detail", () => {
     fireEvent.click(await screen.findByText("Acceso a la justicia"));
 
     expect(await screen.findByText("Patrocinio")).toBeInTheDocument();
+  });
+
+  it("selects a topic via keyboard (Enter on its row), matching organigram-tree-node.tsx's pattern", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    const row = (await screen.findByText("Ambiente")).closest(
+      '[role="button"]',
+    );
+    expect(row).not.toBeNull();
+    expect(row).toHaveAttribute("tabIndex", "0");
+
+    fireEvent.keyDown(row as HTMLElement, { key: "Enter" });
+
+    expect(await screen.findByText("Espacios verdes")).toBeInTheDocument();
+  });
+
+  it("does not select the row when Enter is pressed on its nested deactivate button", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    expect(await screen.findByText("Patrocinio")).toBeInTheDocument();
+
+    // Enter on "Ambiente"'s deactivate button must not bubble up into its
+    // row's onKeyDown and switch the detail panel away from "Acceso a la
+    // justicia"'s subtopics — the button's own onKeyDown stops propagation,
+    // same as its onClick already does for mouse clicks.
+    fireEvent.keyDown(
+      screen.getByLabelText("taxonomy.topics.deactivateAction: Ambiente"),
+      { key: "Enter" },
+    );
+
+    expect(screen.getByText("Patrocinio")).toBeInTheDocument();
+    expect(screen.queryByText("Espacios verdes")).not.toBeInTheDocument();
   });
 
   it("shows an empty state in the detail panel until a topic is selected", () => {
@@ -138,10 +183,38 @@ describe("TaxonomyScreen — master-detail", () => {
       ),
     );
 
+    resolveTopicUsage({ count: 2 });
+
     await waitFor(() => {
       expect(
         screen.getByText("taxonomy.topics.usageWarning:2"),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("disables the topic confirm-deactivate button until the usage query resolves", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    fireEvent.click(
+      await screen.findByLabelText(
+        "taxonomy.topics.deactivateAction: Acceso a la justicia",
+      ),
+    );
+
+    const confirmButton = await screen.findByText(
+      "taxonomy.topics.confirmDeactivate",
+    );
+    // Immediately after opening the dialog, the usage query hasn't resolved
+    // yet (its queryFn's Promise is held open by `resolveTopicUsage` until a
+    // test calls it) — the button must not be clickable before the count is
+    // shown, or the confirmation dialog defeats its own purpose.
+    expect(confirmButton).toBeDisabled();
+
+    resolveTopicUsage({ count: 2 });
+
+    await waitFor(() => {
+      expect(confirmButton).not.toBeDisabled();
     });
   });
 
@@ -222,5 +295,44 @@ describe("TaxonomyScreen — master-detail", () => {
     expect(
       screen.getByLabelText("taxonomy.subtopics.reassignAction: Residuos"),
     ).toBeInTheDocument();
+  });
+
+  it("asks for confirmation before deactivating a subtopic, without calling updateSubtopic yet", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    fireEvent.click(
+      await screen.findByLabelText(
+        "taxonomy.subtopics.deactivateAction: Patrocinio",
+      ),
+    );
+
+    expect(
+      await screen.findByText("taxonomy.subtopics.deactivateConfirmTitle"),
+    ).toBeInTheDocument();
+    expect(updateSubtopicMock).not.toHaveBeenCalled();
+  });
+
+  it("calls updateSubtopic once the deactivate confirmation dialog is confirmed", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    fireEvent.click(
+      await screen.findByLabelText(
+        "taxonomy.subtopics.deactivateAction: Patrocinio",
+      ),
+    );
+
+    await screen.findByText("taxonomy.subtopics.deactivateConfirmTitle");
+    fireEvent.click(screen.getByText("taxonomy.topics.confirmDeactivate"));
+
+    // Same async-mutation-dispatch note as the topic/subtopic create tests
+    // above — `mutate()` dispatches the mutationFn one tick later.
+    await waitFor(() => {
+      expect(updateSubtopicMock).toHaveBeenCalledWith(
+        { id: "s1", active: false },
+        expect.anything(),
+      );
+    });
   });
 });

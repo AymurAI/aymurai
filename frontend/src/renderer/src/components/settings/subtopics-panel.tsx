@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from "@aymurai/ui";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,8 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
   const [reassigning, setReassigning] = useState<Subtopic | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
   const [newSubtopicName, setNewSubtopicName] = useState("");
+  const [pendingDeactivation, setPendingDeactivation] =
+    useState<Subtopic | null>(null);
 
   // Invalidate via the factory's own queryKey rather than a hardcoded
   // `["subtopics", topicId]` literal — the real `catalogsService.listSubtopics`
@@ -37,8 +39,10 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
 
   const { mutate: updateSubtopic } = useMutation({
     ...catalogsService.updateSubtopic(),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: subtopicsQueryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: subtopicsQueryKey });
+      setPendingDeactivation(null);
+    },
   });
   const { mutate: reassignSubtopic } = useMutation({
     ...catalogsService.reassignSubtopic(),
@@ -103,7 +107,7 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
             <button
               type="button"
               aria-label={`${t("taxonomy.subtopics.deactivateAction")}: ${subtopic.name}`}
-              onClick={() => updateSubtopic({ id: subtopic.id, active: false })}
+              onClick={() => setPendingDeactivation(subtopic)}
             >
               {t("taxonomy.subtopics.deactivateAction")}
             </button>
@@ -145,6 +149,31 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
           >
             {t("taxonomy.subtopics.confirmReassign")}
           </button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingDeactivation !== null}
+        onOpenChange={(open) => !open && setPendingDeactivation(null)}
+      >
+        <DialogContent size="sm">
+          <DialogTitle>
+            {t("taxonomy.subtopics.deactivateConfirmTitle")}
+          </DialogTitle>
+          <DialogFooter>
+            <button type="button" onClick={() => setPendingDeactivation(null)}>
+              {t("taxonomy.topics.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                pendingDeactivation &&
+                updateSubtopic({ id: pendingDeactivation.id, active: false })
+              }
+            >
+              {t("taxonomy.topics.confirmDeactivate")}
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Stack>
