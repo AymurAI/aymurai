@@ -55,6 +55,11 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
 export const USE_MOCK_CATALOGS =
   import.meta.env.VITE_USE_MOCK_CATALOGS === "true";
 
+// Fase 2 of docs/defensoria/PLAN.md (organigram backend) isn't implemented on this
+// branch yet — same provisional-mock rationale as USE_MOCK_CATALOGS above.
+export const USE_MOCK_ORGANIGRAM =
+  import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
+
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
 // only the two Defensoría-specific screens and their nav entries are.
