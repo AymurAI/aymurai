@@ -43,7 +43,32 @@ const subtopicsByTopic: Record<string, unknown[]> = {
       updated_at: "x",
     },
   ],
-  t2: [],
+  // Two entries specifically so the aria-label-uniqueness test below has a
+  // real sibling-row scenario to exercise — t1's single-subtopic fixture is
+  // left untouched since other tests assert an `order` computed from its
+  // length.
+  t2: [
+    {
+      id: "s2",
+      topic_id: "t2",
+      code: "AMB1",
+      name: "Espacios verdes",
+      active: true,
+      order: 1,
+      created_at: "x",
+      updated_at: "x",
+    },
+    {
+      id: "s3",
+      topic_id: "t2",
+      code: "AMB2",
+      name: "Residuos",
+      active: true,
+      order: 2,
+      created_at: "x",
+      updated_at: "x",
+    },
+  ],
 };
 
 const createTopicMock = vi.fn();
@@ -174,5 +199,28 @@ describe("TaxonomyScreen — master-detail", () => {
         expect.anything(),
       );
     });
+  });
+
+  it("gives each subtopic's action buttons a unique aria-label when multiple subtopics render", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(await screen.findByText("Ambiente"));
+
+    expect(
+      await screen.findByLabelText(
+        "taxonomy.subtopics.deactivateAction: Espacios verdes",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("taxonomy.subtopics.deactivateAction: Residuos"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "taxonomy.subtopics.reassignAction: Espacios verdes",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("taxonomy.subtopics.reassignAction: Residuos"),
+    ).toBeInTheDocument();
   });
 });

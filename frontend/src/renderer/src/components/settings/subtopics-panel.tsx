@@ -93,11 +93,16 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
         <HStack key={subtopic.id} justify="space-between">
           <span>{subtopic.name}</span>
           <HStack gap="2">
-            <button type="button" onClick={() => setReassigning(subtopic)}>
+            <button
+              type="button"
+              aria-label={`${t("taxonomy.subtopics.reassignAction")}: ${subtopic.name}`}
+              onClick={() => setReassigning(subtopic)}
+            >
               {t("taxonomy.subtopics.reassignAction")}
             </button>
             <button
               type="button"
+              aria-label={`${t("taxonomy.subtopics.deactivateAction")}: ${subtopic.name}`}
               onClick={() => updateSubtopic({ id: subtopic.id, active: false })}
             >
               {t("taxonomy.subtopics.deactivateAction")}
