@@ -49,6 +49,12 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
   import.meta.env.VITE_SUMMARIZE_MOCK_DELAY_MS ?? 300,
 );
 
+// Fase 1 of docs/defensoria/PLAN.md (catalogs backend) isn't implemented on this branch
+// yet — the Fase 7 frontend is built against the exact documented contract, but served
+// from an in-memory fake until the real endpoints land. Flip to false once they do.
+export const USE_MOCK_CATALOGS =
+  import.meta.env.VITE_USE_MOCK_CATALOGS === "true";
+
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
 // only the two Defensoría-specific screens and their nav entries are.
