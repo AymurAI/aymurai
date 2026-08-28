@@ -33,6 +33,8 @@ const settings = {
     tree: {
       title: "Organigrama",
       empty: "No hay unidades cargadas",
+      expandAction: "Expandir",
+      collapseAction: "Contraer",
     },
     detail: {
       empty: "Selecciona una unidad del organigrama",

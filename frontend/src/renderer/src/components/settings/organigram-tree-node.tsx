@@ -1,5 +1,6 @@
 import { CaretUp } from "phosphor-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { css, cx } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
 import type { OrganigramUnit } from "@/types/organigram";
@@ -39,6 +40,7 @@ export default function OrganigramTreeNode({
   selectedUnitId,
   onSelect,
 }: OrganigramTreeNodeProps) {
+  const { t } = useTranslation("settings");
   const [open, setOpen] = useState(true);
   const children = childrenByParent.get(unit.id) ?? [];
 
@@ -50,7 +52,7 @@ export default function OrganigramTreeNode({
             type="button"
             className={caret}
             style={{ transform: open ? "rotate(0deg)" : "rotate(180deg)" }}
-            aria-label={`${open ? "Contraer" : "Expandir"}: ${unit.short_name ?? unit.name}`}
+            aria-label={`${open ? t("organigram.tree.collapseAction") : t("organigram.tree.expandAction")}: ${unit.short_name ?? unit.name}`}
             onClick={() => setOpen((v) => !v)}
           >
             <CaretUp size={16} />
