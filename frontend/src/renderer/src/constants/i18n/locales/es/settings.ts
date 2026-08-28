@@ -29,6 +29,25 @@ const settings = {
       confirmReassign: "Confirmar reasignación",
     },
   },
+  organigram: {
+    tree: {
+      title: "Organigrama",
+      empty: "No hay unidades cargadas",
+    },
+    detail: {
+      empty: "Selecciona una unidad del organigrama",
+      nameLabel: "Cargo",
+      acronymLabel: "Sigla",
+      shortNameLabel: "Nombre corto",
+      isSectorLabel: "Es sector",
+      activeLabel: "Activo",
+      currentHolderLabel: "Titular actual",
+      noHolder: "Sin titular registrado",
+      holderHistoryTitle: "Historial de titulares",
+      newHolderLabel: "Nuevo titular",
+      newHolderAction: "Registrar titular",
+    },
+  },
 };
 
 export default settings;

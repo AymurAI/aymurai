@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import OrganigramScreen from "@/components/settings/organigram-screen";
 import SettingsNav from "@/components/settings/settings-nav";
 import { isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
@@ -18,9 +19,7 @@ function RouteComponent() {
     <APIProtected>
       <HomeLayout variant="wide">
         <SettingsNav />
-        <div>
-          organigram placeholder — replaced by OrganigramScreen in Task 7
-        </div>
+        <OrganigramScreen />
       </HomeLayout>
     </APIProtected>
   );
