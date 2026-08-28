@@ -1,4 +1,5 @@
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
+import { USE_MOCK_CATALOGS } from "@/constants/config";
 import {
   categoryUsageSchema,
   reassignResultSchema,
@@ -14,7 +15,6 @@ import type {
   UpdateSubtopicInput,
   UpdateTopicInput,
 } from "@/types/catalogs";
-import { USE_MOCK_CATALOGS } from "@/constants/config";
 import api from "../api";
 import * as mock from "./mockCatalogs";
 
@@ -67,7 +67,11 @@ export const listSubtopics = (topicId: string) =>
     queryFn: async () => {
       const data = USE_MOCK_CATALOGS
         ? await mock.mockListSubtopics(topicId)
-        : (await api.get("/catalogs/subtopics", { params: { topic_id: topicId } })).data;
+        : (
+            await api.get("/catalogs/subtopics", {
+              params: { topic_id: topicId },
+            })
+          ).data;
       return subtopicsSchema.parse(data);
     },
   });
@@ -99,10 +103,9 @@ export const reassignSubtopic = () =>
       const data = USE_MOCK_CATALOGS
         ? await mock.mockReassignSubtopic(input)
         : (
-            await api.post(
-              `/catalogs/subtopics/${input.id}/reassign`,
-              { target_subtopic_id: input.target_subtopic_id },
-            )
+            await api.post(`/catalogs/subtopics/${input.id}/reassign`, {
+              target_subtopic_id: input.target_subtopic_id,
+            })
           ).data;
       return reassignResultSchema.parse(data);
     },

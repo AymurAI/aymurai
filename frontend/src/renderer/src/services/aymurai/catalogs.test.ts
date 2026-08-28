@@ -35,18 +35,28 @@ describe("catalogs service — real (non-mock) implementation", () => {
 
   it("creates a topic via POST /catalogs/topics", async () => {
     const input = { name: "Nuevo tema", code: null, order: 99 };
-    const created = { id: "t2", ...input, active: true, created_at: "x", updated_at: "x" };
+    const created = {
+      id: "t2",
+      ...input,
+      active: true,
+      created_at: "x",
+      updated_at: "x",
+    };
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: created });
 
     const { mutationFn } = catalogs.createTopic();
-    const result = await (mutationFn as (i: typeof input) => Promise<unknown>)(input);
+    const result = await (mutationFn as (i: typeof input) => Promise<unknown>)(
+      input,
+    );
 
     expect(postSpy).toHaveBeenCalledWith("/catalogs/topics", input);
     expect(result).toEqual(created);
   });
 
   it("fetches usage count via GET /catalogs/topics/{id}/usage", async () => {
-    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: { count: 3 } });
+    const getSpy = vi
+      .spyOn(api, "get")
+      .mockResolvedValue({ data: { count: 3 } });
 
     const { queryFn } = catalogs.topicUsage("t1");
     const result = await (queryFn as () => Promise<{ count: number }>)();
@@ -56,13 +66,17 @@ describe("catalogs service — real (non-mock) implementation", () => {
   });
 
   it("reassigns a subtopic via POST /catalogs/subtopics/{id}/reassign", async () => {
-    const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: { success: true } });
+    const postSpy = vi
+      .spyOn(api, "post")
+      .mockResolvedValue({ data: { success: true } });
 
     const { mutationFn } = catalogs.reassignSubtopic();
-    await (mutationFn as (i: {
-      id: string;
-      target_subtopic_id: string | null;
-    }) => Promise<unknown>)({ id: "s1", target_subtopic_id: "s2" });
+    await (
+      mutationFn as (i: {
+        id: string;
+        target_subtopic_id: string | null;
+      }) => Promise<unknown>
+    )({ id: "s1", target_subtopic_id: "s2" });
 
     expect(postSpy).toHaveBeenCalledWith("/catalogs/subtopics/s1/reassign", {
       target_subtopic_id: "s2",

@@ -1,7 +1,8 @@
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
+import { USE_MOCK_ORGANIGRAM } from "@/constants/config";
 import {
-  organigramHoldersSchema,
   organigramHolderSchema,
+  organigramHoldersSchema,
   organigramUnitSchema,
   organigramUnitsSchema,
 } from "@/schema/organigram";
@@ -10,7 +11,6 @@ import type {
   CreateUnitInput,
   UpdateUnitInput,
 } from "@/types/organigram";
-import { USE_MOCK_ORGANIGRAM } from "@/constants/config";
 import api from "../api";
 import * as mock from "./mockOrganigram";
 
@@ -62,7 +62,11 @@ export const addHolder = () =>
     mutationFn: async (input: AddHolderInput) => {
       const data = USE_MOCK_ORGANIGRAM
         ? await mock.mockAddHolder(input)
-        : (await api.post(`/organigram/units/${input.unit_id}/holders`, { name: input.name })).data;
+        : (
+            await api.post(`/organigram/units/${input.unit_id}/holders`, {
+              name: input.name,
+            })
+          ).data;
       return organigramHolderSchema.parse(data);
     },
   });

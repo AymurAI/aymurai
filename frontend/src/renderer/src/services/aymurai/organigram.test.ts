@@ -37,7 +37,11 @@ describe("organigram service — real (non-mock) implementation", () => {
   });
 
   it("creates a unit via POST /organigram/units", async () => {
-    const input = { parent_id: "u1", name: "Nueva Dirección", is_sector: false };
+    const input = {
+      parent_id: "u1",
+      name: "Nueva Dirección",
+      is_sector: false,
+    };
     const created = {
       id: "u3",
       parent_id: "u1",
@@ -53,7 +57,9 @@ describe("organigram service — real (non-mock) implementation", () => {
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: created });
 
     const { mutationFn } = organigram.createUnit();
-    const result = await (mutationFn as (i: typeof input) => Promise<unknown>)(input);
+    const result = await (mutationFn as (i: typeof input) => Promise<unknown>)(
+      input,
+    );
 
     expect(postSpy).toHaveBeenCalledWith("/organigram/units", input);
     expect(result).toEqual(created);
@@ -76,17 +82,28 @@ describe("organigram service — real (non-mock) implementation", () => {
     });
 
     const { mutationFn } = organigram.updateUnit();
-    await (mutationFn as (i: { id: string; is_sector: boolean }) => Promise<unknown>)({
+    await (
+      mutationFn as (i: { id: string; is_sector: boolean }) => Promise<unknown>
+    )({
       id: "u2",
       is_sector: true,
     });
 
-    expect(patchSpy).toHaveBeenCalledWith("/organigram/units/u2", { is_sector: true });
+    expect(patchSpy).toHaveBeenCalledWith("/organigram/units/u2", {
+      is_sector: true,
+    });
   });
 
   it("lists a unit's holder history via GET /organigram/units/{id}/holders", async () => {
     const holders = [
-      { id: "h1", unit_id: "u2", name: "María Pérez", is_current: true, created_at: "x", updated_at: "x" },
+      {
+        id: "h1",
+        unit_id: "u2",
+        name: "María Pérez",
+        is_current: true,
+        created_at: "x",
+        updated_at: "x",
+      },
     ];
     const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: holders });
 
@@ -99,15 +116,26 @@ describe("organigram service — real (non-mock) implementation", () => {
 
   it("inserts a new current holder via POST /organigram/units/{id}/holders", async () => {
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({
-      data: { id: "h2", unit_id: "u2", name: "Juan Gómez", is_current: true, created_at: "x", updated_at: "x" },
+      data: {
+        id: "h2",
+        unit_id: "u2",
+        name: "Juan Gómez",
+        is_current: true,
+        created_at: "x",
+        updated_at: "x",
+      },
     });
 
     const { mutationFn } = organigram.addHolder();
-    await (mutationFn as (i: { unit_id: string; name: string }) => Promise<unknown>)({
+    await (
+      mutationFn as (i: { unit_id: string; name: string }) => Promise<unknown>
+    )({
       unit_id: "u2",
       name: "Juan Gómez",
     });
 
-    expect(postSpy).toHaveBeenCalledWith("/organigram/units/u2/holders", { name: "Juan Gómez" });
+    expect(postSpy).toHaveBeenCalledWith("/organigram/units/u2/holders", {
+      name: "Juan Gómez",
+    });
   });
 });

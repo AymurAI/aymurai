@@ -17,21 +17,83 @@ const now = "2026-08-28T00:00:00Z";
  * backend doesn't exist on this branch yet.
  */
 let topics: Topic[] = [
-  { id: "topic-acc", code: "ACC", name: "Acceso a la justicia", active: true, order: 1, created_at: now, updated_at: now },
-  { id: "topic-amb", code: "AMB", name: "Ambiente", active: true, order: 2, created_at: now, updated_at: now },
-  { id: "topic-sm", code: "SM", name: "Salud mental", active: true, order: 3, created_at: now, updated_at: now },
+  {
+    id: "topic-acc",
+    code: "ACC",
+    name: "Acceso a la justicia",
+    active: true,
+    order: 1,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "topic-amb",
+    code: "AMB",
+    name: "Ambiente",
+    active: true,
+    order: 2,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "topic-sm",
+    code: "SM",
+    name: "Salud mental",
+    active: true,
+    order: 3,
+    created_at: now,
+    updated_at: now,
+  },
 ];
 
 let subtopics: Subtopic[] = [
-  { id: "sub-acc-1", topic_id: "topic-acc", code: "ACC20221", name: "Patrocinio jurídico gratuito", active: true, order: 1, created_at: now, updated_at: now },
-  { id: "sub-acc-2", topic_id: "topic-acc", code: "ACC20222", name: "Turnos judiciales", active: true, order: 2, created_at: now, updated_at: now },
-  { id: "sub-amb-1", topic_id: "topic-amb", code: "AMB20221", name: "Arbolado urbano", active: true, order: 1, created_at: now, updated_at: now },
-  { id: "sub-sm-1", topic_id: "topic-sm", code: "SMCA20226", name: "Internaciones", active: true, order: 1, created_at: now, updated_at: now },
+  {
+    id: "sub-acc-1",
+    topic_id: "topic-acc",
+    code: "ACC20221",
+    name: "Patrocinio jurídico gratuito",
+    active: true,
+    order: 1,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "sub-acc-2",
+    topic_id: "topic-acc",
+    code: "ACC20222",
+    name: "Turnos judiciales",
+    active: true,
+    order: 2,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "sub-amb-1",
+    topic_id: "topic-amb",
+    code: "AMB20221",
+    name: "Arbolado urbano",
+    active: true,
+    order: 1,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "sub-sm-1",
+    topic_id: "topic-sm",
+    code: "SMCA20226",
+    name: "Internaciones",
+    active: true,
+    order: 1,
+    created_at: now,
+    updated_at: now,
+  },
 ];
 
 const MOCK_DELAY_MS = 200;
 function delay<T>(value: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), MOCK_DELAY_MS));
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(value), MOCK_DELAY_MS),
+  );
 }
 
 let nextId = 100;
@@ -82,7 +144,9 @@ export function mockListSubtopics(topicId: string): Promise<Subtopic[]> {
   );
 }
 
-export function mockCreateSubtopic(input: CreateSubtopicInput): Promise<Subtopic> {
+export function mockCreateSubtopic(
+  input: CreateSubtopicInput,
+): Promise<Subtopic> {
   const created: Subtopic = {
     id: makeId("sub"),
     topic_id: input.topic_id,
@@ -97,7 +161,9 @@ export function mockCreateSubtopic(input: CreateSubtopicInput): Promise<Subtopic
   return delay(created);
 }
 
-export function mockUpdateSubtopic(input: UpdateSubtopicInput): Promise<Subtopic> {
+export function mockUpdateSubtopic(
+  input: UpdateSubtopicInput,
+): Promise<Subtopic> {
   const existing = subtopics.find((s) => s.id === input.id);
   if (!existing) throw new Error(`Unknown subtopic ${input.id}`);
   const updated: Subtopic = { ...existing, ...input, updated_at: now };
@@ -112,7 +178,8 @@ export function mockReassignSubtopic(
   // has nothing to reassign, so it only validates the target (when given) exists.
   if (input.target_subtopic_id) {
     const target = subtopics.find((s) => s.id === input.target_subtopic_id);
-    if (!target) throw new Error(`Unknown target subtopic ${input.target_subtopic_id}`);
+    if (!target)
+      throw new Error(`Unknown target subtopic ${input.target_subtopic_id}`);
   }
   return delay({ success: true });
 }
