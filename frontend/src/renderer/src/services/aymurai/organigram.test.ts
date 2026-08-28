@@ -36,6 +36,29 @@ describe("organigram service — real (non-mock) implementation", () => {
     expect(result).toEqual(units);
   });
 
+  it("creates a unit via POST /organigram/units", async () => {
+    const input = { parent_id: "u1", name: "Nueva Dirección", is_sector: false };
+    const created = {
+      id: "u3",
+      parent_id: "u1",
+      name: "Nueva Dirección",
+      acronym: null,
+      short_name: null,
+      is_sector: false,
+      active: true,
+      order: null,
+      created_at: "x",
+      updated_at: "x",
+    };
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: created });
+
+    const { mutationFn } = organigram.createUnit();
+    const result = await (mutationFn as (i: typeof input) => Promise<unknown>)(input);
+
+    expect(postSpy).toHaveBeenCalledWith("/organigram/units", input);
+    expect(result).toEqual(created);
+  });
+
   it("patches a unit via PATCH /organigram/units/{id}, including is_sector", async () => {
     const patchSpy = vi.spyOn(api, "patch").mockResolvedValue({
       data: {
