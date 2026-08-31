@@ -7,6 +7,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   useNavigate: () => vi.fn(),
   createFileRoute: () => (options: unknown) => ({ options }),
+  Link: ({ to: _to, children }: { to: string; children: React.ReactNode }) => children,
 }));
 
 vi.mock("react-i18next", () => ({

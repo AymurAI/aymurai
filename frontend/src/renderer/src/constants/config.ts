@@ -49,19 +49,17 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
   import.meta.env.VITE_SUMMARIZE_MOCK_DELAY_MS ?? 300,
 );
 
-// Opt-in, like USE_MOCK_STT/USE_MOCK_SUMMARIZE above — Fase 1 of
-// docs/defensoria/PLAN.md (catalogs backend) doesn't exist on this branch yet, so
-// leaving this false (the default) means catalog calls hit a real endpoint that
-// isn't there and fail. Set VITE_USE_MOCK_CATALOGS=true locally to serve from the
-// in-memory fake instead, until the real backend lands.
+// Default ON while Fase 1 (docs/defensoria/PLAN.md, catalogs backend) doesn't
+// exist — developers enabling DEFENSORIA_ENABLED get working mock data out of the box.
+// Set VITE_USE_MOCK_CATALOGS=false to test against a real backend once it lands.
 export const USE_MOCK_CATALOGS =
-  import.meta.env.VITE_USE_MOCK_CATALOGS === "true";
+  import.meta.env.VITE_USE_MOCK_CATALOGS !== "false";
 
-// Opt-in, same rationale as USE_MOCK_CATALOGS above — Fase 2's organigram backend
-// doesn't exist on this branch yet either. Set VITE_USE_MOCK_ORGANIGRAM=true locally
-// to serve from the in-memory fake instead, until the real backend lands.
+// Default ON, same rationale as USE_MOCK_CATALOGS above — Fase 2's organigram
+// backend doesn't exist yet either. Set VITE_USE_MOCK_ORGANIGRAM=false to test
+// against a real backend once it lands.
 export const USE_MOCK_ORGANIGRAM =
-  import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
+  import.meta.env.VITE_USE_MOCK_ORGANIGRAM !== "false";
 
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
