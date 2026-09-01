@@ -1,11 +1,14 @@
 from fastapi.routing import APIRouter
 
+from aymurai.settings import settings
+
 from .endpoints.routers.anonymizer import anonymizer
 from .endpoints.routers.asr import transcribe
 from .endpoints.routers.datapublic import datapublic
 from .endpoints.routers.llm import summarization, summary_validation
 from .endpoints.routers.misc import convert, document_extract
 from .endpoints.routers.server import stats
+from .v1.routers import catalogs, data_extraction, organigram
 
 router = APIRouter()
 
@@ -57,3 +60,22 @@ router.include_router(document_extract.router, prefix="/misc", tags=["document"]
 
 # Document conversion
 router.include_router(convert.router, tags=["Document conversion"])
+
+# Defensoría del Pueblo (CABA) -- tables/migrations always run, only router
+# registration is gated by this flag.
+if settings.DEFENSORIA_ENABLED:
+    router.include_router(
+        catalogs.router,
+        prefix="/catalogs",
+        tags=["defensoria/catalogs"],
+    )
+    router.include_router(
+        organigram.router,
+        prefix="/organigram",
+        tags=["defensoria/organigram"],
+    )
+    router.include_router(
+        data_extraction.router,
+        prefix="/llm",
+        tags=["defensoria/llm"],
+    )

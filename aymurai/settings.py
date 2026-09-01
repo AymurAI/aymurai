@@ -129,6 +129,28 @@ class Settings(BaseSettings):
     LLAMACPP_BASE_URL: str | None = None
     LLAMACPP_API_KEY: str = "not-needed"
 
+    # Defensoría del Pueblo (CABA) customization. Gates router registration only —
+    # tables/migrations/seeds always run regardless of this flag.
+    DEFENSORIA_ENABLED: bool = False
+
+    # /llm/data-extraction config
+    DATA_EXTRACTION_MAX_TOKENS: int = 1024
+    DATA_EXTRACTION_MAX_RETRIES: int = 2
+
+    # Organigram cross-reference (recipient name/cargo -> organigram_unit)
+    DATA_EXTRACTION_SEARCH_BACKEND: str = "hybrid"  # fuzzy | embeddings | hybrid
+    DATA_EXTRACTION_TOP_K: int = 5
+    # embeddings weight; fuzzy gets the rest
+    DATA_EXTRACTION_HYBRID_WEIGHT: float = 0.25
+    DATA_EXTRACTION_NAME_EVIDENCE_WEIGHT: float = 1.0
+    DATA_EXTRACTION_NAME_SCORE_THRESHOLD: float = 90
+    DATA_EXTRACTION_POSITION_SCORE_THRESHOLD: float = 85
+
+    # Timezone the dataset export formats dates in -- created_at/updated_at
+    # are stored naive UTC (SQLite's CURRENT_TIMESTAMP), so this must be
+    # applied explicitly rather than relying on the process's own TZ.
+    EXPORT_TIMEZONE: str = "America/Argentina/Buenos_Aires"
+
 
 load_env()
 settings = Settings()

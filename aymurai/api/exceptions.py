@@ -21,6 +21,11 @@ class NotFoundError(AymuraiAPIException):
     title = "Resource not found"
 
 
+class ConflictError(AymuraiAPIException):
+    status_code = status.HTTP_409_CONFLICT
+    title = "Resource conflict"
+
+
 class ConfigurationError(AymuraiAPIException):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     title = "Configuration error"
