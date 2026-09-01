@@ -53,7 +53,9 @@ from flair.models import SequenceTagger
 tagger = SequenceTagger.load("aymurai/flair-ner-spanish-judicial")
 
 # make example sentence
-sentence = Sentence("1. DECLARAR EXTINGUIDA LA ACCIÓN PENAL en este caso por cumplimiento de la suspensión del proceso a prueba, y SOBRESEER a EZEQUIEL CAMILO MARCONNI, DNI 11.222.333, en orden a los delitos de lesiones leves agravadas, amenazas simples y agravadas por el uso de armas.")
+sentence = Sentence(
+    "1. DECLARAR EXTINGUIDA LA ACCIÓN PENAL en este caso por cumplimiento de la suspensión del proceso a prueba, y SOBRESEER a EZEQUIEL CAMILO MARCONNI, DNI 11.222.333, en orden a los delitos de lesiones leves agravadas, amenazas simples y agravadas por el uso de armas."
+)
 
 # predict NER tags
 tagger.predict(sentence)
@@ -62,9 +64,9 @@ tagger.predict(sentence)
 print(sentence)
 
 # print predicted NER spans
-print('The following NER tags are found:')
+print("The following NER tags are found:")
 # iterate over entities and print
-for entity in sentence.get_spans('ner'):
+for entity in sentence.get_spans("ner"):
     print(entity)
 ```
 
@@ -90,10 +92,10 @@ from aymurai.pipeline import AymurAIPipeline
 pipeline = AymurAIPipeline.load("/resources/pipelines/production/datapublic")
 
 item = {
-    'path': 'dummy',
-    'data': {
-        'doc.text': "1. DECLARAR EXTINGUIDA LA ACCIÓN PENAL en este caso por cumplimiento de la suspensión del proceso a prueba, y SOBRESEER a EZEQUIEL CAMILO MARCONNI, DNI 11.222.333, en orden a los delitos de lesiones leves agravadas, amenazas simples y agravadas por el uso de armas."
-    }
+    "path": "dummy",
+    "data": {
+        "doc.text": "1. DECLARAR EXTINGUIDA LA ACCIÓN PENAL en este caso por cumplimiento de la suspensión del proceso a prueba, y SOBRESEER a EZEQUIEL CAMILO MARCONNI, DNI 11.222.333, en orden a los delitos de lesiones leves agravadas, amenazas simples y agravadas por el uso de armas."
+    },
 }
 
 processed = pipeline.preprocess([item])

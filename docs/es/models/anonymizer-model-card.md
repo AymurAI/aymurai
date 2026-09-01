@@ -102,8 +102,7 @@ item = {
     "path": "dummy",
     "data": {
         "doc.text": (
-            "Acusado: Ramiro Marrón DNI 34.555.666. "
-            "Fecha: 17 de noviembre de 2024."
+            "Acusado: Ramiro Marrón DNI 34.555.666. Fecha: 17 de noviembre de 2024."
         )
     },
 }

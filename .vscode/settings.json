@@ -1,4 +1,5 @@
 {
+    "ruff.importStrategy": "fromEnvironment",
     "python.testing.pytestArgs": [
         "tests"
     ],
