@@ -8,6 +8,7 @@ from aymurai.database.crud.catalogs.subtopic import subtopic_create
 from aymurai.database.crud.catalogs.topic import topic_create
 from aymurai.database.crud.recommendation import (
     InconsistentSectorError,
+    OrganigramReferenceNotFoundError,
     RecipientValidationData,
     RecommendationValidationData,
     parse_recommendation_date,
@@ -275,6 +276,52 @@ def test_inconsistent_sector_and_unit_is_rejected(session):
                         macro_sector=None,
                         unit_id=direccion.id,
                         sector_id=otro_sector.id,  # not ministerio.id
+                    )
+                ]
+            ),
+            session,
+        )
+
+
+def test_nonexistent_unit_id_is_rejected_not_silently_nulled(session):
+    """A typo'd/nonexistent `unit_id` must never be swallowed into `None` --
+    that would hide a real input mistake as if nothing had been provided."""
+    document_id = uuid.uuid4()
+    with pytest.raises(OrganigramReferenceNotFoundError):
+        recommendation_upsert(
+            document_id,
+            _data(
+                recipients=[
+                    RecipientValidationData(
+                        id=None,
+                        name="Alguien",
+                        position="Directora",
+                        is_primary=True,
+                        macro_sector=None,
+                        unit_id=uuid.uuid4(),  # does not exist
+                        sector_id=None,
+                    )
+                ]
+            ),
+            session,
+        )
+
+
+def test_nonexistent_sector_id_is_rejected_not_silently_nulled(session):
+    document_id = uuid.uuid4()
+    with pytest.raises(OrganigramReferenceNotFoundError):
+        recommendation_upsert(
+            document_id,
+            _data(
+                recipients=[
+                    RecipientValidationData(
+                        id=None,
+                        name="Alguien",
+                        position="Directora",
+                        is_primary=True,
+                        macro_sector=None,
+                        unit_id=None,
+                        sector_id=uuid.uuid4(),  # does not exist
                     )
                 ]
             ),

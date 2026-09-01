@@ -49,6 +49,7 @@ from aymurai.database.crud.llm_extraction import (
 )
 from aymurai.database.crud.recommendation import (
     InconsistentSectorError,
+    OrganigramReferenceNotFoundError,
     RecipientValidationData,
     RecommendationValidationData,
     recommendation_get,
@@ -292,7 +293,7 @@ async def api_data_extraction_validate(
     )
     try:
         recommendation = recommendation_upsert(document_id, data, session)
-    except InconsistentSectorError as exc:
+    except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _recommendation_detail_response(recommendation, extraction, session)
 

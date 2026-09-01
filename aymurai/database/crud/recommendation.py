@@ -103,6 +103,11 @@ class InconsistentSectorError(Exception):
     """`sector_id` isn't `unit_id`'s ancestor-or-self in the organigram."""
 
 
+class OrganigramReferenceNotFoundError(Exception):
+    """`unit_id`/`sector_id` doesn't match any existing `organigram_unit` row --
+    must never be silently swallowed into a null reference."""
+
+
 @dataclass
 class RecipientValidationData:
     id: uuid.UUID | None
@@ -173,6 +178,15 @@ def _reconcile_recipients(
 
         unit = session.get(OrganigramUnit, item.unit_id) if item.unit_id else None
         sector = session.get(OrganigramUnit, item.sector_id) if item.sector_id else None
+
+        if item.unit_id is not None and unit is None:
+            raise OrganigramReferenceNotFoundError(
+                f"unit_id {item.unit_id} does not exist in the organigram"
+            )
+        if item.sector_id is not None and sector is None:
+            raise OrganigramReferenceNotFoundError(
+                f"sector_id {item.sector_id} does not exist in the organigram"
+            )
 
         if unit is not None and sector is not None:
             resolved = resolve_sector(unit, session)
