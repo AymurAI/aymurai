@@ -180,4 +180,4 @@ def test_seed_organigram_resolves_sector_for_488_of_489_holders(session):
 def _holder_select():
     from sqlmodel import select
 
-    return select(OrganigramHolder).where(OrganigramHolder.is_current == True)
+    return select(OrganigramHolder).where(OrganigramHolder.is_current)

@@ -40,7 +40,7 @@ def recipient_learned_index_lookup(
         select(Recipient)
         .join(OrganigramUnit, OrganigramUnit.id == Recipient.unit_id)
         .where(Recipient.unit_id.is_not(None))
-        .where(OrganigramUnit.active == True)
+        .where(OrganigramUnit.active)
         .where(or_(*conditions))
         .order_by(func.coalesce(Recipient.updated_at, Recipient.created_at).desc())
     )

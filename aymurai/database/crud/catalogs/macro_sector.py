@@ -57,7 +57,7 @@ def macro_sector_list(
     """
     statement = select(MacroSector).order_by(MacroSector.order)
     if not include_inactive:
-        statement = statement.where(MacroSector.active == True)
+        statement = statement.where(MacroSector.active)
     return list(session.exec(statement).all())
 
 

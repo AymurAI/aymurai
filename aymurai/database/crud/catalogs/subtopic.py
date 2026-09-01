@@ -64,8 +64,8 @@ def subtopic_list(
     if not include_inactive:
         statement = (
             statement.join(Topic, Topic.id == Subtopic.topic_id)
-            .where(Subtopic.active == True)
-            .where(Topic.active == True)
+            .where(Subtopic.active)
+            .where(Topic.active)
         )
     return list(session.exec(statement).all())
 

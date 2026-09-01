@@ -51,7 +51,7 @@ def topic_list(session: Session, include_inactive: bool = False) -> list[Topic]:
     """
     statement = select(Topic).order_by(Topic.order)
     if not include_inactive:
-        statement = statement.where(Topic.active == True)
+        statement = statement.where(Topic.active)
     return list(session.exec(statement).all())
 
 

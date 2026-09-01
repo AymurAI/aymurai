@@ -143,7 +143,7 @@ def _ensure_current_holder(unit_id: uuid.UUID, name: str, session: Session) -> N
     existing = session.exec(
         select(OrganigramHolder)
         .where(OrganigramHolder.unit_id == unit_id)
-        .where(OrganigramHolder.is_current == True)
+        .where(OrganigramHolder.is_current)
     ).first()
     if existing and existing.name == name:
         return
@@ -217,9 +217,7 @@ def seed_organigram(
     _walk(tree, None, [], [], 0, short_labels, session, counts)
 
     counts["sectors"] = len(
-        session.exec(
-            select(OrganigramUnit).where(OrganigramUnit.is_sector == True)
-        ).all()
+        session.exec(select(OrganigramUnit).where(OrganigramUnit.is_sector)).all()
     )
 
     logger.info(

@@ -43,7 +43,7 @@ def holder_set_current(
     previous = session.exec(
         select(OrganigramHolder)
         .where(OrganigramHolder.unit_id == unit_id)
-        .where(OrganigramHolder.is_current == True)
+        .where(OrganigramHolder.is_current)
     ).first()
     if previous:
         previous.is_current = False

@@ -63,7 +63,7 @@ def unit_children(
         .order_by(OrganigramUnit.order)
     )
     if not include_inactive:
-        statement = statement.where(OrganigramUnit.active == True)
+        statement = statement.where(OrganigramUnit.active)
     return list(session.exec(statement).all())
 
 

@@ -179,21 +179,19 @@ def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
 
 
 def _unit_corpus(session: Session) -> list[OrganigramUnit]:
-    return list(
-        session.exec(select(OrganigramUnit).where(OrganigramUnit.active == True)).all()
-    )
+    return list(session.exec(select(OrganigramUnit).where(OrganigramUnit.active)).all())
 
 
 def _holder_corpus(session: Session, *, current_only: bool) -> list[OrganigramHolder]:
     statement = (
         select(OrganigramHolder)
         .join(OrganigramUnit, OrganigramUnit.id == OrganigramHolder.unit_id)
-        .where(OrganigramUnit.active == True)
+        .where(OrganigramUnit.active)
     )
     if current_only:
-        statement = statement.where(OrganigramHolder.is_current == True)
+        statement = statement.where(OrganigramHolder.is_current)
     else:
-        statement = statement.where(OrganigramHolder.is_current == False)
+        statement = statement.where(~OrganigramHolder.is_current)
     return list(session.exec(statement).all())
 
 
