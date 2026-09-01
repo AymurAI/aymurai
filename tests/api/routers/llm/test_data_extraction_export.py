@@ -143,6 +143,7 @@ def test_destinatarios_columns_order_and_ruta_organigrama(session):
     assert tuple(row.keys()) == DESTINATARIOS_COLUMNS
     assert row["NOMBRE"] == "Alguien"
     assert row["DESTINATARIO_PRINCIPAL"] == "si"
+    assert row["CARGO_FINAL"] == "Dirección General Legal y Técnica"
     assert row["MACRO_SECTOR"] == "GCBA"
     # SECTOR_FINAL is the human-validated `sector_id`, independent of
     # `unit_id` -- never derived from it.
@@ -188,6 +189,7 @@ def test_destinatarios_non_gcba_falls_back_sector_final_to_macro_sector(
 
     row = build_destinatarios_rows(session)[0]
 
+    assert row["CARGO_FINAL"] == ""  # no unit -- nothing to show
     assert row["MACRO_SECTOR"] == "Organismos Nacionales"
     assert row["SECTOR_FINAL"] == "Organismos Nacionales"
     assert row["RUTA_ORGANIGRAMA"] == ""

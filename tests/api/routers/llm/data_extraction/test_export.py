@@ -97,6 +97,7 @@ def test_export_reflects_a_correction_made_via_api(
     destinatarios = workbook["destinatarios"]
     dest_headers = [c.value for c in destinatarios[1]]
     dest_row = dict(zip(dest_headers, [c.value for c in destinatarios[2]]))
+    assert dest_row["CARGO_FINAL"] == "Ministerio de Salud"
     assert dest_row["SECTOR_FINAL"] == "Ministerio de Salud"
     assert dest_row["RUTA_ORGANIGRAMA"] == "Ministerio de Salud"
 
