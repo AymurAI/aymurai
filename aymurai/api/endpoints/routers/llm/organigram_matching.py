@@ -179,14 +179,24 @@ def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
 
 
 def _unit_corpus(session: Session) -> list[OrganigramUnit]:
-    return list(session.exec(select(OrganigramUnit).where(OrganigramUnit.active)).all())
+    # `ORDER BY id` is load-bearing, not cosmetic: the embeddings cache stores
+    # vectors positionally aligned to this corpus (see `_rows_cache_context`).
+    return list(
+        session.exec(
+            select(OrganigramUnit)
+            .where(OrganigramUnit.active)
+            .order_by(OrganigramUnit.id)
+        ).all()
+    )
 
 
 def _holder_corpus(session: Session, *, current_only: bool) -> list[OrganigramHolder]:
+    # `ORDER BY id` for the same reason as `_unit_corpus`.
     statement = (
         select(OrganigramHolder)
         .join(OrganigramUnit, OrganigramUnit.id == OrganigramHolder.unit_id)
         .where(OrganigramUnit.active)
+        .order_by(OrganigramHolder.id)
     )
     if current_only:
         statement = statement.where(OrganigramHolder.is_current)
@@ -197,9 +207,17 @@ def _holder_corpus(session: Session, *, current_only: bool) -> list[OrganigramHo
 
 def _rows_cache_context(rows: list, texts: list[str]) -> str:
     """Content-hash context for the embeddings cache: changes whenever any
-    row in the corpus is added, removed, or edited -- editing the organigram
-    naturally invalidates any cached vector built from a stale snapshot."""
-    fingerprint = tuple(sorted(zip((str(r.id) for r in rows), texts)))
+    row in the corpus is added, removed, edited, or reordered -- editing the
+    organigram naturally invalidates any cached vector built from a stale
+    snapshot.
+
+    Deliberately order-SENSITIVE: cached vectors are positionally aligned to
+    this corpus, so a key that ignored order could hit an entry built from a
+    different sequence and pair every row with another row's vector -- every
+    downstream score wrong, with no error. `_unit_corpus`/`_holder_corpus`
+    carry a matching `ORDER BY id` so the order is stable across calls.
+    """
+    fingerprint = tuple(zip((str(r.id) for r in rows), texts))
     return get_cache_key(fingerprint, context=EMBEDDING_ENCODER_NAME)
 
 

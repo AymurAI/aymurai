@@ -369,3 +369,27 @@ def test_sector_candidates_resolve_via_a_disambiguated_unit_match(session, dgtal
 
     assert match.sector_candidates[0].unit_name == "Ministerio de Salud"
     assert match.sector_candidates[0].score > 90
+
+
+def test_embeddings_cache_key_is_order_sensitive():
+    """The cached vectors are positionally aligned to the corpus, so two
+    different orderings of the same rows must not share a cache key.
+
+    Reaches for the private `_rows_cache_context` deliberately, against the
+    house rule of testing through the public seam (CES-65): the invariant
+    *is* this key function, and no public seam can distinguish "same rows,
+    different order" without stubbing the sentence-transformers encoder.
+    """
+    from aymurai.api.endpoints.routers.llm.organigram_matching import (
+        _rows_cache_context,
+    )
+
+    class _Row:
+        def __init__(self, id_):
+            self.id = id_
+
+    a, b = _Row(uuid.uuid4()), _Row(uuid.uuid4())
+    key_ab = _rows_cache_context([a, b], ["alfa", "beta"])
+    key_ba = _rows_cache_context([b, a], ["beta", "alfa"])
+
+    assert key_ab != key_ba
