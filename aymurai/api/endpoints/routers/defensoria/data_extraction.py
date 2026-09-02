@@ -26,11 +26,11 @@ from aymurai.api.endpoints.routers.llm.data_extraction_export import (
 from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_recipient_unit
 from aymurai.api.endpoints.routers.llm.summarization_engine import ContextTooSmallError
 from aymurai.api.exceptions import ConfigurationError, NotFoundError
-from aymurai.api.v1.schemas.requests.data_extraction import (
+from aymurai.api.endpoints.schemas.requests.data_extraction import (
     DataExtractionRequest,
     ValidateRecommendationRequest,
 )
-from aymurai.api.v1.schemas.responses.data_extraction import (
+from aymurai.api.endpoints.schemas.responses.data_extraction import (
     DataExtractionConfigResponse,
     DataExtractionResponse,
     OrganigramCandidateResponse,

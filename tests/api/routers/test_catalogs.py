@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
-from aymurai.api.v1.routers import catalogs
+from aymurai.api.endpoints.routers.defensoria import catalogs
 from aymurai.database.session import _enable_sqlite_foreign_keys, get_session
 
 

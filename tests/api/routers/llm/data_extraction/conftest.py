@@ -7,13 +7,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
-from aymurai.api.v1.routers import data_extraction
+from aymurai.api.endpoints.routers.defensoria import data_extraction
 from aymurai.database.schema import OrganigramUnit
 from aymurai.database.session import _enable_sqlite_foreign_keys, get_session
 from aymurai.llm_providers import LLMResponse, ServedModel
 from aymurai.settings import settings
 
-DATA_EXTRACTION_MODULE = "aymurai.api.v1.routers.data_extraction"
+DATA_EXTRACTION_MODULE = "aymurai.api.endpoints.routers.defensoria.data_extraction"
 
 
 class FakeProvider:

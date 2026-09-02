@@ -6,7 +6,7 @@ from fastapi.routing import APIRouter
 from sqlmodel import Session
 
 from aymurai.api.exceptions import ConflictError, NotFoundError
-from aymurai.api.v1.schemas.requests.catalogs import (
+from aymurai.api.endpoints.schemas.requests.catalogs import (
     MacroSectorUpdateRequest,
     SubtopicCreateRequest,
     SubtopicReassignRequest,
@@ -14,7 +14,7 @@ from aymurai.api.v1.schemas.requests.catalogs import (
     TopicCreateRequest,
     TopicUpdateRequest,
 )
-from aymurai.api.v1.schemas.responses.catalogs import (
+from aymurai.api.endpoints.schemas.responses.catalogs import (
     MacroSectorResponse,
     ReassignResponse,
     SubtopicResponse,

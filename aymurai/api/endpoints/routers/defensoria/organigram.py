@@ -6,13 +6,13 @@ from fastapi.routing import APIRouter
 from sqlmodel import Session
 
 from aymurai.api.exceptions import NotFoundError
-from aymurai.api.v1.schemas.requests.organigram import (
+from aymurai.api.endpoints.schemas.requests.organigram import (
     OrganigramHolderCreateRequest,
     OrganigramHolderUpdateRequest,
     OrganigramUnitCreateRequest,
     OrganigramUnitUpdateRequest,
 )
-from aymurai.api.v1.schemas.responses.organigram import (
+from aymurai.api.endpoints.schemas.responses.organigram import (
     OrganigramHolderResponse,
     OrganigramUnitResponse,
 )
