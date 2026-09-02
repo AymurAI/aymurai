@@ -67,7 +67,7 @@
     "axios": "^1.19.0",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
-    "electron": "^43.4.1",
+    "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
     "electron-debug": "^4.1.0",
     "electron-devtools-installer": "^4.0.0",
