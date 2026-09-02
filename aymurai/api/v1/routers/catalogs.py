@@ -58,8 +58,26 @@ router = APIRouter()
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def _integrity_error_is_duplicate(exc: Exception) -> bool:
-    return "UNIQUE constraint failed" in str(exc)
+def _integrity_error_is_duplicate(
+    exc: Exception, *, constraint: str | None = None
+) -> bool:
+    """
+    Checks whether `exc` is a unique-constraint violation.
+
+    Args:
+        exc (Exception): The exception raised by the failed write.
+        constraint (str | None): When given, only match this specific
+            constraint. The subtopic table has two (`code`, and the composite
+            `(topic_id, name)`), and reporting a name collision as a `code`
+            conflict misleads the client into changing the wrong field.
+
+    Returns:
+        bool: True when `exc` is a matching unique-constraint violation.
+    """
+    message = str(exc)
+    if "UNIQUE constraint failed" not in message:
+        return False
+    return constraint is None or constraint in message
 
 
 # -- Topics -------------------------------------------------------------
@@ -129,6 +147,13 @@ async def api_subtopic_create(payload: SubtopicCreateRequest, session: SessionDe
         subtopic = subtopic_create(SubtopicCreate(**payload.model_dump()), session)
     except Exception as exc:
         session.rollback()
+        # `uq_subtopic_topic_id_name` first: it is the more specific of the
+        # two constraints, and a name collision reported as a `code` conflict
+        # would send the client off to change the wrong field.
+        if _integrity_error_is_duplicate(exc, constraint="subtopic.name"):
+            raise ConflictError(
+                detail=f"Subtopic name already exists for this topic: {payload.name}"
+            )
         if _integrity_error_is_duplicate(exc):
             raise ConflictError(detail=f"Subtopic code already exists: {payload.code}")
         raise

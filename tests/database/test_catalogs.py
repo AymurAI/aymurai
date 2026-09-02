@@ -118,3 +118,16 @@ def test_seed_macro_sectors_creates_exactly_four(session):
 
     # idempotent
     assert seed_macro_sectors(session) == 4
+
+
+def test_duplicate_subtopic_name_within_topic_is_rejected(session):
+    """uq_subtopic_topic_id_name lives in migration dd89f40c7c3e; the model
+    must declare it too, or create_all-based tests silently allow duplicates."""
+    topic = topic_create(TopicCreate(code="T1", name="Tema"), session)
+    subtopic_create(SubtopicCreate(topic_id=topic.id, code="S1", name="Igual"), session)
+
+    with pytest.raises(IntegrityError):
+        subtopic_create(
+            SubtopicCreate(topic_id=topic.id, code="S2", name="Igual"), session
+        )
+    session.rollback()

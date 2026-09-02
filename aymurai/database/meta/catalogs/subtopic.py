@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, func, text
+from sqlalchemy import Column, DateTime, UniqueConstraint, func, text
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -21,6 +21,13 @@ class SubtopicBase(SQLModel):
 
 class Subtopic(SubtopicBase, table=True):
     __tablename__ = "subtopic"
+    # Mirrors migration dd89f40c7c3e. Declared here as well so that
+    # SQLModel.metadata.create_all (which every test uses) enforces it --
+    # otherwise the suite cannot catch a violation the real database would.
+    # On the table class only: the non-table subclasses must not carry it.
+    __table_args__ = (
+        UniqueConstraint("topic_id", "name", name="uq_subtopic_topic_id_name"),
+    )
     id: uuid.UUID | None = Field(default_factory=uuid.uuid4, primary_key=True)
     created_at: datetime = Field(
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")}
