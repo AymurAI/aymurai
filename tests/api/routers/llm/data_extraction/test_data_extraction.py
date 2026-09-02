@@ -128,3 +128,46 @@ def test_document_with_literal_braces_does_not_break_prompt_assembly(
         )
 
     assert response.status_code == 200
+
+
+def test_exhausted_retries_survive_a_non_topic_violation(
+    extraction_client, seeded_catalogs
+):
+    """ADR-0005: after retries are exhausted the response degrades to null
+    fields, never a 5xx. A schema violation in a field OTHER than
+    topic/subtopic must not escape the fallback as a 500."""
+    # `publishable_content` is the wrong type -- a violation that nulling
+    # topic/subtopic cannot repair.
+    provider = FakeProvider(
+        [_raw_json(subtopic="Invalido", publishable_content=12345) for _ in range(3)]
+    )
+    with patched_provider(provider):
+        response = extraction_client.post(
+            "/llm/data-extraction", json={"document": _document()}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["topic"] is None
+    assert body["subtopic"] is None
+    assert body["publishable_content"] == ""
+
+
+def test_exhausted_retries_survive_json_that_is_not_an_object(
+    extraction_client, seeded_catalogs
+):
+    """`json.loads` succeeds on a JSON array, so the last parse can be a
+    non-mapping. Spreading that into the repair dict would raise TypeError --
+    which is not a ValidationError and would 500 straight through the
+    fallback. The response must still degrade to null fields."""
+    provider = FakeProvider(["[1, 2]" for _ in range(3)])
+    with patched_provider(provider):
+        response = extraction_client.post(
+            "/llm/data-extraction", json={"document": _document()}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["topic"] is None
+    assert body["subtopic"] is None
+    assert body["publishable_content"] == ""

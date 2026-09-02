@@ -339,15 +339,38 @@ async def extract_with_retry(
                 "data-extraction validation failed (attempt %d): %s", attempt + 1, exc
             )
 
-    last_parsed = last_parsed or {
+    # ADR-0005: an invalid payload after every retry degrades to null fields,
+    # never a 5xx. Try the cheapest repair first -- nulling the semantic pair
+    # that the retry loop exists to police -- and if the payload is broken in
+    # some other way, fall back to the empty skeleton rather than propagating
+    # a ValidationError to the caller.
+    skeleton = {
         "recommendation_number": None,
         "recommendation_date": None,
         "recipients": [],
         "personal_data": None,
         "publishable_content": "",
+        "topic": None,
+        "subtopic": None,
     }
-    last_parsed["topic"] = None
-    last_parsed["subtopic"] = None
+
+    # `isinstance`, not `is not None`: `json.loads` succeeds on "null",
+    # "[1,2]" and "42", none of which survive `{**...}` -- that raises
+    # TypeError, which the `except ValidationError` below would NOT catch,
+    # and the 500 this fallback exists to prevent would come straight back.
+    if isinstance(last_parsed, dict):
+        repaired = {**last_parsed, "topic": None, "subtopic": None}
+        try:
+            return RawExtraction.model_validate(
+                repaired, context={"topics": topics}
+            ), max_retries
+        except ValidationError as exc:
+            logger.warning(
+                "data-extraction fallback could not repair the last parse, "
+                "degrading to empty extraction: %s",
+                exc,
+            )
+
     return RawExtraction.model_validate(
-        last_parsed, context={"topics": topics}
+        skeleton, context={"topics": topics}
     ), max_retries
