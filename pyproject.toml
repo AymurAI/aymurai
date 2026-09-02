@@ -55,7 +55,7 @@ dependencies = [
     "more-itertools>=11.1.0",
     "joblib>=1.4.2",
     "datetime_matcher @ git+https://github.com/jedzill4/datetime_matcher",
-    "jiwer==3.0.5",
+    "jiwer==4.0.0",
     "unidecode==1.4.0",
     "flair==0.15.1",
     "fastapi[standard]>=0.139.2",
