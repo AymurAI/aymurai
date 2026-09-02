@@ -375,3 +375,39 @@ def test_invalid_recipient_leaves_existing_recommendation_untouched(session):
     stored = recommendation_get_by_document(document_id, session)
     assert stored is not None
     assert stored.recommendation_number == "5/2024"
+
+
+def test_sector_id_must_name_an_actual_sector(session):
+    """ADR-0001: `is_sector` is the only thing that makes a unit a sector.
+    A plain unit passed as `sector_id` must be rejected, not stored and then
+    exported as SECTOR_FINAL."""
+    ministerio = OrganigramUnit(
+        id=uuid.uuid4(), name="Ministerio de Salud", is_sector=True
+    )
+    session.add(ministerio)
+    direccion = OrganigramUnit(
+        id=uuid.uuid4(),
+        name="Dirección General Legal y Técnica",
+        parent_id=ministerio.id,
+    )
+    session.add(direccion)
+    session.commit()
+
+    with pytest.raises(InconsistentSectorError):
+        recommendation_upsert(
+            uuid.uuid4(),
+            _data(
+                recipients=[
+                    RecipientValidationData(
+                        id=None,
+                        name="Alguien",
+                        position="Directora",
+                        is_primary=True,
+                        macro_sector=None,
+                        unit_id=None,
+                        sector_id=direccion.id,  # exists, but is_sector=False
+                    )
+                ]
+            ),
+            session,
+        )

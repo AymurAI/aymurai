@@ -188,6 +188,17 @@ def _reconcile_recipients(
                 f"sector_id {item.sector_id} does not exist in the organigram"
             )
 
+        # ADR-0001: `is_sector` is the single source of truth for what a
+        # sector is. Checked before the pair-consistency block below, which
+        # only runs when a `unit_id` is present -- without this, a plain unit
+        # passed as `sector_id` with no `unit_id` was stored unchallenged and
+        # later exported as SECTOR_FINAL.
+        if sector is not None and not sector.is_sector:
+            raise InconsistentSectorError(
+                f"sector_id {item.sector_id} is not a sector "
+                "(is_sector=False) in the organigram"
+            )
+
         if unit is not None and sector is not None:
             resolved = resolve_sector(unit, session)
             if resolved is None or resolved.id != sector.id:
