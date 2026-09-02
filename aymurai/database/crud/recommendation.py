@@ -150,6 +150,21 @@ def _resolve_topic_subtopic(
     return (topic.id if topic else None, subtopic.id if subtopic else None)
 
 
+def _like_escape(value: str) -> str:
+    """
+    Escapes LIKE metacharacters so a user's literal text matches itself.
+
+    Args:
+        value (str): Raw user text.
+
+    Returns:
+        str: The text with `\\`, `%` and `_` escaped for use with
+            `.like(..., escape="\\")`. The backslash is escaped first, or it
+            would double-escape the sentinels added after it.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _reconcile_recipients(
     recommendation_id: uuid.UUID,
     recipients: list[RecipientValidationData],
@@ -380,8 +395,13 @@ def recommendation_list(
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
     if q:
+        # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
+        # match themselves rather than being reinterpreted as wildcards.
+        needle = _like_escape(q.lower())
         statement = statement.where(
-            func.lower(Recommendation.publishable_content).like(f"%{q.lower()}%")
+            func.lower(Recommendation.publishable_content).like(
+                f"%{needle}%", escape="\\"
+            )
         )
     if sector_id is not None:
         statement = statement.where(

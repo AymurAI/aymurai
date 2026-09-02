@@ -13,6 +13,7 @@ from aymurai.database.crud.recommendation import (
     RecommendationValidationData,
     parse_recommendation_date,
     recommendation_get_by_document,
+    recommendation_list,
     recommendation_upsert,
 )
 from aymurai.database.schema import (
@@ -455,3 +456,33 @@ def test_suggested_pair_with_a_deactivated_nearer_sector_is_accepted(session):
         select(Recipient).where(Recipient.recommendation_id == recommendation.id)
     ).first()
     assert stored.sector_id == raiz.id
+
+
+def test_q_search_treats_wildcards_as_literal_text(session):
+    """`q` is a substring search over publishable_content, so LIKE
+    metacharacters in the user's text must match themselves."""
+    recommendation_upsert(
+        uuid.uuid4(), _data(publishable_content="Sin comodines."), session
+    )
+    recommendation_upsert(
+        uuid.uuid4(), _data(publishable_content="Contiene 50% de algo."), session
+    )
+
+    assert len(recommendation_list(session, q="%")[0]) == 1
+    assert len(recommendation_list(session, q="50%")[0]) == 1
+    assert len(recommendation_list(session, q="_")[0]) == 0
+
+
+def test_q_search_treats_a_backslash_as_literal_text(session):
+    """`_like_escape` escapes the backslash first; getting that order wrong
+    would double-escape the sentinels it adds afterwards."""
+    recommendation_upsert(
+        uuid.uuid4(), _data(publishable_content=r"Ruta C:\temp de algo."), session
+    )
+    recommendation_upsert(
+        uuid.uuid4(), _data(publishable_content="Sin barra."), session
+    )
+
+    assert len(recommendation_list(session, q="\\")[0]) == 1
+    assert len(recommendation_list(session, q=r"c:\temp")[0]) == 1
+    assert len(recommendation_list(session, q=r"c:\%")[0]) == 0
