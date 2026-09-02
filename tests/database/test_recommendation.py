@@ -327,3 +327,51 @@ def test_nonexistent_sector_id_is_rejected_not_silently_nulled(session):
             ),
             session,
         )
+
+
+def test_invalid_recipient_persists_nothing_on_create(session):
+    """ADR-0009: the whole transaction is cut -- a bad recipient must not
+    leave an orphan recommendation with zero recipients behind."""
+    document_id = uuid.uuid4()
+    bad = RecipientValidationData(
+        id=None,
+        name="Alguien",
+        position="Directora",
+        is_primary=True,
+        macro_sector=None,
+        unit_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+        sector_id=None,
+    )
+
+    with pytest.raises(OrganigramReferenceNotFoundError):
+        recommendation_upsert(document_id, _data(recipients=[bad]), session)
+
+    session.rollback()
+    assert recommendation_get_by_document(document_id, session) is None
+
+
+def test_invalid_recipient_leaves_existing_recommendation_untouched(session):
+    """On update, the rejected payload's fields must not be written either."""
+    document_id = uuid.uuid4()
+    recommendation_upsert(document_id, _data(recommendation_number="5/2024"), session)
+
+    bad = RecipientValidationData(
+        id=None,
+        name="Alguien",
+        position="Directora",
+        is_primary=True,
+        macro_sector=None,
+        unit_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+        sector_id=None,
+    )
+    with pytest.raises(OrganigramReferenceNotFoundError):
+        recommendation_upsert(
+            document_id,
+            _data(recommendation_number="99/2099", recipients=[bad]),
+            session,
+        )
+
+    session.rollback()
+    stored = recommendation_get_by_document(document_id, session)
+    assert stored is not None
+    assert stored.recommendation_number == "5/2024"

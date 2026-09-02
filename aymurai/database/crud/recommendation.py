@@ -223,7 +223,8 @@ def _reconcile_recipients(
         if existing_id not in seen_ids:
             session.delete(recipient)
 
-    session.commit()
+    # The caller owns the transaction boundary (see `recommendation_upsert`).
+    session.flush()
 
 
 def recommendation_upsert(
@@ -274,10 +275,15 @@ def recommendation_upsert(
             setattr(recommendation, field_name, value)
         session.add(recommendation)
 
-    session.commit()
-    session.refresh(recommendation)
+    # Flush, don't commit: `_reconcile_recipients` still has to validate every
+    # unit_id/sector_id, and ADR-0009 requires the whole transaction to be cut
+    # if any single recipient is rejected. Flushing makes the recommendation
+    # row visible to the recipients' foreign key without making it durable.
+    session.flush()
 
     _reconcile_recipients(recommendation.id, data.recipients, session)
+
+    session.commit()
     session.refresh(recommendation)
     return recommendation
 
