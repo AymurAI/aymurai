@@ -171,3 +171,27 @@ def test_exhausted_retries_survive_json_that_is_not_an_object(
     assert body["topic"] is None
     assert body["subtopic"] is None
     assert body["publishable_content"] == ""
+
+
+def test_correction_prompt_shows_the_output_that_actually_failed(
+    extraction_client, seeded_catalogs
+):
+    """The correction prompt must pair the newest error with the output that
+    caused it. When an attempt fails to parse as JSON at all, the prompt must
+    show that unparseable text -- not the previous attempt's output."""
+    provider = FakeProvider(
+        [
+            _raw_json(subtopic="Invalido", publishable_content="PRIMERA"),
+            "no soy json en absoluto",
+            _raw_json(),
+        ]
+    )
+    with patched_provider(provider):
+        response = extraction_client.post(
+            "/llm/data-extraction", json={"document": _document()}
+        )
+
+    assert response.status_code == 200
+    third_prompt = provider.sent_system_prompts[2]
+    assert "no soy json en absoluto" in third_prompt
+    assert "PRIMERA" not in third_prompt

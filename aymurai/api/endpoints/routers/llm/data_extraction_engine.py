@@ -277,8 +277,10 @@ async def extract_with_retry(
     plus only the latest error -- never from a previous retry's correction,
     so the prompt sent never grows across attempts.
 
-    Exhausted retries never fail the request: `topic`/`subtopic` are set to
-    `null` and the rest of the extraction is kept as-is.
+    Exhausted retries never fail the request (ADR-0005): `topic`/`subtopic`
+    are set to `null` and the rest of the extraction is kept as-is. If the
+    last parse is broken in some other way -- or isn't a JSON object at all --
+    the whole extraction degrades to empty fields rather than raising.
 
     Args:
         provider (LlamaCppLLMProvider): Provider to call.
@@ -299,13 +301,17 @@ async def extract_with_retry(
     """
     last_error: str | None = None
     last_parsed: dict | None = None
+    # The raw text of the latest attempt, kept separately from `last_parsed`:
+    # an attempt that fails `json.loads` never produces a parsed dict, and the
+    # correction prompt must show the model the output that actually failed.
+    last_raw: str | None = None
 
     for attempt in range(max_retries + 1):
         system_prompt = (
             base_system_prompt
             if attempt == 0
             else build_correction_prompt(
-                base_system_prompt, last_error or "", json.dumps(last_parsed)
+                base_system_prompt, last_error or "", last_raw or ""
             )
         )
         response = await provider.async_generate(
@@ -329,6 +335,9 @@ async def extract_with_retry(
         )
 
         try:
+            # Recorded before parsing, so a JSONDecodeError still leaves the
+            # offending text behind for the next correction prompt.
+            last_raw = response.text
             last_parsed = json.loads(response.text)
             return RawExtraction.model_validate(
                 last_parsed, context={"topics": topics}
