@@ -411,3 +411,47 @@ def test_sector_id_must_name_an_actual_sector(session):
             ),
             session,
         )
+
+
+def test_suggested_pair_with_a_deactivated_nearer_sector_is_accepted(session):
+    """The suggestion path skips a deactivated sector and proposes the next
+    ACTIVE ancestor. Saving that exact pair must not 422 -- validation checks
+    that sector_id is *an* is_sector ancestor, not the nearest one."""
+    raiz = OrganigramUnit(id=uuid.uuid4(), name="Raíz", is_sector=True)
+    session.add(raiz)
+    viejo = OrganigramUnit(
+        id=uuid.uuid4(),
+        name="Sector Discontinuado",
+        parent_id=raiz.id,
+        is_sector=True,
+        active=False,
+    )
+    session.add(viejo)
+    unidad = OrganigramUnit(
+        id=uuid.uuid4(), name="Dirección General", parent_id=viejo.id
+    )
+    session.add(unidad)
+    session.commit()
+
+    recommendation = recommendation_upsert(
+        uuid.uuid4(),
+        _data(
+            recipients=[
+                RecipientValidationData(
+                    id=None,
+                    name="Alguien",
+                    position="Directora General",
+                    is_primary=True,
+                    macro_sector=None,
+                    unit_id=unidad.id,
+                    sector_id=raiz.id,  # what the suggestion path now proposes
+                )
+            ]
+        ),
+        session,
+    )
+
+    stored = session.exec(
+        select(Recipient).where(Recipient.recommendation_id == recommendation.id)
+    ).first()
+    assert stored.sector_id == raiz.id

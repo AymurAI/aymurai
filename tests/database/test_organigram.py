@@ -5,7 +5,10 @@ from pathlib import Path
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from aymurai.database.crud.organigram.sector import resolve_sector
+from aymurai.database.crud.organigram.sector import (
+    is_sector_ancestor_of,
+    resolve_sector,
+)
 from aymurai.database.schema import OrganigramHolder, OrganigramUnit
 from aymurai.database.seed.organigram import seed_organigram
 
@@ -181,3 +184,63 @@ def _holder_select():
     from sqlmodel import select
 
     return select(OrganigramHolder).where(OrganigramHolder.is_current)
+
+
+def _inactive_sector_tree(session):
+    """raiz (active sector) -> viejo (inactive sector) -> unidad (plain unit)."""
+    raiz = OrganigramUnit(id=uuid.uuid4(), name="Raíz", is_sector=True)
+    session.add(raiz)
+    viejo = OrganigramUnit(
+        id=uuid.uuid4(),
+        name="Sector Discontinuado",
+        parent_id=raiz.id,
+        is_sector=True,
+        active=False,
+    )
+    session.add(viejo)
+    unidad = OrganigramUnit(
+        id=uuid.uuid4(), name="Dirección General", parent_id=viejo.id
+    )
+    session.add(unidad)
+    session.commit()
+    return raiz, viejo, unidad
+
+
+def test_resolve_sector_skips_deactivated_sector(session):
+    """A deactivated sector must not be suggested: resolution walks past it
+    to the next active sector ancestor, matching every other organigram
+    query, all of which filter on `active`."""
+    raiz, _viejo, unidad = _inactive_sector_tree(session)
+
+    assert resolve_sector(unidad, session).id == raiz.id
+
+
+def test_sector_ancestor_membership_accepts_any_sector_ancestor(session):
+    """Validation checks membership, not identity -- so BOTH the active
+    ancestor a suggestion now proposes and the deactivated one a human
+    confirmed earlier are accepted."""
+    raiz, viejo, unidad = _inactive_sector_tree(session)
+
+    assert is_sector_ancestor_of(raiz, unidad, session)
+    assert is_sector_ancestor_of(viejo, unidad, session)
+
+
+def test_sector_ancestor_membership_rejects_a_non_ancestor(session):
+    """An unrelated sector is still not `unidad`'s sector."""
+    _raiz, _viejo, unidad = _inactive_sector_tree(session)
+    otro = OrganigramUnit(id=uuid.uuid4(), name="Otro Sector", is_sector=True)
+    session.add(otro)
+    session.commit()
+
+    assert not is_sector_ancestor_of(otro, unidad, session)
+
+
+def test_sector_ancestor_membership_rejects_a_non_sector_ancestor(session):
+    """An ancestor that isn't flagged `is_sector` is not a sector (ADR-0001)."""
+    _raiz, _viejo, unidad = _inactive_sector_tree(session)
+    hoja = OrganigramUnit(id=uuid.uuid4(), name="Subdirección", parent_id=unidad.id)
+    session.add(hoja)
+    session.commit()
+
+    # `unidad` is `hoja`'s ancestor, but is_sector=False.
+    assert not is_sector_ancestor_of(unidad, hoja, session)

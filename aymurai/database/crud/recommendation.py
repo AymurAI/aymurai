@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
-from aymurai.database.crud.organigram.sector import resolve_sector
+from aymurai.database.crud.organigram.sector import is_sector_ancestor_of
 from aymurai.database.schema import (
     MacroSector,
     OrganigramUnit,
@@ -199,9 +199,12 @@ def _reconcile_recipients(
                 "(is_sector=False) in the organigram"
             )
 
+        # Membership, not identity: `resolve_sector` skips deactivated
+        # sectors, so the pair the suggestion path proposes may name a sector
+        # that is not `unit`'s nearest one -- and a sector deactivated after a
+        # human confirmed it must not retroactively invalidate their row.
         if unit is not None and sector is not None:
-            resolved = resolve_sector(unit, session)
-            if resolved is None or resolved.id != sector.id:
+            if not is_sector_ancestor_of(sector, unit, session):
                 raise InconsistentSectorError(
                     f"sector_id {item.sector_id} is not unit_id {item.unit_id}'s "
                     "sector in the organigram"
