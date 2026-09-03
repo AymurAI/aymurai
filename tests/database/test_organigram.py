@@ -9,6 +9,7 @@ from aymurai.database.crud.organigram.sector import (
     is_sector_ancestor_of,
     resolve_sector,
 )
+from aymurai.database.crud.organigram.unit import unit_children, unit_list
 from aymurai.database.schema import OrganigramHolder, OrganigramUnit
 from aymurai.database.seed.organigram import seed_organigram
 
@@ -244,3 +245,36 @@ def test_sector_ancestor_membership_rejects_a_non_sector_ancestor(session):
 
     # `unidad` is `hoja`'s ancestor, but is_sector=False.
     assert not is_sector_ancestor_of(unidad, hoja, session)
+
+
+def test_unit_list_returns_the_whole_tree_not_just_one_level(synthetic_seed):
+    """
+    `unit_children` answers one level at a time, which costs one request per
+    parent node (124 on the real organigram). `unit_list` is what the ABM
+    screen reads instead, so it must return every unit in one pass.
+    """
+    session = synthetic_seed
+
+    roots = unit_children(None, session)
+    every_unit = unit_list(session)
+
+    assert len(roots) == 1
+    assert len(every_unit) == 5
+    assert {u.name for u in every_unit} == {
+        "Jefe de Gobierno",
+        "Ministerio de Test",
+        "Agencia Autónoma Test",
+        "Subsecretaría de Test",
+        "Subsecretaría Huérfana",
+    }
+
+
+def test_unit_list_hides_deactivated_units_unless_asked(synthetic_seed):
+    session = synthetic_seed
+    orphan = _unit_by_cargo(session, "Subsecretaría Huérfana")
+    orphan.active = False
+    session.add(orphan)
+    session.commit()
+
+    assert len(unit_list(session)) == 4
+    assert len(unit_list(session, include_inactive=True)) == 5

@@ -23,6 +23,7 @@ from aymurai.database.crud.organigram.holder import (
 )
 from aymurai.database.crud.organigram.unit import (
     unit_children,
+    unit_list,
     unit_create,
     unit_deactivate,
     unit_get,
@@ -50,8 +51,18 @@ async def api_unit_list(
     session: SessionDep,
     parent_id: uuid.UUID | None = None,
     include_inactive: bool = False,
+    flat: bool = False,
 ):
-    units = unit_children(parent_id, session, include_inactive=include_inactive)
+    """
+    Lists the children of `parent_id` (the roots when omitted), or every unit
+    at once with `flat=true` -- which is what a client that renders, searches
+    and expands the whole tree needs, instead of one request per parent node.
+    """
+    units = (
+        unit_list(session, include_inactive=include_inactive)
+        if flat
+        else unit_children(parent_id, session, include_inactive=include_inactive)
+    )
     return [OrganigramUnitResponse(**u.model_dump()) for u in units]
 
 
