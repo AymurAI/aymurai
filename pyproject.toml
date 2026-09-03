@@ -81,6 +81,9 @@ dependencies = [
     "docx2txt>=0.9",
     "openai>=2.50.0",
     "httpx>=0.28.1",
+    "typer>=0.15.1",
+    "rapidfuzz>=3.14.1",
+    "openpyxl>=3.1.5",
 ]
 
 [project.urls]
@@ -99,7 +102,7 @@ notebooks = [
     "jupyter>=1.1.1",
 ]
 dev = [
-    "ruff>=0.16.3",
+    "ruff==0.16.5",
 ]
 
 [tool.setuptools.packages.find]
@@ -108,6 +111,7 @@ include = ["aymurai*"]
 [project.scripts]
 aymurai-api = "aymurai.api.main:main"
 pipeline-download = "aymurai.scripts.pipelines_download:pipelines_download"
+aymurai-seed = "aymurai.scripts.seed:app"
 
 
 [tool.setuptools.package-data]
@@ -124,6 +128,19 @@ required-environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 
+
+[tool.ruff.lint]
+# Pinned explicitly: ruff's *default* rule set changed between 0.15 and 0.16
+# (E4/E7xx and F403/F405 left the defaults, RUF joined them), so relying on
+# the implicit default made CI and local runs disagree. This is 0.15's default
+# set, made explicit -- behaviour is now identical at any ruff version.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.format]
+# ruff >=0.16 formats Python code blocks inside Markdown. We want that for real
+# docs, but .agents/rules/*.md holds deliberately misformatted counter-examples
+# illustrating each CES rule -- normalising those would destroy the point.
+exclude = [".agents/rules/*.md"]
 
 [tool.pylint.messages_control]
 disable = "C0330, C0326"

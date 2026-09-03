@@ -143,12 +143,16 @@ Body is a full `DataExtractionResult`. 404 if the document was never extracted.
 `subtema` is bare `str | None`, policed by a `mode="after"` validator:
 
 ```python
-if self.subtema is None: return self
-if self.tema is None: raise ValueError("No se puede especificar un subtema sin un tema")
+if self.subtema is None:
+    return self
+if self.tema is None:
+    raise ValueError("No se puede especificar un subtema sin un tema")
 valid = self.taxonomy[self.tema]
 if self.subtema not in valid:
-    raise ValueError(f"El subtema {self.subtema!r} no pertenece al tema {self.tema!r}. "
-                     f"Subtemas válidos: {sorted(valid)}")
+    raise ValueError(
+        f"El subtema {self.subtema!r} no pertenece al tema {self.tema!r}. "
+        f"Subtemas válidos: {sorted(valid)}"
+    )
 ```
 Both failures feed the retry loop, so the model literally receives the valid subtemas for the tema it chose.
 Matching is **exact string equality** — no normalisation, no fuzzy.
@@ -199,9 +203,15 @@ COM/JPD 7, DPE/DR/GDS/IS/VTS 6, NAJ/SM 5, OEXT/PMG 4, DPD/MCA 3.
 ## `organigram_matching.py` (619 lines)
 
 ```python
-ORGANIGRAM_PATH = Path(settings.RESOURCES_BASEPATH) / "data" / "restricted" / "defensoria" / "organigram_GCBA.json"
+ORGANIGRAM_PATH = (
+    Path(settings.RESOURCES_BASEPATH)
+    / "data"
+    / "restricted"
+    / "defensoria"
+    / "organigram_GCBA.json"
+)
 EMBEDDING_ENCODER_NAME = "minilm"
-EMBEDDINGS_BM25_WEIGHT = 0.5     # module constant, NOT configurable
+EMBEDDINGS_BM25_WEIGHT = 0.5  # module constant, NOT configurable
 ```
 
 **Tree shape** — recursive dicts, exactly four keys: `cargo`, `sigla`, `nombre`, `dependencias: list[node]`.
@@ -246,7 +256,7 @@ Second reference file `destinatario_por_sector.csv` (~140 rows, 16 sectors).
 **`sector_mode="csv"`** — match each candidate's `cargo` against the CSV; up to `sector_top_k` matches.
 ```python
 _ORIGEN_SCORE_SCALE = {"fuzzy": 100.0, "embeddings": 1.0, "hybrid": 1.0}
-campo_weight   = nombre_origen_weight if origen_campo == "nombre" else 1.0
+campo_weight = nombre_origen_weight if origen_campo == "nombre" else 1.0
 combined_score = sector_score * (origen_score / origen_scale) * campo_weight
 ```
 
@@ -265,12 +275,12 @@ No sector-match term in hierarchy mode, since the lookup is exact.
 ## Settings — six, not four
 
 ```python
-DATA_EXTRACTION_SEARCH_BACKEND       = "hybrid"
-DATA_EXTRACTION_TOP_K                = 5
-DATA_EXTRACTION_HYBRID_WEIGHT        = 0.25       # embeddings weight; fuzzy gets 0.75
-DATA_EXTRACTION_SECTOR_TOP_K         = 3          # csv mode only
-DATA_EXTRACTION_NOMBRE_ORIGEN_WEIGHT = 0.0        # discards nombre evidence entirely
-DATA_EXTRACTION_SECTOR_MODE          = "hierarchy"
+DATA_EXTRACTION_SEARCH_BACKEND = "hybrid"
+DATA_EXTRACTION_TOP_K = 5
+DATA_EXTRACTION_HYBRID_WEIGHT = 0.25  # embeddings weight; fuzzy gets 0.75
+DATA_EXTRACTION_SECTOR_TOP_K = 3  # csv mode only
+DATA_EXTRACTION_NOMBRE_ORIGEN_WEIGHT = 0.0  # discards nombre evidence entirely
+DATA_EXTRACTION_SECTOR_MODE = "hierarchy"
 ```
 
 **These are the tuned, counter-intuitive defaults, with recorded rationale:**

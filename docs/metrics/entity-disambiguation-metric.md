@@ -82,6 +82,7 @@ Sea una función $\text{norm}(\cdot)$ que:
 ```python
 import unicodedata
 
+
 def normalize_text(text: str) -> str:
     if text is None:
         return ""
@@ -102,11 +103,10 @@ $$
 ```python
 from typing import Any, Dict, Set
 
+
 def get_alias_set(entity: Dict[str, Any]) -> Set[str]:
     aliases = {
-        normalize_text(a)
-        for a in entity.get("aliases", [])
-        if normalize_text(a)
+        normalize_text(a) for a in entity.get("aliases", []) if normalize_text(a)
     }
     canonical = normalize_text(entity.get("canonical_text", ""))
     if canonical:
@@ -132,6 +132,7 @@ $$
 
 ```python
 from typing import Set
+
 
 def alias_jaccard(aliases_gold: Set[str], aliases_pred: Set[str]) -> float:
     if not aliases_gold and not aliases_pred:
@@ -170,9 +171,9 @@ Usamos un matching greedy ordenado por similitud (alternativa simple al algoritm
 ```python
 from typing import List, Tuple
 
+
 def greedy_matching(
-    sim_matrix: List[List[float]],
-    sim_threshold: float
+    sim_matrix: List[List[float]], sim_threshold: float
 ) -> List[Tuple[int, int, float]]:
     matches: List[Tuple[int, int, float]] = []
     num_gold = len(sim_matrix)
@@ -336,6 +337,7 @@ Integra todos los pasos anteriores y devuelve un diccionario con los cuatro comp
 ```python
 from typing import Any, Dict, List
 
+
 def compute_metrics_components(
     gold_entities: List[Dict[str, Any]],
     pred_entities: List[Dict[str, Any]],
@@ -417,6 +419,7 @@ Función de alto nivel que combina los componentes con los pesos:
 import json
 from typing import Any
 
+
 def evaluate_disambiguation(
     gold_json: Any,
     pred_json: Any,
@@ -471,7 +474,7 @@ gold = [
         "canonical_text": "Juan Pérez",
         "aliases": ["Juan Pérez", "Pérez, Juan"],
         "attributes": {"role": "imputado"},
-        "relations": []
+        "relations": [],
     }
 ]
 
@@ -482,7 +485,7 @@ pred = [
         "canonical_text": "juan perez",
         "aliases": ["juan perez", "perez juan"],
         "attributes": {"role": "imputado"},
-        "relations": []
+        "relations": [],
     }
 ]
 

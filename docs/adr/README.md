@@ -14,5 +14,8 @@ Convención: ver [`../agents/domain.md`](../agents/domain.md).
 | [0005](0005-salida-estructurada-del-llm.md) | Salida estructurada con enums nullables explícitos | LLM |
 | [0006](0006-descartar-catalogo-csv-de-sectores.md) | Se descarta el catálogo CSV de sectores | Organigrama |
 | [0007](0007-distribucion-gateada-por-feature-flag.md) | La customización se distribuye gateada por feature flag | Distribución |
+| [0008](0008-candidatos-de-sector-inferidos-desde-unidad.md) | Los candidatos de sector se infieren desde matches de unidad, no se buscan por nombre de sector | Organigrama |
+| [0009](0009-sector-id-validado-independiente-de-unit-id.md) | `sector_id` se valida independiente de `unit_id`, nunca se deriva | Persistencia |
 
-Todos surgieron del análisis en [`../defensoria/`](../defensoria/), donde está la evidencia completa.
+0001–0007 surgieron del análisis en [`../defensoria/`](../defensoria/); 0008–0009 surgieron de testear la API
+real con documentos reales (ver la conversación de esa sesión para el detalle completo).
