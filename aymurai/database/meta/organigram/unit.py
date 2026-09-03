@@ -18,10 +18,13 @@ class OrganigramUnitBase(SQLModel):
 
 class OrganigramUnit(OrganigramUnitBase, table=True):
     __tablename__ = "organigram_unit"
-    # Assigned explicitly by the seed as uuid5(NS, "<ruta_cargos>#<index>"),
-    # never recomputed afterwards -- it's derived from a mutable value, so
+    # The seed assigns this explicitly as uuid5(NS, "<ruta_cargos>#<index>")
+    # and never recomputes it -- it's derived from a mutable value, so
     # recomputing it after a rename would break every existing reference.
-    id: uuid.UUID | None = Field(None, primary_key=True)
+    # A unit created through the ABM has no path identity to derive from, so
+    # it falls back to a random id, as every other table here does; without
+    # the factory the insert fails on the NOT NULL primary key.
+    id: uuid.UUID | None = Field(default_factory=uuid.uuid4, primary_key=True)
     parent_id: uuid.UUID | None = Field(None, foreign_key="organigram_unit.id")
     created_at: datetime = Field(
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")}
