@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OrganigramScreen from "./organigram-screen";
 
@@ -48,6 +54,8 @@ const holdersByUnit: Record<string, unknown[]> = {
 
 const updateUnitMock = vi.fn();
 const addHolderMock = vi.fn();
+const updateHolderMock = vi.fn();
+const createUnitMock = vi.fn();
 
 vi.mock("@/services/aymurai", () => ({
   organigramService: {
@@ -58,7 +66,8 @@ vi.mock("@/services/aymurai", () => ({
     }),
     updateUnit: () => ({ mutationFn: updateUnitMock }),
     addHolder: () => ({ mutationFn: addHolderMock }),
-    createUnit: () => ({ mutationFn: vi.fn() }),
+    updateHolder: () => ({ mutationFn: updateHolderMock }),
+    createUnit: () => ({ mutationFn: createUnitMock }),
   },
 }));
 
@@ -145,5 +154,109 @@ describe("OrganigramScreen — tree + detail panel", () => {
         expect.anything(),
       );
     });
+  });
+
+  it("renames a unit from the detail panel", async () => {
+    renderWithClient(<OrganigramScreen />);
+
+    fireEvent.click(await screen.findByText("Secretaría de Cultura (SECA)"));
+    fireEvent.change(
+      await screen.findByLabelText("organigram.unitForm.nameLabel"),
+      { target: { value: "Secretaría de Cultura y Deporte" } },
+    );
+    fireEvent.click(screen.getByText("organigram.unitForm.saveAction"));
+
+    await waitFor(() => {
+      expect(updateUnitMock).toHaveBeenCalledWith(
+        {
+          id: "seca",
+          name: "Secretaría de Cultura y Deporte",
+          acronym: "SECA",
+          short_name: null,
+        },
+        expect.anything(),
+      );
+    });
+  });
+
+  it("creates a unit under the selected one", async () => {
+    renderWithClient(<OrganigramScreen />);
+
+    fireEvent.click(await screen.findByText("Secretaría de Cultura (SECA)"));
+    fireEvent.click(screen.getByText("organigram.tree.addAction"));
+    // The detail panel's rename form carries the same labels, so the dialog's
+    // own fields have to be addressed within it.
+    const createDialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(
+      createDialog.getByLabelText("organigram.unitForm.nameLabel"),
+      { target: { value: "Dirección de Museos" } },
+    );
+    fireEvent.click(createDialog.getByText("organigram.unitForm.submitCreate"));
+
+    await waitFor(() => {
+      expect(createUnitMock).toHaveBeenCalledWith(
+        {
+          parent_id: "seca",
+          name: "Dirección de Museos",
+          acronym: null,
+          short_name: null,
+          is_sector: false,
+          order: 1,
+        },
+        expect.anything(),
+      );
+    });
+  });
+
+  it("deactivates a unit only after the confirmation is accepted", async () => {
+    renderWithClient(<OrganigramScreen />);
+
+    fireEvent.click(await screen.findByText("Jefatura de Gabinete"));
+    fireEvent.click(screen.getByText("organigram.detail.deactivateAction"));
+
+    // The dialog warns that the dependants stay active — the backend's delete
+    // is logical and does not cascade.
+    expect(
+      await screen.findByText("organigram.detail.deactivateDependents"),
+    ).toBeInTheDocument();
+    expect(updateUnitMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("confirmDeactivate"));
+
+    await waitFor(() => {
+      expect(updateUnitMock).toHaveBeenCalledWith(
+        { id: "jg", active: false },
+        expect.anything(),
+      );
+    });
+  });
+
+  it("renames a holder in place without recording a succession", async () => {
+    renderWithClient(<OrganigramScreen />);
+
+    fireEvent.click(await screen.findByText("Secretaría de Cultura (SECA)"));
+    fireEvent.click(
+      await screen.findByLabelText(
+        "organigram.detail.renameHolderAction: María Pérez",
+      ),
+    );
+    const renameDialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(
+      renameDialog.getByLabelText("organigram.detail.newHolderNameLabel"),
+      { target: { value: "María Peréz" } },
+    );
+    fireEvent.click(
+      renameDialog.getByText("organigram.detail.renameHolderSubmit"),
+    );
+
+    // A correction goes to the holder record itself, never through addHolder —
+    // that would supersede the current holder and add a history entry.
+    await waitFor(() => {
+      expect(updateHolderMock).toHaveBeenCalledWith(
+        { id: "h1", unit_id: "seca", name: "María Peréz" },
+        expect.anything(),
+      );
+    });
+    expect(addHolderMock).not.toHaveBeenCalled();
   });
 });

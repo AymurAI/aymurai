@@ -43,3 +43,10 @@ export interface AddHolderInput {
   unit_id: string;
   name: string;
 }
+
+export interface UpdateHolderInput {
+  id: string;
+  name: string;
+  /** Not sent — the panel needs it to invalidate the right holder list. */
+  unit_id: string;
+}

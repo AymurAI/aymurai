@@ -3,6 +3,7 @@ import type {
   CreateUnitInput,
   OrganigramHolder,
   OrganigramUnit,
+  UpdateHolderInput,
   UpdateUnitInput,
 } from "@/types/organigram";
 import organigramFixture from "./fixtures/organigram.json";
@@ -109,4 +110,20 @@ export function mockAddHolder(
   };
   holders = [...holders, created];
   return delay(created);
+}
+
+export function mockUpdateHolder(
+  input: UpdateHolderInput,
+): Promise<OrganigramHolder> {
+  const existing = holders.find((h) => h.id === input.id);
+  if (!existing) throw new Error(`Unknown holder ${input.id}`);
+  // A rename corrects the record in place: `is_current` and `created_at` are
+  // untouched, so fixing a typo does not look like a change of office.
+  const updated: OrganigramHolder = {
+    ...existing,
+    name: input.name,
+    updated_at: now,
+  };
+  holders = holders.map((h) => (h.id === input.id ? updated : h));
+  return delay(updated);
 }

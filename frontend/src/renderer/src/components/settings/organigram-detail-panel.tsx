@@ -1,13 +1,5 @@
-import {
-  Avatar,
-  AvatarPill,
-  Button,
-  Callout,
-  Switch,
-  TextField,
-} from "@aymurai/ui";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "phosphor-react";
+import { Button, Callout, Switch } from "@aymurai/ui";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { showToast } from "@/features/showToast";
@@ -15,8 +7,9 @@ import { organigramService } from "@/services/aymurai";
 import { css } from "@/styled/css";
 import { Divider, HStack, Stack, styled } from "@/styled/jsx";
 import type { OrganigramUnit } from "@/types/organigram";
-import { holderDate, holderInitials } from "./holder-format";
+import EmptySelection from "./empty-selection";
 import UnitDeactivateDialog from "./unit-deactivate-dialog";
+import UnitHoldersSection from "./unit-holders-section";
 import UnitIdentityForm from "./unit-identity-form";
 
 /** Grey detail surface with white cards — `SidePanel`'s composition in `@aymurai/ui`. */
@@ -78,24 +71,7 @@ export default function OrganigramDetailPanel({
 }: OrganigramDetailPanelProps) {
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
-  const [newHolderName, setNewHolderName] = useState("");
   const [isDeactivating, setIsDeactivating] = useState(false);
-
-  // Invalidate via the factory's own queryKey rather than a hardcoded literal
-  // array — the real `organigramService.listUnits`/`unitHolders` key on
-  // `["organigram-units", api.defaults.baseURL]` /
-  // `["organigram-units", api.defaults.baseURL, unitId, "holders"]` (see
-  // services/aymurai/organigram.ts), so a hand-typed `["units"]`/`["holders",
-  // unitId]` literal would silently fail to prefix-match those real keys in
-  // production — a defect found and fixed once already; do not repeat it.
-  const holdersQueryKey = organigramService.unitHolders(
-    unit?.id ?? "",
-  ).queryKey;
-
-  const { data: holders = [] } = useQuery({
-    ...organigramService.unitHolders(unit?.id ?? ""),
-    enabled: unit !== null,
-  });
 
   const { mutate: setSector } = useMutation({
     ...organigramService.updateUnit(),
@@ -128,41 +104,13 @@ export default function OrganigramDetailPanel({
     },
   });
 
-  const { mutate: addHolder } = useMutation({
-    ...organigramService.addHolder(),
-    onSuccess: (holder) => {
-      queryClient.invalidateQueries({ queryKey: holdersQueryKey });
-      setNewHolderName("");
-      showToast(
-        t("organigram.detail.holderAddedToast", { name: holder.name }),
-        "success",
-      );
-    },
-  });
-
   if (unit === null) {
-    return (
-      <Stack className={panel} justify="center">
-        <styled.div className={column} maxW="[480px]">
-          <Callout variant="info" message={t("organigram.detail.empty")} />
-        </styled.div>
-      </Stack>
-    );
+    return <EmptySelection message={t("organigram.detail.empty")} />;
   }
 
-  const currentHolder = holders.find((holder) => holder.is_current);
-  // "Historial" is past holders only — the current holder has its own card
-  // above, and listing it twice renders the same name twice in the DOM.
-  const pastHolders = holders.filter((holder) => !holder.is_current);
   const breadcrumb = ancestors
     .map((ancestor) => ancestor.acronym ?? ancestor.name)
     .join(" › ");
-
-  const submitNewHolder = () => {
-    const name = newHolderName.trim();
-    if (!name) return;
-    addHolder({ unit_id: unit.id, name });
-  };
 
   return (
     <Stack className={panel}>
@@ -207,7 +155,7 @@ export default function OrganigramDetailPanel({
 
         <Divider color="[token(colors.brand.secondary)]" />
 
-        <UnitIdentityForm unit={unit} />
+        <UnitIdentityForm key={unit.id} unit={unit} />
 
         <styled.div alignSelf="flex-start">
           <Button
@@ -229,105 +177,7 @@ export default function OrganigramDetailPanel({
 
         <Divider color="[token(colors.brand.secondary)]" />
 
-        <Stack gap="4">
-          <styled.h3 textStyle="subtitle.md.strong">
-            {t("organigram.detail.currentHolderLabel")}
-          </styled.h3>
-          {currentHolder ? (
-            <HStack className={card} gap="2">
-              <Avatar size="md" initials={holderInitials(currentHolder.name)} />
-              <Stack gap="0.5" minW="0">
-                <styled.span
-                  textStyle="paragraph.sm.strong"
-                  overflow="hidden"
-                  textOverflow="ellipsis"
-                  whiteSpace="nowrap"
-                >
-                  {currentHolder.name}
-                </styled.span>
-                <styled.span
-                  textStyle="subtitle.sm.default"
-                  color="text.lighter"
-                >
-                  {t("organigram.detail.holderSince", {
-                    date: holderDate(currentHolder.created_at),
-                  })}
-                </styled.span>
-              </Stack>
-            </HStack>
-          ) : (
-            <Callout variant="info" message={t("organigram.detail.noHolder")} />
-          )}
-        </Stack>
-
-        <Stack gap="4">
-          <HStack justify="space-between" alignItems="baseline" gap="2">
-            <styled.h3 textStyle="subtitle.md.strong">
-              {t("organigram.detail.holderHistoryTitle")}
-            </styled.h3>
-            <styled.span textStyle="label.sm.default" color="text.lighter">
-              {t("organigram.detail.holderHistoryCount", {
-                count: pastHolders.length,
-              })}
-            </styled.span>
-          </HStack>
-          {pastHolders.length > 0 ? (
-            <Stack gap="2">
-              {pastHolders.map((holder) => (
-                <HStack key={holder.id} justify="space-between" gap="2">
-                  <AvatarPill
-                    initials={holderInitials(holder.name)}
-                    name={holder.name}
-                    color="secondary"
-                  />
-                  <styled.span
-                    textStyle="subtitle.sm.default"
-                    color="text.lighter"
-                    flexShrink="0"
-                  >
-                    {t("organigram.detail.holderSince", {
-                      date: holderDate(holder.created_at),
-                    })}
-                  </styled.span>
-                </HStack>
-              ))}
-            </Stack>
-          ) : (
-            <styled.p textStyle="paragraph.sm.default" color="text.lighter">
-              {t("organigram.detail.noHistory")}
-            </styled.p>
-          )}
-        </Stack>
-
-        <Divider color="[token(colors.brand.secondary)]" />
-
-        <Stack gap="4">
-          <styled.h3 textStyle="subtitle.md.strong">
-            {t("organigram.detail.newHolderLabel")}
-          </styled.h3>
-          <TextField
-            label={t("organigram.detail.newHolderNameLabel")}
-            placeholder={t("organigram.detail.newHolderPlaceholder")}
-            helper={t("organigram.detail.newHolderHelper")}
-            value={newHolderName}
-            onChange={(event) => setNewHolderName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submitNewHolder();
-            }}
-          />
-          {/* Wrapper rather than `alignSelf` on `Button`: its props are
-              `ButtonHTMLAttributes`, so a style prop would leak to the DOM. */}
-          <styled.div alignSelf="flex-start">
-            <Button
-              type="button"
-              onClick={submitNewHolder}
-              disabled={!newHolderName.trim()}
-            >
-              <Plus size={16} />
-              {t("organigram.detail.newHolderAction")}
-            </Button>
-          </styled.div>
-        </Stack>
+        <UnitHoldersSection unit={unit} />
       </Stack>
 
       <UnitDeactivateDialog

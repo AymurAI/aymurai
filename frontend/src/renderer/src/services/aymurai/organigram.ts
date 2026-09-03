@@ -9,6 +9,7 @@ import {
 import type {
   AddHolderInput,
   CreateUnitInput,
+  UpdateHolderInput,
   UpdateUnitInput,
 } from "@/types/organigram";
 import api from "../api";
@@ -72,6 +73,21 @@ export const addHolder = () =>
         ? await mock.mockAddHolder(input)
         : (
             await api.post(`/organigram/units/${input.unit_id}/holders`, {
+              name: input.name,
+            })
+          ).data;
+      return organigramHolderSchema.parse(data);
+    },
+  });
+
+/** Corrects a holder's name in place — for fixing a typo, not for succession. */
+export const updateHolder = () =>
+  mutationOptions({
+    mutationFn: async (input: UpdateHolderInput) => {
+      const data = USE_MOCK_ORGANIGRAM
+        ? await mock.mockUpdateHolder(input)
+        : (
+            await api.patch(`/organigram/holders/${input.id}`, {
               name: input.name,
             })
           ).data;

@@ -1,6 +1,5 @@
 import {
   Button,
-  Callout,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -24,6 +23,7 @@ import { HStack, styled } from "@/styled/jsx";
 import type { Subtopic } from "@/types/catalogs";
 import CategoryRow from "./category-row";
 import DeactivateDialog from "./deactivate-dialog";
+import EmptySelection from "./empty-selection";
 import PanelSurface from "./panel-surface";
 
 // See deactivate-dialog.tsx for why the primitives come from `@aymurai/ui`.
@@ -147,21 +147,7 @@ export default function SubtopicsPanel({
   };
 
   if (topicId === null) {
-    return (
-      <PanelSurface title={t("taxonomy.subtopics.title")}>
-        <styled.div
-          flex="1"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          p="6"
-        >
-          <styled.div maxW="[480px]" w="full">
-            <Callout variant="info" message={t("taxonomy.subtopics.empty")} />
-          </styled.div>
-        </styled.div>
-      </PanelSurface>
-    );
+    return <EmptySelection message={t("taxonomy.subtopics.empty")} />;
   }
 
   const reassignOptions = subtopics

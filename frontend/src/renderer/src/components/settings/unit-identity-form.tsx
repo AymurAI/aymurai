@@ -1,6 +1,6 @@
 import { Button, TextField } from "@aymurai/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { showToast } from "@/features/showToast";
 import { organigramService } from "@/services/aymurai";
@@ -16,17 +16,13 @@ export default function UnitIdentityForm({ unit }: UnitIdentityFormProps) {
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
 
+  // Seeded from the unit once: the panel keys this component by `unit.id`, so
+  // selecting another unit remounts it rather than carrying half-typed edits
+  // across — which an effect syncing on name/acronym alone would miss when two
+  // units share a name.
   const [name, setName] = useState(unit.name);
   const [acronym, setAcronym] = useState(unit.acronym ?? "");
   const [shortName, setShortName] = useState(unit.short_name ?? "");
-
-  // Selecting another unit must reload the fields rather than keep the
-  // previous unit's half-typed edits.
-  useEffect(() => {
-    setName(unit.name);
-    setAcronym(unit.acronym ?? "");
-    setShortName(unit.short_name ?? "");
-  }, [unit.id, unit.name, unit.acronym, unit.short_name]);
 
   const { mutate: updateUnit, isPending } = useMutation({
     ...organigramService.updateUnit(),
@@ -52,7 +48,7 @@ export default function UnitIdentityForm({ unit }: UnitIdentityFormProps) {
   return (
     <Stack gap="4">
       <styled.h3 textStyle="subtitle.md.strong">
-        {t("organigram.unitForm.saveAction")}
+        {t("organigram.unitForm.sectionTitle")}
       </styled.h3>
       <TextField
         label={t("organigram.unitForm.nameLabel")}
