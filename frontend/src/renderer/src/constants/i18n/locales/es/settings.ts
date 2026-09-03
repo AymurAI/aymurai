@@ -1,6 +1,6 @@
 const settings = {
   title: "Configuración",
-  // Shared by both Configuración screens.
+  // Shared by the Configuración screens.
   cancel: "Cancelar",
   inactiveChip: "Inactivo",
   confirmDeactivate: "Confirmar baja",
@@ -8,6 +8,20 @@ const settings = {
     server: "Servidor",
     taxonomy: "Taxonomía",
     organigram: "Organigrama",
+  },
+  server: {
+    status: {
+      label: "Estado de la conexión",
+      connected: "Conectado",
+      checking: "Verificando conexión…",
+      error: "Sin conexión",
+      errorDetail: "El servidor guardado no está respondiendo.",
+      none: "Sin servidor guardado",
+      noneDetail: "Guarda una dirección para empezar a trabajar.",
+    },
+    reconnectSubmit: "Guardar y reconectar",
+    disconnectAction: "Desconectar",
+    disconnectedToast: "Se borró el servidor guardado.",
   },
   taxonomy: {
     // Shared between the topic and subtopic panels.

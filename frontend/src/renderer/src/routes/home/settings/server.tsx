@@ -1,20 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import ConnectToHost from "@/components/home/connect-to-host";
-import SettingsNav from "@/components/settings/settings-nav";
+import ServerScreen from "@/components/settings/server-screen";
+import SettingsHeader from "@/components/settings/settings-header";
 import HomeLayout from "@/layout/home";
-import { Stack } from "@/styled/jsx";
 
 export const Route = createFileRoute("/home/settings/server")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
+  // Deliberately not `APIProtected`, unlike its two sibling tabs: this is the
+  // screen a user reaches with no server configured at all.
   return (
-    <HomeLayout variant="narrow">
-      <Stack align="center" gap="8">
-        <SettingsNav />
-        <ConnectToHost />
-      </Stack>
+    <HomeLayout variant="wide">
+      <SettingsHeader />
+      <ServerScreen />
     </HomeLayout>
   );
 }

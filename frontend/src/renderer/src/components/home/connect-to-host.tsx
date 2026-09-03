@@ -1,4 +1,5 @@
 import { Button, TextField } from "@aymurai/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
 import {
@@ -8,19 +9,26 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ZodError } from "zod";
+import { showToast } from "@/features/showToast";
+import { useConnectedHost } from "@/hooks/useConnectedHost";
+import { resetApiBaseUrl } from "@/services/api";
 import { normalizeServerHost } from "@/services/api-base-url";
 import { useConnectToHost } from "@/services/aymurai";
 import * as localStore from "@/store/useLocal";
 import { css } from "@/styled/css";
-import { Stack, styled } from "@/styled/jsx";
+import { HStack, Stack, styled } from "@/styled/jsx";
 import { isElectronApp } from "@/utils/app-mode";
 
 export default function ConnectToHost() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const defaultHost = isElectronApp() ? "" : window.location.origin;
-  const remoteHost = localStore.useServerHost() ?? defaultHost;
-  const { setServerHost } = localStore.useServerHostActions();
+  const storedHost = localStore.useServerHost();
+  const remoteHost = storedHost ?? defaultHost;
+  const { setServerHost, clearServerHost } = localStore.useServerHostActions();
   const { t } = useTranslation();
+  const { t: settingsT } = useTranslation("settings");
+  const connectedHost = useConnectedHost();
 
   const [host, setHost] = useState(remoteHost);
 
@@ -52,6 +60,18 @@ export default function ConnectToHost() {
     });
   };
 
+  // Clearing the saved host is not the same as ending up unconfigured: the web
+  // app falls back to its own origin. `resetApiBaseUrl` re-runs that
+  // precedence, and the field follows wherever the client actually lands.
+  const disconnect = () => {
+    clearServerHost();
+    resetApiBaseUrl();
+    reset();
+    setHost(isElectronApp() ? "" : window.location.origin);
+    queryClient.invalidateQueries();
+    showToast(settingsT("server.disconnectedToast"), "success");
+  };
+
   const errorMessage = (err: Error | null): string => {
     if (err instanceof AxiosError) {
       if (err.code === "ERR_NETWORK") return t("home.host.errors.network");
@@ -70,31 +90,36 @@ export default function ConnectToHost() {
   };
 
   return (
-    <Stack align="center" gap={{ base: "[1rem]", xl: "12" }} width="[400px]">
-      <styled.img
-        src={`${import.meta.env.BASE_URL}brand/aymurai-vert-darkpurple.svg`}
-        alt="Logotipo AymurAI"
-        width={{ base: "[100px]", xl: "[180px]" }}
-      />
-      <form onSubmit={tryConnection} className={css({ width: "full" })}>
-        <Stack justify="center" gap="3" width="full">
-          <h2 className={css({ textStyle: "subtitle.sm.strong" })}>
-            {t("home.host.connectServerExplanation")}
-          </h2>
+    <form onSubmit={tryConnection} className={css({ width: "full" })}>
+      <Stack justify="center" gap="4" width="full">
+        <styled.h2 textStyle="subtitle.md.strong">
+          {t("home.host.connectServerExplanation")}
+        </styled.h2>
 
-          <TextField
-            label={t("home.host.connectServerLabel")}
-            placeholder="http://"
-            value={host}
-            onChange={handleChange}
-            error={error ? errorMessage(error) : undefined}
-          />
+        <TextField
+          label={t("home.host.connectServerLabel")}
+          placeholder="http://"
+          value={host}
+          onChange={handleChange}
+          error={error ? errorMessage(error) : undefined}
+        />
 
+        <HStack gap="2">
           <Button type="submit" isLoading={isPending}>
-            {t("home.host.connectServerSubmit")}
+            {connectedHost
+              ? settingsT("server.reconnectSubmit")
+              : t("home.host.connectServerSubmit")}
           </Button>
-        </Stack>
-      </form>
-    </Stack>
+          {/* Only offered when there is a saved host to forget. The web app
+              with nothing stored is on its own origin, which is not something
+              a user can disconnect from. */}
+          {storedHost !== null && (
+            <Button type="button" variant="secondary" onClick={disconnect}>
+              {settingsT("server.disconnectAction")}
+            </Button>
+          )}
+        </HStack>
+      </Stack>
+    </form>
   );
 }
