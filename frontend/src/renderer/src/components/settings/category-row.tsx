@@ -39,8 +39,6 @@ const inactiveChip = css({
 
 interface CategoryRowProps {
   name: string;
-  /** Record count from the usage endpoint; `undefined` while it loads. */
-  usageLabel?: string;
   active: boolean;
   /** Accessible name for the switch — must identify the row, not just "Activo". */
   toggleLabel: string;
@@ -60,7 +58,6 @@ interface CategoryRowProps {
  */
 export default function CategoryRow({
   name,
-  usageLabel,
   active,
   toggleLabel,
   onToggle,
@@ -99,16 +96,6 @@ export default function CategoryRow({
         >
           {name}
         </styled.span>
-        {usageLabel && (
-          <styled.span
-            textStyle="label.sm.default"
-            color="text.lighter"
-            whiteSpace="nowrap"
-            flexShrink="0"
-          >
-            {usageLabel}
-          </styled.span>
-        )}
       </HStack>
 
       {/* The row itself is selectable, so the controls stop both click and

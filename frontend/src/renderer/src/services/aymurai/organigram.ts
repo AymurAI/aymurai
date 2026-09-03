@@ -20,7 +20,15 @@ export const listUnits = () =>
     queryFn: async () => {
       const data = USE_MOCK_ORGANIGRAM
         ? await mock.mockListUnits()
-        : (await api.get("/organigram/units")).data;
+        : (
+            await api.get("/organigram/units", {
+              // `flat` returns the whole tree in one response; without it the
+              // endpoint answers one level at a time, and this screen needs
+              // every unit to search, expand-all and show ancestors.
+              // `include_inactive` for the same reason as the catalogs lists.
+              params: { flat: true, include_inactive: true },
+            })
+          ).data;
       return organigramUnitsSchema.parse(data);
     },
   });

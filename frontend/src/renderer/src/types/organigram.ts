@@ -8,7 +8,7 @@ export interface OrganigramUnit {
   active: boolean;
   order: number | null;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export interface OrganigramHolder {
@@ -17,7 +17,7 @@ export interface OrganigramHolder {
   name: string;
   is_current: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export interface CreateUnitInput {

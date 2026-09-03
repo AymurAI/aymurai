@@ -5,7 +5,7 @@ export interface Topic {
   active: boolean;
   order: number;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export interface Subtopic {
@@ -16,7 +16,7 @@ export interface Subtopic {
   active: boolean;
   order: number;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export interface CategoryUsage {
@@ -54,5 +54,6 @@ export interface UpdateSubtopicInput {
 
 export interface ReassignSubtopicInput {
   id: string;
-  target_subtopic_id: string | null;
+  /** Required by the API: reassignment always moves rows to another subtopic. */
+  target_subtopic_id: string;
 }

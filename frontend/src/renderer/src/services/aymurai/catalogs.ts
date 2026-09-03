@@ -7,7 +7,6 @@ import {
   subtopicsSchema,
   topicSchema,
   topicsSchema,
-  usageMapSchema,
 } from "@/schema/catalogs";
 import type {
   CreateSubtopicInput,
@@ -25,7 +24,14 @@ export const listTopics = () =>
     queryFn: async () => {
       const data = USE_MOCK_CATALOGS
         ? await mock.mockListTopics()
-        : (await api.get("/catalogs/topics")).data;
+        : (
+            await api.get("/catalogs/topics", {
+              // The settings screen is where inactive categories get reviewed
+              // and reactivated, so it asks for them explicitly — the endpoint
+              // defaults to active-only.
+              params: { include_inactive: true },
+            })
+          ).data;
       return topicsSchema.parse(data);
     },
   });
@@ -62,42 +68,7 @@ export const topicUsage = (topicId: string) =>
     },
   });
 
-/**
- * Record counts for every topic, in one request (see `usageMapSchema`).
- * Keyed under the `["topics", baseURL]` prefix so a topic mutation's
- * invalidation refreshes the counts along with the list.
- *
- * Fase 1 (docs/defensoria/PLAN.md) must serve `GET /catalogs/topics/usage`
- * alongside the per-id `/usage` endpoint for this to work against a real backend.
- */
-export const topicUsageMap = () =>
-  queryOptions({
-    queryKey: ["topics", api.defaults.baseURL, "usage-map"],
-    queryFn: async () => {
-      const data = USE_MOCK_CATALOGS
-        ? await mock.mockTopicUsageMap()
-        : (await api.get("/catalogs/topics/usage")).data;
-      return usageMapSchema.parse(data);
-    },
-  });
-
-/** Record counts for every subtopic of one topic — see `topicUsageMap`. */
-export const subtopicUsageMap = (topicId: string) =>
-  queryOptions({
-    queryKey: ["subtopics", api.defaults.baseURL, topicId, "usage-map"],
-    queryFn: async () => {
-      const data = USE_MOCK_CATALOGS
-        ? await mock.mockSubtopicUsageMap(topicId)
-        : (
-            await api.get("/catalogs/subtopics/usage", {
-              params: { topic_id: topicId },
-            })
-          ).data;
-      return usageMapSchema.parse(data);
-    },
-  });
-
-/** Single-subtopic usage — the endpoint agreed for the deactivation guard. */
+/** Single-subtopic usage — read when the deactivate/reassign dialog opens. */
 export const subtopicUsage = (subtopicId: string) =>
   queryOptions({
     queryKey: ["subtopics", api.defaults.baseURL, "usage", subtopicId],
@@ -117,7 +88,8 @@ export const listSubtopics = (topicId: string) =>
         ? await mock.mockListSubtopics(topicId)
         : (
             await api.get("/catalogs/subtopics", {
-              params: { topic_id: topicId },
+              // See listTopics on include_inactive.
+              params: { topic_id: topicId, include_inactive: true },
             })
           ).data;
       return subtopicsSchema.parse(data);

@@ -71,15 +71,17 @@ const subtopicsByTopic: Record<string, unknown[]> = {
   ],
 };
 
+let deferTopicUsage = false;
+
 const createTopicMock = vi.fn();
 const createSubtopicMock = vi.fn();
 const updateSubtopicMock = vi.fn();
 
 const usageByTopic: Record<string, number> = { t1: 2, t2: 0 };
-const usageBySubtopic: Record<string, Record<string, number>> = {
-  t1: { s1: 2 },
-  t2: { s2: 5, s3: 0 },
-};
+const usageBySubtopic: Record<string, number> = { s1: 2, s2: 5, s3: 0 };
+
+// Held open so a test can assert the "still counting" state before resolving.
+let resolveTopicUsage: ((value: { count: number }) => void) | null = null;
 
 vi.mock("@/features/showToast", () => ({ showToast: vi.fn() }));
 
@@ -92,15 +94,20 @@ vi.mock("@/services/aymurai", () => ({
     }),
     createTopic: () => ({ mutationFn: createTopicMock }),
     updateTopic: () => ({ mutationFn: vi.fn() }),
-    // Counts for every row come from one bulk request per level rather than
-    // one per row — the real catalog is 25 topics / 242 subtopics.
-    topicUsageMap: () => ({
-      queryKey: ["topics", "usage-map"],
-      queryFn: async () => usageByTopic,
+    // Usage is fetched per id, on demand, when a dialog opens — the API has no
+    // bulk endpoint.
+    topicUsage: (id: string) => ({
+      queryKey: ["topics", id, "usage"],
+      queryFn: () =>
+        new Promise<{ count: number }>((resolve) => {
+          resolveTopicUsage = resolve;
+          if (deferTopicUsage) return;
+          resolve({ count: usageByTopic[id] ?? 0 });
+        }),
     }),
-    subtopicUsageMap: (topicId: string) => ({
-      queryKey: ["subtopics", topicId, "usage-map"],
-      queryFn: async () => usageBySubtopic[topicId] ?? {},
+    subtopicUsage: (id: string) => ({
+      queryKey: ["subtopics", "usage", id],
+      queryFn: async () => ({ count: usageBySubtopic[id] ?? 0 }),
     }),
     createSubtopic: () => ({ mutationFn: createSubtopicMock }),
     updateSubtopic: () => ({ mutationFn: updateSubtopicMock }),
@@ -120,6 +127,8 @@ function renderWithClient(ui: React.ReactElement) {
 describe("TaxonomyScreen — master-detail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    deferTopicUsage = false;
+    resolveTopicUsage = null;
   });
 
   it("lists topics in the master panel", async () => {
@@ -212,12 +221,30 @@ describe("TaxonomyScreen — master-detail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows each row's record count next to its name", async () => {
+  it("blocks the topic confirm-deactivate button until the count arrives", async () => {
+    deferTopicUsage = true;
     renderWithClient(<TaxonomyScreen />);
 
-    expect(
-      await screen.findByText("taxonomy.usageCount:2"),
-    ).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    fireEvent.click(
+      await screen.findByLabelText(
+        "taxonomy.topics.deactivateAction: Acceso a la justicia",
+      ),
+    );
+
+    const confirmButton = await screen.findByText(
+      "taxonomy.confirmDeactivate",
+    );
+    // Confirming before the count lands would defeat the confirmation.
+    expect(confirmButton).toBeDisabled();
+    expect(screen.getByText("taxonomy.usageLoading")).toBeInTheDocument();
+
+    resolveTopicUsage?.({ count: 2 });
+
+    await waitFor(() => {
+      expect(confirmButton).not.toBeDisabled();
+    });
+    expect(screen.getByText("taxonomy.usageWarning:2")).toBeInTheDocument();
   });
 
   it("creates a new topic from the master panel's add form", async () => {
@@ -326,7 +353,10 @@ describe("TaxonomyScreen — master-detail", () => {
     );
 
     await screen.findByText("taxonomy.subtopics.deactivateConfirmTitle");
-    fireEvent.click(screen.getByText("taxonomy.confirmDeactivate"));
+    // Confirm stays disabled until the subtopic's usage count resolves.
+    const confirmButton = screen.getByText("taxonomy.confirmDeactivate");
+    await waitFor(() => expect(confirmButton).not.toBeDisabled());
+    fireEvent.click(confirmButton);
 
     // Same async-mutation-dispatch note as the topic/subtopic create tests
     // above — `mutate()` dispatches the mutationFn one tick later.

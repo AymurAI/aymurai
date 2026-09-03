@@ -23,12 +23,19 @@ export default function TopicsPanel({
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const { data: topics = [] } = useQuery(catalogsService.listTopics());
-  const { data: usage = {} } = useQuery(catalogsService.topicUsageMap());
 
   const [query, setQuery] = useState("");
   const [pendingDeactivation, setPendingDeactivation] = useState<Topic | null>(
     null,
   );
+
+  // `isLoading` (rather than `isPending`) is TanStack Query v5's "first fetch in
+  // progress" flag — `isPending` alone stays true while the query is disabled,
+  // which is exactly the closed-dialog case this must not treat as loading.
+  const { data: usage, isLoading: isUsageLoading } = useQuery({
+    ...catalogsService.topicUsage(pendingDeactivation?.id ?? ""),
+    enabled: pendingDeactivation !== null,
+  });
   const [newTopicName, setNewTopicName] = useState("");
 
   const visibleTopics = useMemo(() => {
@@ -47,7 +54,8 @@ export default function TopicsPanel({
     // `["topics", api.defaults.baseURL]` (see services/aymurai/catalogs.ts),
     // so a bare `["topics"]` literal would still partial-match today, but
     // reusing the factory's key keeps this correct if that shape changes.
-    // The usage map lives under the same prefix, so counts refresh too.
+    // The per-topic usage query lives under the same prefix, so its count
+    // is refetched too.
     queryClient.invalidateQueries({
       queryKey: catalogsService.listTopics().queryKey,
     });
@@ -151,11 +159,6 @@ export default function TopicsPanel({
           <CategoryRow
             key={topic.id}
             name={topic.name}
-            usageLabel={
-              usage[topic.id] === undefined
-                ? undefined
-                : t("taxonomy.usageCount", { count: usage[topic.id] })
-            }
             active={topic.active}
             inactiveLabel={t("taxonomy.inactiveChip")}
             toggleLabel={`${
@@ -187,9 +190,8 @@ export default function TopicsPanel({
         onOpenChange={(open) => !open && setPendingDeactivation(null)}
         title={t("taxonomy.topics.deactivateConfirmTitle")}
         name={pendingDeactivation?.name ?? ""}
-        usageCount={
-          pendingDeactivation ? (usage[pendingDeactivation.id] ?? 0) : 0
-        }
+        usageCount={usage?.count}
+        isUsageLoading={isUsageLoading}
         body={t("taxonomy.topics.deactivateBody")}
         onConfirm={() =>
           pendingDeactivation &&

@@ -22,7 +22,9 @@ interface DeactivateDialogProps {
   title: string;
   /** Name of the topic/subtopic being deactivated, quoted in the warning. */
   name: string;
-  usageCount: number;
+  /** `undefined` while the usage request is in flight. */
+  usageCount: number | undefined;
+  isUsageLoading: boolean;
   /** Reassurance line explaining that existing records are untouched. */
   body: string;
   onConfirm: () => void;
@@ -40,6 +42,7 @@ export default function DeactivateDialog({
   title,
   name,
   usageCount,
+  isUsageLoading,
   body,
   onConfirm,
 }: DeactivateDialogProps) {
@@ -52,7 +55,11 @@ export default function DeactivateDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
-        {usageCount > 0 ? (
+        {isUsageLoading || usageCount === undefined ? (
+          <styled.p textStyle="paragraph.sm.default" color="text.lighter">
+            {t("taxonomy.usageLoading")}
+          </styled.p>
+        ) : usageCount > 0 ? (
           <Callout
             variant="warning"
             message={t("taxonomy.usageWarning", { count: usageCount, name })}
@@ -76,7 +83,14 @@ export default function DeactivateDialog({
           >
             {t("taxonomy.cancel")}
           </Button>
-          <Button type="button" size="sm" onClick={onConfirm}>
+          {/* Confirming before the count lands would defeat the point of the
+              confirmation, so the action waits for it. */}
+          <Button
+            type="button"
+            size="sm"
+            disabled={isUsageLoading || usageCount === undefined}
+            onClick={onConfirm}
+          >
             {t("taxonomy.confirmDeactivate")}
           </Button>
         </DialogFooter>

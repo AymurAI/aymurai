@@ -29,7 +29,11 @@ describe("catalogs service — real (non-mock) implementation", () => {
     const { queryFn } = catalogs.listTopics();
     const result = await (queryFn as () => Promise<unknown>)();
 
-    expect(getSpy).toHaveBeenCalledWith("/catalogs/topics");
+    // The settings screen manages inactive categories, so it opts into them —
+    // the endpoint returns active-only by default.
+    expect(getSpy).toHaveBeenCalledWith("/catalogs/topics", {
+      params: { include_inactive: true },
+    });
     expect(result).toEqual(topics);
   });
 
@@ -68,13 +72,13 @@ describe("catalogs service — real (non-mock) implementation", () => {
   it("reassigns a subtopic via POST /catalogs/subtopics/{id}/reassign", async () => {
     const postSpy = vi
       .spyOn(api, "post")
-      .mockResolvedValue({ data: { success: true } });
+      .mockResolvedValue({ data: { reassigned: 3 } });
 
     const { mutationFn } = catalogs.reassignSubtopic();
     await (
       mutationFn as (i: {
         id: string;
-        target_subtopic_id: string | null;
+        target_subtopic_id: string;
       }) => Promise<unknown>
     )({ id: "s1", target_subtopic_id: "s2" });
 

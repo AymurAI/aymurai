@@ -63,16 +63,21 @@ export default function SubtopicsPanel({
     ...catalogsService.listSubtopics(topicId ?? ""),
     enabled: topicId !== null,
   });
-  const { data: usage = {} } = useQuery({
-    ...catalogsService.subtopicUsageMap(topicId ?? ""),
-    enabled: topicId !== null,
-  });
 
   const [reassigning, setReassigning] = useState<Subtopic | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>(NO_TARGET);
   const [newSubtopicName, setNewSubtopicName] = useState("");
   const [pendingDeactivation, setPendingDeactivation] =
     useState<Subtopic | null>(null);
+
+  // One usage query serves both dialogs — only one can be open at a time, and
+  // both need the same number for the same subtopic. See topics-panel.tsx on
+  // `isLoading` vs `isPending`.
+  const usageSubtopic = pendingDeactivation ?? reassigning;
+  const { data: usage, isLoading: isUsageLoading } = useQuery({
+    ...catalogsService.subtopicUsage(usageSubtopic?.id ?? ""),
+    enabled: usageSubtopic !== null,
+  });
 
   // Invalidate via the factory's own queryKey rather than a hardcoded
   // `["subtopics", topicId]` literal — the real `catalogsService.listSubtopics`
@@ -101,17 +106,16 @@ export default function SubtopicsPanel({
 
   const { mutate: reassignSubtopic } = useMutation({
     ...catalogsService.reassignSubtopic(),
-    onSuccess: () => {
+    // The response carries how many rows actually moved, so the toast reports
+    // the server's number rather than the count the dialog happened to show.
+    onSuccess: (result) => {
       invalidateSubtopics();
-      const moved = reassigning ? (usage[reassigning.id] ?? 0) : 0;
       const target = subtopics.find((s) => s.id === reassignTarget);
       showToast(
-        target
-          ? t("taxonomy.subtopics.reassignedToast", {
-              count: moved,
-              name: target.name,
-            })
-          : t("taxonomy.subtopics.reassignedNoneToast"),
+        t("taxonomy.subtopics.reassignedToast", {
+          count: result.reassigned,
+          name: target?.name ?? "",
+        }),
         "success",
       );
       setReassigning(null);
@@ -204,11 +208,6 @@ export default function SubtopicsPanel({
           <CategoryRow
             key={subtopic.id}
             name={subtopic.name}
-            usageLabel={
-              usage[subtopic.id] === undefined
-                ? undefined
-                : t("taxonomy.usageCount", { count: usage[subtopic.id] })
-            }
             active={subtopic.active}
             inactiveLabel={t("taxonomy.inactiveChip")}
             toggleLabel={`${
@@ -259,10 +258,12 @@ export default function SubtopicsPanel({
           <DialogHeader>
             <DialogTitle>{t("taxonomy.subtopics.reassignAction")}</DialogTitle>
             <styled.p textStyle="subtitle.sm.default" color="text.lighter">
-              {t("taxonomy.subtopics.reassignSubtitle", {
-                count: reassigning ? (usage[reassigning.id] ?? 0) : 0,
-                name: reassigning?.name ?? "",
-              })}
+              {isUsageLoading || usage === undefined
+                ? t("taxonomy.usageLoading")
+                : t("taxonomy.subtopics.reassignSubtitle", {
+                    count: usage.count,
+                    name: reassigning?.name ?? "",
+                  })}
             </styled.p>
           </DialogHeader>
 
@@ -271,10 +272,7 @@ export default function SubtopicsPanel({
               label={t("taxonomy.subtopics.reassignTargetLabel")}
               placeholder={t("taxonomy.subtopics.reassignPlaceholder")}
               clearable={false}
-              options={[
-                { id: NO_TARGET, text: t("taxonomy.subtopics.reassignNone") },
-                ...reassignOptions,
-              ]}
+              options={reassignOptions}
               value={reassignTarget}
               onChange={(option) => setReassignTarget(option.id)}
             />
@@ -292,12 +290,13 @@ export default function SubtopicsPanel({
             <Button
               type="button"
               size="sm"
+              disabled={reassignTarget === NO_TARGET}
               onClick={() =>
                 reassigning &&
+                reassignTarget !== NO_TARGET &&
                 reassignSubtopic({
                   id: reassigning.id,
-                  target_subtopic_id:
-                    reassignTarget === NO_TARGET ? null : reassignTarget,
+                  target_subtopic_id: reassignTarget,
                 })
               }
             >
@@ -312,9 +311,8 @@ export default function SubtopicsPanel({
         onOpenChange={(open) => !open && setPendingDeactivation(null)}
         title={t("taxonomy.subtopics.deactivateConfirmTitle")}
         name={pendingDeactivation?.name ?? ""}
-        usageCount={
-          pendingDeactivation ? (usage[pendingDeactivation.id] ?? 0) : 0
-        }
+        usageCount={usage?.count}
+        isUsageLoading={isUsageLoading}
         body={t("taxonomy.subtopics.deactivateBody")}
         onConfirm={() =>
           pendingDeactivation &&

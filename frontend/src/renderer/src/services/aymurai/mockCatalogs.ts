@@ -114,27 +114,7 @@ export function mockTopicUsage(topicId: string): Promise<CategoryUsage> {
   return delay({ count: topicUsageCount(topicId) });
 }
 
-/** Record counts for every topic, in one call — see `usageMapSchema`. */
-export function mockTopicUsageMap(): Promise<Record<string, number>> {
-  return delay(
-    Object.fromEntries(topics.map((t) => [t.id, topicUsageCount(t.id)])),
-  );
-}
-
-/** Record counts for every subtopic of one topic — see `mockTopicUsageMap`. */
-export function mockSubtopicUsageMap(
-  topicId: string,
-): Promise<Record<string, number>> {
-  return delay(
-    Object.fromEntries(
-      subtopics
-        .filter((s) => s.topic_id === topicId)
-        .map((s) => [s.id, subtopicUsageCount(s.id)]),
-    ),
-  );
-}
-
-/** Single-subtopic count; always agrees with `mockSubtopicUsageMap`. */
+/** Single-subtopic count; a topic's count is the sum of its subtopics'. */
 export function mockSubtopicUsage(subtopicId: string): Promise<CategoryUsage> {
   return delay({ count: subtopicUsageCount(subtopicId) });
 }
@@ -177,13 +157,12 @@ export function mockUpdateSubtopic(
 
 export function mockReassignSubtopic(
   input: ReassignSubtopicInput,
-): Promise<{ success: true }> {
-  // The real endpoint reassigns referencing `recipient` rows server-side; the mock
-  // has nothing to reassign, so it only validates the target (when given) exists.
-  if (input.target_subtopic_id) {
-    const target = subtopics.find((s) => s.id === input.target_subtopic_id);
-    if (!target)
-      throw new Error(`Unknown target subtopic ${input.target_subtopic_id}`);
-  }
-  return delay({ success: true });
+): Promise<{ reassigned: number }> {
+  // The real endpoint moves referencing `recipient` rows server-side and answers
+  // with how many it moved; the mock has no rows, so it reports the source's
+  // usage count — the same number the UI just showed in the dialog.
+  const target = subtopics.find((s) => s.id === input.target_subtopic_id);
+  if (!target)
+    throw new Error(`Unknown target subtopic ${input.target_subtopic_id}`);
+  return delay({ reassigned: subtopicUsageCount(input.id) });
 }

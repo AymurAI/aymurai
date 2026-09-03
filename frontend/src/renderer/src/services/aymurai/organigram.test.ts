@@ -32,7 +32,11 @@ describe("organigram service — real (non-mock) implementation", () => {
     const { queryFn } = organigram.listUnits();
     const result = await (queryFn as () => Promise<unknown>)();
 
-    expect(getSpy).toHaveBeenCalledWith("/organigram/units");
+    // `flat` asks for the whole tree in one response instead of one level per
+    // request; `include_inactive` because this screen manages inactive units.
+    expect(getSpy).toHaveBeenCalledWith("/organigram/units", {
+      params: { flat: true, include_inactive: true },
+    });
     expect(result).toEqual(units);
   });
 

@@ -10,7 +10,7 @@ export const organigramUnitSchema = z.object({
   active: z.boolean(),
   order: z.number().nullable(),
   created_at: z.string(),
-  updated_at: z.string(),
+  updated_at: z.string().nullable(),
 });
 
 export const organigramUnitsSchema = z.array(organigramUnitSchema);
@@ -21,7 +21,7 @@ export const organigramHolderSchema = z.object({
   name: z.string(),
   is_current: z.boolean(),
   created_at: z.string(),
-  updated_at: z.string(),
+  updated_at: z.string().nullable(),
 });
 
 export const organigramHoldersSchema = z.array(organigramHolderSchema);
