@@ -278,3 +278,36 @@ def test_unit_list_hides_deactivated_units_unless_asked(synthetic_seed):
 
     assert len(unit_list(session)) == 4
     assert len(unit_list(session, include_inactive=True)) == 5
+
+
+def test_unit_create_assigns_an_id_when_not_seeded(session):
+    """
+    The seed passes an explicit uuid5, but a unit added through the ABM has no
+    path to derive one from — without a default the insert fails on the NOT
+    NULL primary key, which is what `POST /organigram/units` used to do.
+    """
+    from aymurai.database.crud.organigram.unit import unit_create
+    from aymurai.database.schema import OrganigramUnitCreate
+
+    unit = unit_create(
+        OrganigramUnitCreate(parent_id=None, name="Unidad Nueva"), session
+    )
+
+    assert unit.id is not None
+    assert _unit_by_cargo(session, "Unidad Nueva").id == unit.id
+
+
+def test_unit_create_keeps_an_explicitly_given_id(session):
+    """The seed's uuid5 must still win over the default factory."""
+    from aymurai.database.crud.organigram.unit import unit_create
+    from aymurai.database.schema import OrganigramUnitCreate
+
+    seeded_id = uuid.uuid5(uuid.NAMESPACE_URL, "unidad-semilla")
+    unit = unit_create(
+        OrganigramUnitCreate(parent_id=None, name="Unidad Semilla"), session
+    )
+    unit.id = seeded_id
+    session.add(unit)
+    session.commit()
+
+    assert _unit_by_cargo(session, "Unidad Semilla").id == seeded_id
