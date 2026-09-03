@@ -209,7 +209,7 @@ export default function SubtopicsPanel({
             key={subtopic.id}
             name={subtopic.name}
             active={subtopic.active}
-            inactiveLabel={t("taxonomy.inactiveChip")}
+            inactiveLabel={t("inactiveChip")}
             toggleLabel={`${
               subtopic.active
                 ? t("taxonomy.subtopics.deactivateAction")
@@ -285,7 +285,7 @@ export default function SubtopicsPanel({
               size="sm"
               onClick={() => setReassigning(null)}
             >
-              {t("taxonomy.cancel")}
+              {t("cancel")}
             </Button>
             <Button
               type="button"

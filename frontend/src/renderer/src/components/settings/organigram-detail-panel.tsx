@@ -16,6 +16,8 @@ import { css } from "@/styled/css";
 import { Divider, HStack, Stack, styled } from "@/styled/jsx";
 import type { OrganigramUnit } from "@/types/organigram";
 import { holderDate, holderInitials } from "./holder-format";
+import UnitDeactivateDialog from "./unit-deactivate-dialog";
+import UnitIdentityForm from "./unit-identity-form";
 
 /** Grey detail surface with white cards — `SidePanel`'s composition in `@aymurai/ui`. */
 const panel = css({
@@ -65,15 +67,19 @@ interface OrganigramDetailPanelProps {
   unit: OrganigramUnit | null;
   /** Root-first ancestors of `unit`, used for the breadcrumb caption. */
   ancestors: OrganigramUnit[];
+  /** Units anywhere below `unit`; deactivation leaves them active. */
+  dependentCount: number;
 }
 
 export default function OrganigramDetailPanel({
   unit,
   ancestors,
+  dependentCount,
 }: OrganigramDetailPanelProps) {
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const [newHolderName, setNewHolderName] = useState("");
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   // Invalidate via the factory's own queryKey rather than a hardcoded literal
   // array — the real `organigramService.listUnits`/`unitHolders` key on
@@ -91,7 +97,7 @@ export default function OrganigramDetailPanel({
     enabled: unit !== null,
   });
 
-  const { mutate: updateUnit } = useMutation({
+  const { mutate: setSector } = useMutation({
     ...organigramService.updateUnit(),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({
@@ -101,6 +107,22 @@ export default function OrganigramDetailPanel({
         updated.is_sector
           ? t("organigram.detail.sectorOnToast", { name: updated.name })
           : t("organigram.detail.sectorOffToast", { name: updated.name }),
+        "success",
+      );
+    },
+  });
+
+  const { mutate: setActive, isPending: isSettingActive } = useMutation({
+    ...organigramService.updateUnit(),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({
+        queryKey: organigramService.listUnits().queryKey,
+      });
+      setIsDeactivating(false);
+      showToast(
+        updated.active
+          ? t("organigram.detail.reactivatedToast", { name: updated.name })
+          : t("organigram.detail.deactivatedToast", { name: updated.name }),
         "success",
       );
     },
@@ -163,6 +185,13 @@ export default function OrganigramDetailPanel({
           </HStack>
         </Stack>
 
+        {!unit.active && (
+          <Callout
+            variant="warning"
+            message={t("organigram.detail.inactiveNotice")}
+          />
+        )}
+
         <HStack className={sectorRow} justify="space-between">
           <styled.span textStyle="paragraph.sm.default">
             {t("organigram.detail.isSectorLabel")}
@@ -171,10 +200,32 @@ export default function OrganigramDetailPanel({
             checked={unit.is_sector}
             aria-label={t("organigram.detail.isSectorLabel")}
             onCheckedChange={(checked) =>
-              updateUnit({ id: unit.id, is_sector: checked })
+              setSector({ id: unit.id, is_sector: checked })
             }
           />
         </HStack>
+
+        <Divider color="[token(colors.brand.secondary)]" />
+
+        <UnitIdentityForm unit={unit} />
+
+        <styled.div alignSelf="flex-start">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            isLoading={isSettingActive}
+            onClick={() =>
+              unit.active
+                ? setIsDeactivating(true)
+                : setActive({ id: unit.id, active: true })
+            }
+          >
+            {unit.active
+              ? t("organigram.detail.deactivateAction")
+              : t("organigram.detail.reactivateAction")}
+          </Button>
+        </styled.div>
 
         <Divider color="[token(colors.brand.secondary)]" />
 
@@ -278,6 +329,14 @@ export default function OrganigramDetailPanel({
           </styled.div>
         </Stack>
       </Stack>
+
+      <UnitDeactivateDialog
+        open={isDeactivating}
+        onOpenChange={setIsDeactivating}
+        dependentCount={dependentCount}
+        isPending={isSettingActive}
+        onConfirm={() => setActive({ id: unit.id, active: false })}
+      />
     </Stack>
   );
 }

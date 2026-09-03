@@ -5,10 +5,12 @@ import { Grid } from "@/styled/jsx";
 import type { OrganigramUnit } from "@/types/organigram";
 import OrganigramDetailPanel from "./organigram-detail-panel";
 import OrganigramTree from "./organigram-tree";
+import UnitCreateDialog from "./unit-create-dialog";
 
 export default function OrganigramScreen() {
   const { data: units = [] } = useQuery(organigramService.listUnits());
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const selectedUnit = useMemo(
     () => units.find((u) => u.id === selectedUnitId) ?? null,
@@ -29,6 +31,34 @@ export default function OrganigramScreen() {
     }
     return chain;
   }, [units, selectedUnit]);
+
+  /** Everything under the selection — deactivation does not cascade to them. */
+  const dependentCount = useMemo(() => {
+    if (!selectedUnit) return 0;
+    const childrenOf = new Map<string, OrganigramUnit[]>();
+    for (const unit of units) {
+      if (unit.parent_id === null) continue;
+      const siblings = childrenOf.get(unit.parent_id) ?? [];
+      siblings.push(unit);
+      childrenOf.set(unit.parent_id, siblings);
+    }
+    let total = 0;
+    const stack = [selectedUnit.id];
+    while (stack.length > 0) {
+      const id = stack.pop();
+      if (id === undefined) break;
+      for (const child of childrenOf.get(id) ?? []) {
+        total += 1;
+        stack.push(child.id);
+      }
+    }
+    return total;
+  }, [units, selectedUnit]);
+
+  const siblingsOfNewUnit = useMemo(
+    () => units.filter((unit) => unit.parent_id === (selectedUnit?.id ?? null)),
+    [units, selectedUnit],
+  );
 
   return (
     <Grid
@@ -61,8 +91,21 @@ export default function OrganigramScreen() {
         units={units}
         selectedUnitId={selectedUnitId}
         onSelect={setSelectedUnitId}
+        onAddUnit={() => setIsCreating(true)}
       />
-      <OrganigramDetailPanel unit={selectedUnit} ancestors={ancestors} />
+      <OrganigramDetailPanel
+        unit={selectedUnit}
+        ancestors={ancestors}
+        dependentCount={dependentCount}
+      />
+
+      <UnitCreateDialog
+        open={isCreating}
+        onOpenChange={setIsCreating}
+        parent={selectedUnit}
+        siblings={siblingsOfNewUnit}
+        onCreated={setSelectedUnitId}
+      />
     </Grid>
   );
 }

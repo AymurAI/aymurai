@@ -81,7 +81,7 @@ export default function DeactivateDialog({
             size="sm"
             onClick={() => onOpenChange(false)}
           >
-            {t("taxonomy.cancel")}
+            {t("cancel")}
           </Button>
           {/* Confirming before the count lands would defeat the point of the
               confirmation, so the action waits for it. */}
@@ -91,7 +91,7 @@ export default function DeactivateDialog({
             disabled={isUsageLoading || usageCount === undefined}
             onClick={onConfirm}
           >
-            {t("taxonomy.confirmDeactivate")}
+            {t("confirmDeactivate")}
           </Button>
         </DialogFooter>
       </DialogContent>

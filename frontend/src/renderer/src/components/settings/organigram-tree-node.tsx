@@ -42,6 +42,18 @@ const selectedRow = css({
   borderLeftColor: "brand.primary",
 });
 
+const inactiveChip = css({
+  textStyle: "paragraph.xsm.strong",
+  textTransform: "uppercase",
+  letterSpacing: "[0.04em]",
+  color: "brand.tertiary",
+  bg: "bg.secondary-highlight",
+  borderRadius: "full",
+  px: "2",
+  py: "0.5",
+  flexShrink: "0",
+});
+
 const sectorChip = css({
   textStyle: "paragraph.xsm.strong",
   textTransform: "uppercase",
@@ -128,7 +140,7 @@ export default function OrganigramTreeNode({
             the `title` and in the detail panel once selected. */}
         <styled.span
           textStyle={selected ? "paragraph.sm.strong" : "paragraph.sm.default"}
-          color="text.default"
+          color={unit.active ? "text.default" : "text.lighter"}
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
@@ -138,6 +150,11 @@ export default function OrganigramTreeNode({
         </styled.span>
 
         <HStack gap="2" flexShrink="0">
+          {!unit.active && (
+            <styled.span className={inactiveChip}>
+              {t("inactiveChip")}
+            </styled.span>
+          )}
           {unit.is_sector && (
             <styled.span className={sectorChip}>
               {t("organigram.tree.sectorChip")}

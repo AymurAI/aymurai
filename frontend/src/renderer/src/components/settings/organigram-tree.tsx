@@ -1,7 +1,8 @@
 import { Button, Search } from "@aymurai/ui";
+import { Plus } from "phosphor-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { styled } from "@/styled/jsx";
+import { HStack, styled } from "@/styled/jsx";
 import type { OrganigramUnit } from "@/types/organigram";
 import OrganigramTreeNode from "./organigram-tree-node";
 import PanelSurface from "./panel-surface";
@@ -10,6 +11,8 @@ interface OrganigramTreeProps {
   units: OrganigramUnit[];
   selectedUnitId: string | null;
   onSelect: (unitId: string) => void;
+  /** Opens the create dialog; the new unit hangs off the current selection. */
+  onAddUnit: () => void;
 }
 
 interface TreeRow {
@@ -31,6 +34,7 @@ export default function OrganigramTree({
   units,
   selectedUnitId,
   onSelect,
+  onAddUnit,
 }: OrganigramTreeProps) {
   const { t } = useTranslation("settings");
   const [query, setQuery] = useState("");
@@ -114,23 +118,34 @@ export default function OrganigramTree({
     <PanelSurface
       title={t("organigram.tree.title")}
       headerAside={
-        <Button
-          type="button"
-          variant="tertiary"
-          size="sm"
-          disabled={parentIds.length === 0}
-          onClick={() =>
-            setExpanded(
-              allExpanded
-                ? {}
-                : Object.fromEntries(parentIds.map((id) => [id, true])),
-            )
-          }
-        >
-          {allExpanded
-            ? t("organigram.tree.collapseAllAction")
-            : t("organigram.tree.expandAllAction")}
-        </Button>
+        <HStack gap="1">
+          <Button
+            type="button"
+            variant="tertiary"
+            size="sm"
+            onClick={onAddUnit}
+          >
+            <Plus size={16} />
+            {t("organigram.tree.addAction")}
+          </Button>
+          <Button
+            type="button"
+            variant="tertiary"
+            size="sm"
+            disabled={parentIds.length === 0}
+            onClick={() =>
+              setExpanded(
+                allExpanded
+                  ? {}
+                  : Object.fromEntries(parentIds.map((id) => [id, true])),
+              )
+            }
+          >
+            {allExpanded
+              ? t("organigram.tree.collapseAllAction")
+              : t("organigram.tree.expandAllAction")}
+          </Button>
+        </HStack>
       }
       toolbar={
         <Search

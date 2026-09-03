@@ -232,9 +232,7 @@ describe("TaxonomyScreen — master-detail", () => {
       ),
     );
 
-    const confirmButton = await screen.findByText(
-      "taxonomy.confirmDeactivate",
-    );
+    const confirmButton = await screen.findByText("confirmDeactivate");
     // Confirming before the count lands would defeat the confirmation.
     expect(confirmButton).toBeDisabled();
     expect(screen.getByText("taxonomy.usageLoading")).toBeInTheDocument();
@@ -354,7 +352,7 @@ describe("TaxonomyScreen — master-detail", () => {
 
     await screen.findByText("taxonomy.subtopics.deactivateConfirmTitle");
     // Confirm stays disabled until the subtopic's usage count resolves.
-    const confirmButton = screen.getByText("taxonomy.confirmDeactivate");
+    const confirmButton = screen.getByText("confirmDeactivate");
     await waitFor(() => expect(confirmButton).not.toBeDisabled());
     fireEvent.click(confirmButton);
 

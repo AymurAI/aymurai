@@ -160,7 +160,7 @@ export default function TopicsPanel({
             key={topic.id}
             name={topic.name}
             active={topic.active}
-            inactiveLabel={t("taxonomy.inactiveChip")}
+            inactiveLabel={t("inactiveChip")}
             toggleLabel={`${
               topic.active
                 ? t("taxonomy.topics.deactivateAction")
