@@ -4,13 +4,30 @@ import { isDefensoriaEnabled } from "@/constants/config";
 import { css } from "@/styled/css";
 import { HStack } from "@/styled/jsx";
 
+// Styled as `Button variant="tertiary"`, with the active tab carrying the
+// library's own `checked` treatment (solid `action.pressed` + white label).
+// The styles live on the `Link` itself rather than wrapping a `Button` inside
+// it, so there is no button nested in an anchor.
 const tab = css({
-  textStyle: "label.md.default",
-  color: "text.default",
+  display: "flex",
+  alignItems: "center",
+  h: "8",
   px: "4",
   py: "2",
-  borderRadius: "md",
-  _hover: { bg: "bg.primary-highlight" },
+  borderRadius: "sm",
+  textStyle: "cta.md.strong",
+  color: "text.onbutton-default",
+  bg: "[transparent]",
+  textDecoration: "none",
+  transition: "[background-color 300ms cubic-bezier(0.4, 0, 0.2, 1)]",
+  _hover: { bg: "bg.primary-alternative" },
+  _focusVisible: { outline: "[2px solid token(colors.text.default)]" },
+});
+
+const activeTab = css({
+  bg: "action.pressed",
+  color: "text.onbutton-alternative",
+  _hover: { bg: "action.pressed" },
 });
 
 const LINKS = [
@@ -32,7 +49,12 @@ export default function SettingsNav() {
   return (
     <HStack gap="2" data-testid="settings-nav">
       {visible.map((link) => (
-        <Link key={link.key} to={link.to} className={tab}>
+        <Link
+          key={link.key}
+          to={link.to}
+          className={tab}
+          activeProps={{ className: activeTab }}
+        >
           {t(`nav.${link.key}`)}
         </Link>
       ))}

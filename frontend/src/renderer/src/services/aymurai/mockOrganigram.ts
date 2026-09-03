@@ -5,64 +5,35 @@ import type {
   OrganigramUnit,
   UpdateUnitInput,
 } from "@/types/organigram";
+import organigramFixture from "./fixtures/organigram.json";
 
 const now = "2026-08-28T00:00:00Z";
 
 /**
- * Small, curated fixture (PLAN.md §J: don't couple unit tests to the real 489-node
- * organigram) covering the shapes the UI needs to exercise: a non-sector root, a
- * sector child, and a grandchild — enough to prove tree nesting + is_sector editing
- * + holder history without the real Fase 2 backend.
+ * Seed = the **real** GCBA organigram (520 units, 7 levels deep, 489 of them with
+ * a sitting titular), not a curated sample. `fixtures/organigram.json` is
+ * GENERATED from the source tree by `scripts/generate-defensoria-fixtures.mjs`
+ * — re-run that script rather than hand-editing the JSON. Its header documents
+ * provenance and the `cargo`/`sigla`/`nombre` → unit/holder mapping.
+ *
+ * `is_sector` is not in the source data: per ADR-0001 (`docs/adr/0001-sector-como-
+ * atributo-del-nodo.md`) the generator runs the five historical text rules once,
+ * exactly as the backend seed does, and materialises the result as a boolean on
+ * 33 nodes (at depths 2, 3 and 4 — the ADR's verification target).
+ *
+ * Units come out in pre-order DFS, so a parent always precedes its children.
+ *
+ * The cast is the type boundary: TypeScript infers plain `string` for the JSON's
+ * nullable columns, so the fixture is asserted to the domain types once, here,
+ * instead of leaking `any` into every consumer.
  */
-let units: OrganigramUnit[] = [
-  {
-    id: "jg",
-    parent_id: null,
-    name: "Jefatura de Gabinete",
-    acronym: null,
-    short_name: "Jefatura de Gabinete",
-    is_sector: false,
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "seca",
-    parent_id: "jg",
-    name: "Secretaría de Cultura",
-    acronym: "SECA",
-    short_name: null,
-    is_sector: true,
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "dgta",
-    parent_id: "seca",
-    name: "Dirección General Técnica Administrativa",
-    acronym: "DGTA",
-    short_name: null,
-    is_sector: false,
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-];
+const seed = organigramFixture as {
+  units: OrganigramUnit[];
+  holders: OrganigramHolder[];
+};
 
-let holders: OrganigramHolder[] = [
-  {
-    id: "h-seca-1",
-    unit_id: "seca",
-    name: "María Pérez",
-    is_current: true,
-    created_at: now,
-    updated_at: now,
-  },
-];
+let units: OrganigramUnit[] = seed.units;
+let holders: OrganigramHolder[] = seed.holders;
 
 const MOCK_DELAY_MS = 200;
 function delay<T>(value: T): Promise<T> {

@@ -29,6 +29,14 @@ export const categoryUsageSchema = z.object({
   count: z.number(),
 });
 
+/**
+ * Bulk usage: `{ [category_id]: record_count }`. The settings list shows a count
+ * on every row, and the real catalog has 25 topics / 242 subtopics — one request
+ * per row would be a 242-deep N+1, so the screens read a map instead and the
+ * per-id endpoint above stays for single-record callers.
+ */
+export const usageMapSchema = z.record(z.string(), z.number());
+
 export const reassignResultSchema = z.object({
   success: z.literal(true),
 });

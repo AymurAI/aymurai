@@ -40,6 +40,11 @@ const childrenArea = cva({
         justifyContent: "flex-start",
         gap: "6",
         p: "8",
+        // A flex child defaults to `min-height: auto`, so without this the
+        // area grows past its `flex: 1` track and `inner` scrolls the whole
+        // page — the wide screens (Configuración) instead scroll inside their
+        // own panels, which is what keeps their add-forms pinned in view.
+        minH: "0",
       },
     },
   },

@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import OrganigramScreen from "@/components/settings/organigram-screen";
-import SettingsNav from "@/components/settings/settings-nav";
+import SettingsHeader from "@/components/settings/settings-header";
 import { isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
 import HomeLayout from "@/layout/home";
@@ -18,7 +18,7 @@ function RouteComponent() {
   return (
     <APIProtected>
       <HomeLayout variant="wide">
-        <SettingsNav />
+        <SettingsHeader />
         <OrganigramScreen />
       </HomeLayout>
     </APIProtected>

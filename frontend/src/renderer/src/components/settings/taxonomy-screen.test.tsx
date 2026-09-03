@@ -75,12 +75,13 @@ const createTopicMock = vi.fn();
 const createSubtopicMock = vi.fn();
 const updateSubtopicMock = vi.fn();
 
-// Deferred so tests can control exactly when `topicUsage`'s query resolves —
-// `resolveTopicUsage` starts as a no-op reassigned inside a fresh Promise
-// each time `topicUsage` is invoked (i.e. each time the deactivate dialog's
-// usage query is (re)enabled), so a test can assert the "still loading"
-// state before calling it.
-let resolveTopicUsage: (value: { count: number }) => void = () => {};
+const usageByTopic: Record<string, number> = { t1: 2, t2: 0 };
+const usageBySubtopic: Record<string, Record<string, number>> = {
+  t1: { s1: 2 },
+  t2: { s2: 5, s3: 0 },
+};
+
+vi.mock("@/features/showToast", () => ({ showToast: vi.fn() }));
 
 vi.mock("@/services/aymurai", () => ({
   catalogsService: {
@@ -91,12 +92,15 @@ vi.mock("@/services/aymurai", () => ({
     }),
     createTopic: () => ({ mutationFn: createTopicMock }),
     updateTopic: () => ({ mutationFn: vi.fn() }),
-    topicUsage: (id: string) => ({
-      queryKey: ["usage", id],
-      queryFn: () =>
-        new Promise<{ count: number }>((resolve) => {
-          resolveTopicUsage = resolve;
-        }),
+    // Counts for every row come from one bulk request per level rather than
+    // one per row — the real catalog is 25 topics / 242 subtopics.
+    topicUsageMap: () => ({
+      queryKey: ["topics", "usage-map"],
+      queryFn: async () => usageByTopic,
+    }),
+    subtopicUsageMap: (topicId: string) => ({
+      queryKey: ["subtopics", topicId, "usage-map"],
+      queryFn: async () => usageBySubtopic[topicId] ?? {},
     }),
     createSubtopic: () => ({ mutationFn: createSubtopicMock }),
     updateSubtopic: () => ({ mutationFn: updateSubtopicMock }),
@@ -116,7 +120,6 @@ function renderWithClient(ui: React.ReactElement) {
 describe("TaxonomyScreen — master-detail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveTopicUsage = () => {};
   });
 
   it("lists topics in the master panel", async () => {
@@ -138,7 +141,7 @@ describe("TaxonomyScreen — master-detail", () => {
     renderWithClient(<TaxonomyScreen />);
 
     const row = (await screen.findByText("Ambiente")).closest(
-      '[role="button"]',
+      '[role="option"]',
     );
     expect(row).not.toBeNull();
     expect(row).toHaveAttribute("tabIndex", "0");
@@ -183,39 +186,38 @@ describe("TaxonomyScreen — master-detail", () => {
       ),
     );
 
-    resolveTopicUsage({ count: 2 });
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("taxonomy.topics.usageWarning:2"),
-      ).toBeInTheDocument();
-    });
+    // The count is already in the cache (it loads with the list), so the
+    // warning renders without a second round-trip.
+    expect(
+      await screen.findByText("taxonomy.usageWarning:2"),
+    ).toBeInTheDocument();
   });
 
-  it("disables the topic confirm-deactivate button until the usage query resolves", async () => {
+  it("states that nothing references a topic instead of warning, when its usage is zero", async () => {
     renderWithClient(<TaxonomyScreen />);
 
-    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+    fireEvent.click(await screen.findByText("Ambiente"));
     fireEvent.click(
       await screen.findByLabelText(
-        "taxonomy.topics.deactivateAction: Acceso a la justicia",
+        "taxonomy.topics.deactivateAction: Ambiente",
       ),
     );
 
-    const confirmButton = await screen.findByText(
-      "taxonomy.topics.confirmDeactivate",
-    );
-    // Immediately after opening the dialog, the usage query hasn't resolved
-    // yet (its queryFn's Promise is held open by `resolveTopicUsage` until a
-    // test calls it) — the button must not be clickable before the count is
-    // shown, or the confirmation dialog defeats its own purpose.
-    expect(confirmButton).toBeDisabled();
+    // An amber "0 registros usan…" warning would misrepresent a no-op.
+    expect(
+      await screen.findByText("taxonomy.usageWarningNone"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("taxonomy.usageWarning:0"),
+    ).not.toBeInTheDocument();
+  });
 
-    resolveTopicUsage({ count: 2 });
+  it("shows each row's record count next to its name", async () => {
+    renderWithClient(<TaxonomyScreen />);
 
-    await waitFor(() => {
-      expect(confirmButton).not.toBeDisabled();
-    });
+    expect(
+      await screen.findByText("taxonomy.usageCount:2"),
+    ).toBeInTheDocument();
   });
 
   it("creates a new topic from the master panel's add form", async () => {
@@ -324,7 +326,7 @@ describe("TaxonomyScreen — master-detail", () => {
     );
 
     await screen.findByText("taxonomy.subtopics.deactivateConfirmTitle");
-    fireEvent.click(screen.getByText("taxonomy.topics.confirmDeactivate"));
+    fireEvent.click(screen.getByText("taxonomy.confirmDeactivate"));
 
     // Same async-mutation-dispatch note as the topic/subtopic create tests
     // above — `mutate()` dispatches the mutationFn one tick later.

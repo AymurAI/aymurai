@@ -7,6 +7,7 @@ import {
   subtopicsSchema,
   topicSchema,
   topicsSchema,
+  usageMapSchema,
 } from "@/schema/catalogs";
 import type {
   CreateSubtopicInput,
@@ -57,6 +58,53 @@ export const topicUsage = (topicId: string) =>
       const data = USE_MOCK_CATALOGS
         ? await mock.mockTopicUsage(topicId)
         : (await api.get(`/catalogs/topics/${topicId}/usage`)).data;
+      return categoryUsageSchema.parse(data);
+    },
+  });
+
+/**
+ * Record counts for every topic, in one request (see `usageMapSchema`).
+ * Keyed under the `["topics", baseURL]` prefix so a topic mutation's
+ * invalidation refreshes the counts along with the list.
+ *
+ * Fase 1 (docs/defensoria/PLAN.md) must serve `GET /catalogs/topics/usage`
+ * alongside the per-id `/usage` endpoint for this to work against a real backend.
+ */
+export const topicUsageMap = () =>
+  queryOptions({
+    queryKey: ["topics", api.defaults.baseURL, "usage-map"],
+    queryFn: async () => {
+      const data = USE_MOCK_CATALOGS
+        ? await mock.mockTopicUsageMap()
+        : (await api.get("/catalogs/topics/usage")).data;
+      return usageMapSchema.parse(data);
+    },
+  });
+
+/** Record counts for every subtopic of one topic — see `topicUsageMap`. */
+export const subtopicUsageMap = (topicId: string) =>
+  queryOptions({
+    queryKey: ["subtopics", api.defaults.baseURL, topicId, "usage-map"],
+    queryFn: async () => {
+      const data = USE_MOCK_CATALOGS
+        ? await mock.mockSubtopicUsageMap(topicId)
+        : (
+            await api.get("/catalogs/subtopics/usage", {
+              params: { topic_id: topicId },
+            })
+          ).data;
+      return usageMapSchema.parse(data);
+    },
+  });
+
+/** Single-subtopic usage — the endpoint agreed for the deactivation guard. */
+export const subtopicUsage = (subtopicId: string) =>
+  queryOptions({
+    queryKey: ["subtopics", api.defaults.baseURL, "usage", subtopicId],
+    queryFn: async () => {
+      const data = USE_MOCK_CATALOGS
+        ? await mock.mockSubtopicUsage(subtopicId)
+        : (await api.get(`/catalogs/subtopics/${subtopicId}/usage`)).data;
       return categoryUsageSchema.parse(data);
     },
   });

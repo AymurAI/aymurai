@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import SettingsNav from "@/components/settings/settings-nav";
+import SettingsHeader from "@/components/settings/settings-header";
 import TaxonomyScreen from "@/components/settings/taxonomy-screen";
 import { isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
@@ -18,7 +18,7 @@ function RouteComponent() {
   return (
     <APIProtected>
       <HomeLayout variant="wide">
-        <SettingsNav />
+        <SettingsHeader />
         <TaxonomyScreen />
       </HomeLayout>
     </APIProtected>

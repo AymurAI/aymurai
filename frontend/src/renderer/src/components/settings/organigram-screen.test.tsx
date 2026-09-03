@@ -84,7 +84,7 @@ describe("OrganigramScreen — tree + detail panel", () => {
     // test for the same reason.
     expect(await screen.findByText("Jefatura de Gabinete")).toBeInTheDocument();
     expect(
-      await screen.findByText("Secretaría de Cultura"),
+      await screen.findByText("Secretaría de Cultura (SECA)"),
     ).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("OrganigramScreen — tree + detail panel", () => {
   it("shows the selected unit's is_sector toggle and current holder", async () => {
     renderWithClient(<OrganigramScreen />);
 
-    fireEvent.click(await screen.findByText("Secretaría de Cultura"));
+    fireEvent.click(await screen.findByText("Secretaría de Cultura (SECA)"));
 
     expect(
       await screen.findByLabelText("organigram.detail.isSectorLabel"),
@@ -130,9 +130,9 @@ describe("OrganigramScreen — tree + detail panel", () => {
   it("adds a new current holder, inserting rather than overwriting", async () => {
     renderWithClient(<OrganigramScreen />);
 
-    fireEvent.click(await screen.findByText("Secretaría de Cultura"));
+    fireEvent.click(await screen.findByText("Secretaría de Cultura (SECA)"));
     fireEvent.change(
-      await screen.findByLabelText("organigram.detail.newHolderLabel"),
+      await screen.findByLabelText("organigram.detail.newHolderNameLabel"),
       {
         target: { value: "Juan Gómez" },
       },

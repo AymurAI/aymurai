@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { organigramService } from "@/services/aymurai";
 import { Grid } from "@/styled/jsx";
+import type { OrganigramUnit } from "@/types/organigram";
 import OrganigramDetailPanel from "./organigram-detail-panel";
 import OrganigramTree from "./organigram-tree";
 
@@ -13,6 +14,21 @@ export default function OrganigramScreen() {
     () => units.find((u) => u.id === selectedUnitId) ?? null,
     [units, selectedUnitId],
   );
+
+  /** Root-first ancestor chain of the selection, for the detail breadcrumb. */
+  const ancestors = useMemo(() => {
+    if (!selectedUnit) return [];
+    const byId = new Map(units.map((unit) => [unit.id, unit]));
+    const chain: OrganigramUnit[] = [];
+    let parentId = selectedUnit.parent_id;
+    while (parentId !== null) {
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      chain.unshift(parent);
+      parentId = parent.parent_id;
+    }
+    return chain;
+  }, [units, selectedUnit]);
 
   return (
     <Grid
@@ -39,13 +55,14 @@ export default function OrganigramScreen() {
       gap="6"
       width="full"
       flex="1"
+      minH="0"
     >
       <OrganigramTree
         units={units}
         selectedUnitId={selectedUnitId}
         onSelect={setSelectedUnitId}
       />
-      <OrganigramDetailPanel unit={selectedUnit} />
+      <OrganigramDetailPanel unit={selectedUnit} ancestors={ancestors} />
     </Grid>
   );
 }

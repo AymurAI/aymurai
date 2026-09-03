@@ -1,32 +1,15 @@
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@aymurai/ui";
+import { Button, Search, TextField } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Plus } from "phosphor-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import SidePanelColumn from "@/components/layout/side-panel-column";
+import { showToast } from "@/features/showToast";
 import { catalogsService } from "@/services/aymurai";
-import { css, cx } from "@/styled/css";
-import { HStack, Stack, styled } from "@/styled/jsx";
+import { HStack, styled } from "@/styled/jsx";
 import type { Topic } from "@/types/catalogs";
-
-// `Dialog`/`DialogContent`/`DialogTitle`/`DialogFooter` come from `@aymurai/ui`
-// (which wraps `@radix-ui/react-dialog` internally) rather than a local
-// `@/components/ui/dialog` module — that module doesn't exist in this repo.
-// Every existing Radix dialog usage in this codebase (label-manager's
-// merge/remove dialogs, tag-annotation's replace dialog,
-// manual-entity-resolution-dialog) imports the same way, and this repo's
-// own `.claude/CLAUDE.md` documents Dialog as one of the primitives
-// "consumed straight from `@aymurai/ui`" — `@radix-ui/react-dialog` isn't
-// even a direct dependency of this package.
-
-const row = css({
-  cursor: "pointer",
-  px: "3",
-  py: "2",
-  borderRadius: "md",
-  _hover: { bg: "bg.primary-highlight" },
-});
-
-const selectedRow = css({ bg: "bg.primary-highlight" });
+import CategoryRow from "./category-row";
+import DeactivateDialog from "./deactivate-dialog";
+import PanelSurface from "./panel-surface";
 
 interface TopicsPanelProps {
   selectedTopicId: string | null;
@@ -40,141 +23,179 @@ export default function TopicsPanel({
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
   const { data: topics = [] } = useQuery(catalogsService.listTopics());
+  const { data: usage = {} } = useQuery(catalogsService.topicUsageMap());
+
+  const [query, setQuery] = useState("");
   const [pendingDeactivation, setPendingDeactivation] = useState<Topic | null>(
     null,
   );
   const [newTopicName, setNewTopicName] = useState("");
 
-  // `isLoading` (rather than the lower-level `isPending`) is TanStack Query
-  // v5's dedicated "first fetch in progress" flag (`isPending && isFetching`)
-  // — it's what should gate the confirm button, since `isPending` alone
-  // stays true even while the query is disabled (dialog closed, no data
-  // yet), which isn't the "still loading" case this button needs to guard.
-  const { data: usage, isLoading: isUsageLoading } = useQuery({
-    ...catalogsService.topicUsage(pendingDeactivation?.id ?? ""),
-    enabled: pendingDeactivation !== null,
-  });
+  const visibleTopics = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return topics;
+    return topics.filter(
+      (topic) =>
+        topic.name.toLowerCase().includes(needle) ||
+        (topic.code ?? "").toLowerCase().includes(needle),
+    );
+  }, [topics, query]);
+
+  const invalidateTopics = () =>
+    // Invalidate via the factory's own queryKey rather than a hardcoded
+    // literal — `catalogsService.listTopics()` keys on
+    // `["topics", api.defaults.baseURL]` (see services/aymurai/catalogs.ts),
+    // so a bare `["topics"]` literal would still partial-match today, but
+    // reusing the factory's key keeps this correct if that shape changes.
+    // The usage map lives under the same prefix, so counts refresh too.
+    queryClient.invalidateQueries({
+      queryKey: catalogsService.listTopics().queryKey,
+    });
 
   const { mutate: updateTopic } = useMutation({
     ...catalogsService.updateTopic(),
-    onSuccess: () => {
-      // Invalidate via the factory's own queryKey rather than a hardcoded
-      // literal — `catalogsService.listTopics()` keys on
-      // `["topics", api.defaults.baseURL]` (see services/aymurai/catalogs.ts),
-      // so a bare `["topics"]` literal would still partial-match today, but
-      // reusing the factory's key keeps this correct if that shape changes.
-      queryClient.invalidateQueries({
-        queryKey: catalogsService.listTopics().queryKey,
-      });
+    onSuccess: (topic) => {
+      invalidateTopics();
       setPendingDeactivation(null);
+      showToast(
+        topic.active
+          ? t("taxonomy.topics.reactivatedToast", { name: topic.name })
+          : t("taxonomy.topics.deactivatedToast", { name: topic.name }),
+        "success",
+      );
     },
   });
 
   const { mutate: createTopic } = useMutation({
     ...catalogsService.createTopic(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: catalogsService.listTopics().queryKey,
-      });
+    onSuccess: (topic) => {
+      invalidateTopics();
       setNewTopicName("");
+      // Clearing the filter keeps the new row visible — otherwise it is
+      // created outside the active search and appears to have vanished.
+      setQuery("");
+      onSelectTopic(topic.id);
+      showToast(
+        t("taxonomy.topics.createdToast", { name: topic.name }),
+        "success",
+      );
     },
   });
 
+  const submitNewTopic = () => {
+    const name = newTopicName.trim();
+    if (!name) return;
+    createTopic({ name, code: null, order: topics.length + 1 });
+  };
+
+  const inactiveCount = topics.filter((topic) => !topic.active).length;
+
   return (
-    <SidePanelColumn>
-      <Stack gap="4" p="4">
-        <styled.h2 textStyle="subtitle.md.strong">
-          {t("taxonomy.topics.title")}
-        </styled.h2>
-
-        <HStack gap="2">
-          <input
-            aria-label={t("taxonomy.topics.nameLabel")}
-            value={newTopicName}
-            onChange={(e) => setNewTopicName(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() =>
-              newTopicName &&
-              createTopic({
-                name: newTopicName,
-                code: null,
-                order: topics.length + 1,
+    <PanelSurface
+      title={t("taxonomy.topics.title")}
+      headerAside={
+        <styled.span
+          textStyle="label.sm.default"
+          color="text.lighter"
+          whiteSpace="nowrap"
+        >
+          {query.trim()
+            ? t("taxonomy.topics.filteredCount", {
+                shown: visibleTopics.length,
+                total: topics.length,
               })
-            }
-          >
-            {t("taxonomy.topics.addAction")}
-          </button>
-        </HStack>
-
-        {topics.map((topic) => (
-          <HStack
-            key={topic.id}
-            justify="space-between"
-            className={cx(row, topic.id === selectedTopicId && selectedRow)}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelectTopic(topic.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelectTopic(topic.id);
-              }
+            : t("taxonomy.topics.count", {
+                count: topics.length,
+                context: inactiveCount > 0 ? "withInactive" : undefined,
+                inactive: inactiveCount,
+              })}
+        </styled.span>
+      }
+      toolbar={
+        <Search
+          value={query}
+          aria-label={t("taxonomy.topics.searchLabel")}
+          placeholder={t("taxonomy.topics.searchPlaceholder")}
+          onChange={(event) => setQuery(event.target.value)}
+          onClear={() => setQuery("")}
+        />
+      }
+      footer={
+        <HStack gap="2" alignItems="flex-end">
+          <TextField
+            aria-label={t("taxonomy.topics.nameLabel")}
+            placeholder={t("taxonomy.topics.newPlaceholder")}
+            value={newTopicName}
+            onChange={(event) => setNewTopicName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitNewTopic();
             }}
+          />
+          <Button
+            type="button"
+            onClick={submitNewTopic}
+            disabled={!newTopicName.trim()}
           >
-            <span>{topic.name}</span>
-            <button
-              type="button"
-              aria-label={`${t("taxonomy.topics.deactivateAction")}: ${topic.name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setPendingDeactivation(topic);
-              }}
-              onKeyDown={(e) => {
-                // Prevent Enter/Space on this nested button from also
-                // bubbling into the row's own onKeyDown above (which would
-                // otherwise select the row in addition to — or instead of —
-                // opening the deactivate dialog), mirroring the row-select
-                // isolation the onClick handler above already does via
-                // `e.stopPropagation()`.
-                e.stopPropagation();
-              }}
-            >
-              {t("taxonomy.topics.deactivateAction")}
-            </button>
-          </HStack>
+            <Plus size={16} />
+            {t("taxonomy.topics.addAction")}
+          </Button>
+        </HStack>
+      }
+    >
+      <styled.div
+        role="listbox"
+        aria-label={t("taxonomy.topics.title")}
+        display="contents"
+      >
+        {visibleTopics.map((topic) => (
+          <CategoryRow
+            key={topic.id}
+            name={topic.name}
+            usageLabel={
+              usage[topic.id] === undefined
+                ? undefined
+                : t("taxonomy.usageCount", { count: usage[topic.id] })
+            }
+            active={topic.active}
+            inactiveLabel={t("taxonomy.inactiveChip")}
+            toggleLabel={`${
+              topic.active
+                ? t("taxonomy.topics.deactivateAction")
+                : t("taxonomy.topics.reactivateAction")
+            }: ${topic.name}`}
+            onToggle={(next) =>
+              next
+                ? updateTopic({ id: topic.id, active: true })
+                : setPendingDeactivation(topic)
+            }
+            selected={topic.id === selectedTopicId}
+            onSelect={() => onSelectTopic(topic.id)}
+          />
         ))}
-      </Stack>
+      </styled.div>
 
-      <Dialog
+      {visibleTopics.length === 0 && (
+        <styled.p textStyle="paragraph.sm.default" color="text.lighter">
+          {query.trim()
+            ? t("taxonomy.topics.noMatches")
+            : t("taxonomy.topics.empty")}
+        </styled.p>
+      )}
+
+      <DeactivateDialog
         open={pendingDeactivation !== null}
         onOpenChange={(open) => !open && setPendingDeactivation(null)}
-      >
-        <DialogContent size="sm">
-          <DialogTitle>
-            {t("taxonomy.topics.deactivateConfirmTitle")}
-          </DialogTitle>
-          {usage && (
-            <p>{t("taxonomy.topics.usageWarning", { count: usage.count })}</p>
-          )}
-          <DialogFooter>
-            <button type="button" onClick={() => setPendingDeactivation(null)}>
-              {t("taxonomy.topics.cancel")}
-            </button>
-            <button
-              type="button"
-              disabled={isUsageLoading}
-              onClick={() =>
-                pendingDeactivation &&
-                updateTopic({ id: pendingDeactivation.id, active: false })
-              }
-            >
-              {t("taxonomy.topics.confirmDeactivate")}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </SidePanelColumn>
+        title={t("taxonomy.topics.deactivateConfirmTitle")}
+        name={pendingDeactivation?.name ?? ""}
+        usageCount={
+          pendingDeactivation ? (usage[pendingDeactivation.id] ?? 0) : 0
+        }
+        body={t("taxonomy.topics.deactivateBody")}
+        onConfirm={() =>
+          pendingDeactivation &&
+          updateTopic({ id: pendingDeactivation.id, active: false })
+        }
+      />
+    </PanelSurface>
   );
 }

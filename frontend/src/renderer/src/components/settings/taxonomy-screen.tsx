@@ -1,10 +1,17 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { catalogsService } from "@/services/aymurai";
 import { Grid } from "@/styled/jsx";
 import SubtopicsPanel from "./subtopics-panel";
 import TopicsPanel from "./topics-panel";
 
 export default function TaxonomyScreen() {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  // Shares the panel's cache entry (same query key), so naming the selected
+  // topic in the detail header costs no extra request.
+  const { data: topics = [] } = useQuery(catalogsService.listTopics());
+  const selectedTopicName =
+    topics.find((topic) => topic.id === selectedTopicId)?.name ?? null;
 
   return (
     <Grid
@@ -31,12 +38,13 @@ export default function TaxonomyScreen() {
       gap="6"
       width="full"
       flex="1"
+      minH="0"
     >
       <TopicsPanel
         selectedTopicId={selectedTopicId}
         onSelectTopic={setSelectedTopicId}
       />
-      <SubtopicsPanel topicId={selectedTopicId} />
+      <SubtopicsPanel topicId={selectedTopicId} topicName={selectedTopicName} />
     </Grid>
   );
 }

@@ -8,86 +8,25 @@ import type {
   UpdateSubtopicInput,
   UpdateTopicInput,
 } from "@/types/catalogs";
+import taxonomyFixture from "./fixtures/taxonomy.json";
 
 const now = "2026-08-28T00:00:00Z";
 
 /**
- * Small, curated fixture (PLAN.md §J: "chico y curado", not the real 242-subtopic
- * taxonomy) — enough to exercise the master-detail UI end to end while Fase 1's real
- * backend doesn't exist on this branch yet.
+ * Seed = the **real** Defensoría consultation taxonomy (25 temas / 242 subtemas),
+ * not a curated sample. `fixtures/taxonomy.json` is GENERATED from the source
+ * dataset by `scripts/generate-defensoria-fixtures.mjs` — re-run that script
+ * rather than hand-editing the JSON. The script's header documents provenance
+ * and the `area`/`tema`/`codigo`/`descripcion` → topic/subtopic mapping.
+ *
+ * The cast is the type boundary: TypeScript infers plain `string` for the JSON's
+ * nullable `code` column, so the fixture is asserted to the domain types once,
+ * here, instead of leaking `any` into every consumer.
  */
-let topics: Topic[] = [
-  {
-    id: "topic-acc",
-    code: "ACC",
-    name: "Acceso a la justicia",
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "topic-amb",
-    code: "AMB",
-    name: "Ambiente",
-    active: true,
-    order: 2,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "topic-sm",
-    code: "SM",
-    name: "Salud mental",
-    active: true,
-    order: 3,
-    created_at: now,
-    updated_at: now,
-  },
-];
+const seed = taxonomyFixture as { topics: Topic[]; subtopics: Subtopic[] };
 
-let subtopics: Subtopic[] = [
-  {
-    id: "sub-acc-1",
-    topic_id: "topic-acc",
-    code: "ACC20221",
-    name: "Patrocinio jurídico gratuito",
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "sub-acc-2",
-    topic_id: "topic-acc",
-    code: "ACC20222",
-    name: "Turnos judiciales",
-    active: true,
-    order: 2,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "sub-amb-1",
-    topic_id: "topic-amb",
-    code: "AMB20221",
-    name: "Arbolado urbano",
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-  {
-    id: "sub-sm-1",
-    topic_id: "topic-sm",
-    code: "SMCA20226",
-    name: "Internaciones",
-    active: true,
-    order: 1,
-    created_at: now,
-    updated_at: now,
-  },
-];
+let topics: Topic[] = seed.topics;
+let subtopics: Subtopic[] = seed.subtopics;
 
 const MOCK_DELAY_MS = 200;
 function delay<T>(value: T): Promise<T> {
@@ -100,6 +39,49 @@ let nextId = 100;
 function makeId(prefix: string): string {
   nextId += 1;
   return `${prefix}-${nextId}`;
+}
+
+// --- usage counts -----------------------------------------------------------
+//
+// There is no `recommendation` table on the frontend, so per-row record counts
+// are synthesised. They must be *stable*: the same id has to yield the same
+// count across reloads and across every usage function, otherwise a row's
+// badge and its deactivation guard would disagree. A small FNV-1a hash of the
+// id gives that for free — no state, no randomness.
+//
+// A subtopic is the unit of counting; a topic's count is the sum of its
+// subtopics'. That keeps the two levels coherent and makes a freshly created
+// topic (no subtopics yet) report 0 without any special case.
+
+/** Plausible upper bound for a single subtopic's record count. */
+const MAX_SUBTOPIC_USAGE = 180;
+
+/** FNV-1a, 32-bit. Stable across runs and platforms — no `Math.random`. */
+function hashId(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/** Subtopics created at runtime start with no records, like the real backend. */
+const createdSubtopicIds = new Set<string>();
+
+function subtopicUsageCount(subtopicId: string): number {
+  if (createdSubtopicIds.has(subtopicId)) return 0;
+  const hash = hashId(subtopicId);
+  // Roughly one row in eight has no records at all, so the zero-usage UI path
+  // (deactivate/delete without reassignment) is reachable from the seed data.
+  if (hash % 8 === 0) return 0;
+  return (hash >>> 3) % (MAX_SUBTOPIC_USAGE + 1);
+}
+
+function topicUsageCount(topicId: string): number {
+  return subtopics
+    .filter((s) => s.topic_id === topicId)
+    .reduce((total, s) => total + subtopicUsageCount(s.id), 0);
 }
 
 export function mockListTopics(): Promise<Topic[]> {
@@ -129,11 +111,32 @@ export function mockUpdateTopic(input: UpdateTopicInput): Promise<Topic> {
 }
 
 export function mockTopicUsage(topicId: string): Promise<CategoryUsage> {
-  // Deterministic stand-in: count subtopics under this topic that are referenced —
-  // there is no `recommendation` table on the frontend to count against, so this
-  // mock reports the subtopic count as a plausible non-zero example.
-  const count = subtopics.filter((s) => s.topic_id === topicId).length;
-  return delay({ count });
+  return delay({ count: topicUsageCount(topicId) });
+}
+
+/** Record counts for every topic, in one call — see `usageMapSchema`. */
+export function mockTopicUsageMap(): Promise<Record<string, number>> {
+  return delay(
+    Object.fromEntries(topics.map((t) => [t.id, topicUsageCount(t.id)])),
+  );
+}
+
+/** Record counts for every subtopic of one topic — see `mockTopicUsageMap`. */
+export function mockSubtopicUsageMap(
+  topicId: string,
+): Promise<Record<string, number>> {
+  return delay(
+    Object.fromEntries(
+      subtopics
+        .filter((s) => s.topic_id === topicId)
+        .map((s) => [s.id, subtopicUsageCount(s.id)]),
+    ),
+  );
+}
+
+/** Single-subtopic count; always agrees with `mockSubtopicUsageMap`. */
+export function mockSubtopicUsage(subtopicId: string): Promise<CategoryUsage> {
+  return delay({ count: subtopicUsageCount(subtopicId) });
 }
 
 export function mockListSubtopics(topicId: string): Promise<Subtopic[]> {
@@ -158,6 +161,7 @@ export function mockCreateSubtopic(
     updated_at: now,
   };
   subtopics = [...subtopics, created];
+  createdSubtopicIds.add(created.id);
   return delay(created);
 }
 

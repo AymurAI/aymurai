@@ -1,27 +1,75 @@
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@aymurai/ui";
+import {
+  Button,
+  Callout,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  TextField,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowsLeftRight, Plus } from "phosphor-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { showToast } from "@/features/showToast";
 import { catalogsService } from "@/services/aymurai";
-import { HStack, Stack, styled } from "@/styled/jsx";
+import { css } from "@/styled/css";
+import { HStack, styled } from "@/styled/jsx";
 import type { Subtopic } from "@/types/catalogs";
+import CategoryRow from "./category-row";
+import DeactivateDialog from "./deactivate-dialog";
+import PanelSurface from "./panel-surface";
 
-// See topics-panel.tsx for why Dialog/DialogContent/DialogTitle come from
-// `@aymurai/ui` rather than a local `@/components/ui/dialog` module.
+// See deactivate-dialog.tsx for why the primitives come from `@aymurai/ui`.
+
+/** `ToolButton`'s square, per `@aymurai/ui`'s 28px/6px-radius action button. */
+const reassignButton = css({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  w: "[28px]",
+  h: "[28px]",
+  p: "0.5",
+  borderRadius: "[6px]",
+  bg: "brand.primary",
+  color: "text.onbutton-alternative",
+  cursor: "pointer",
+  transition: "[background-color 150ms cubic-bezier(0.4, 0, 0.2, 1)]",
+  _hover: { bg: "action.hover" },
+  _focusVisible: { outline: "[2px solid token(colors.text.default)]" },
+});
+
+const NO_TARGET = "none";
 
 interface SubtopicsPanelProps {
   topicId: string | null;
+  topicName: string | null;
 }
 
-export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
+export default function SubtopicsPanel({
+  topicId,
+  topicName,
+}: SubtopicsPanelProps) {
   const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
+
   const { data: subtopics = [] } = useQuery({
     ...catalogsService.listSubtopics(topicId ?? ""),
     enabled: topicId !== null,
   });
+  const { data: usage = {} } = useQuery({
+    ...catalogsService.subtopicUsageMap(topicId ?? ""),
+    enabled: topicId !== null,
+  });
+
   const [reassigning, setReassigning] = useState<Subtopic | null>(null);
-  const [reassignTarget, setReassignTarget] = useState<string>("");
+  const [reassignTarget, setReassignTarget] = useState<string>(NO_TARGET);
   const [newSubtopicName, setNewSubtopicName] = useState("");
   const [pendingDeactivation, setPendingDeactivation] =
     useState<Subtopic | null>(null);
@@ -29,153 +77,250 @@ export default function SubtopicsPanel({ topicId }: SubtopicsPanelProps) {
   // Invalidate via the factory's own queryKey rather than a hardcoded
   // `["subtopics", topicId]` literal — the real `catalogsService.listSubtopics`
   // keys on `["subtopics", api.defaults.baseURL, topicId]` (see
-  // services/aymurai/catalogs.ts, and organigram.ts's identical pattern for
-  // `unitHolders`), so a two-element literal would silently fail to
-  // partial-match that three-element key and never invalidate in production
-  // — only the test's simplified mock shape happens to line up with it.
+  // services/aymurai/catalogs.ts), so a two-element literal would silently fail
+  // to partial-match that three-element key and never invalidate in production.
   const subtopicsQueryKey = catalogsService.listSubtopics(
     topicId ?? "",
   ).queryKey;
+  const invalidateSubtopics = () =>
+    queryClient.invalidateQueries({ queryKey: subtopicsQueryKey });
 
   const { mutate: updateSubtopic } = useMutation({
     ...catalogsService.updateSubtopic(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subtopicsQueryKey });
+    onSuccess: (subtopic) => {
+      invalidateSubtopics();
       setPendingDeactivation(null);
+      showToast(
+        subtopic.active
+          ? t("taxonomy.subtopics.reactivatedToast", { name: subtopic.name })
+          : t("taxonomy.subtopics.deactivatedToast", { name: subtopic.name }),
+        "success",
+      );
     },
   });
+
   const { mutate: reassignSubtopic } = useMutation({
     ...catalogsService.reassignSubtopic(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subtopicsQueryKey });
+      invalidateSubtopics();
+      const moved = reassigning ? (usage[reassigning.id] ?? 0) : 0;
+      const target = subtopics.find((s) => s.id === reassignTarget);
+      showToast(
+        target
+          ? t("taxonomy.subtopics.reassignedToast", {
+              count: moved,
+              name: target.name,
+            })
+          : t("taxonomy.subtopics.reassignedNoneToast"),
+        "success",
+      );
       setReassigning(null);
-      setReassignTarget("");
+      setReassignTarget(NO_TARGET);
     },
   });
+
   const { mutate: createSubtopic } = useMutation({
     ...catalogsService.createSubtopic(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: subtopicsQueryKey });
+    onSuccess: (subtopic) => {
+      invalidateSubtopics();
       setNewSubtopicName("");
+      showToast(
+        t("taxonomy.subtopics.createdToast", { name: subtopic.name }),
+        "success",
+      );
     },
   });
 
+  const submitNewSubtopic = () => {
+    const name = newSubtopicName.trim();
+    if (!name || !topicId) return;
+    createSubtopic({
+      topic_id: topicId,
+      name,
+      code: null,
+      order: subtopics.length + 1,
+    });
+  };
+
   if (topicId === null) {
-    return <Stack p="4">{t("taxonomy.subtopics.empty")}</Stack>;
+    return (
+      <PanelSurface title={t("taxonomy.subtopics.title")}>
+        <styled.div
+          flex="1"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          p="6"
+        >
+          <styled.div maxW="[480px]" w="full">
+            <Callout variant="info" message={t("taxonomy.subtopics.empty")} />
+          </styled.div>
+        </styled.div>
+      </PanelSurface>
+    );
   }
 
+  const reassignOptions = subtopics
+    .filter((s) => s.id !== reassigning?.id && s.active)
+    .map((s) => ({ id: s.id, text: s.name }));
+
   return (
-    <Stack gap="4" p="4">
-      <styled.h2 textStyle="subtitle.md.strong">
-        {t("taxonomy.subtopics.title")}
-      </styled.h2>
-
-      <HStack gap="2">
-        <input
-          aria-label={t("taxonomy.subtopics.nameLabel")}
-          value={newSubtopicName}
-          onChange={(e) => setNewSubtopicName(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={() =>
-            newSubtopicName &&
-            topicId &&
-            createSubtopic({
-              topic_id: topicId,
-              name: newSubtopicName,
-              code: null,
-              order: subtopics.length + 1,
-            })
-          }
+    <PanelSurface
+      title={t("taxonomy.subtopics.title")}
+      subtitle={topicName ?? undefined}
+      headerAside={
+        <styled.span
+          textStyle="label.sm.default"
+          color="text.lighter"
+          whiteSpace="nowrap"
         >
-          {t("taxonomy.subtopics.addAction")}
-        </button>
-      </HStack>
-
-      {subtopics.map((subtopic) => (
-        <HStack key={subtopic.id} justify="space-between">
-          <span>{subtopic.name}</span>
-          <HStack gap="2">
-            <button
-              type="button"
-              aria-label={`${t("taxonomy.subtopics.reassignAction")}: ${subtopic.name}`}
-              onClick={() => setReassigning(subtopic)}
-            >
-              {t("taxonomy.subtopics.reassignAction")}
-            </button>
-            <button
-              type="button"
-              aria-label={`${t("taxonomy.subtopics.deactivateAction")}: ${subtopic.name}`}
-              onClick={() => setPendingDeactivation(subtopic)}
-            >
-              {t("taxonomy.subtopics.deactivateAction")}
-            </button>
-          </HStack>
+          {t("taxonomy.subtopics.count", { count: subtopics.length })}
+        </styled.span>
+      }
+      footer={
+        <HStack gap="2" alignItems="flex-end">
+          <TextField
+            aria-label={t("taxonomy.subtopics.nameLabel")}
+            placeholder={t("taxonomy.subtopics.newPlaceholder")}
+            value={newSubtopicName}
+            onChange={(event) => setNewSubtopicName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitNewSubtopic();
+            }}
+          />
+          <Button
+            type="button"
+            onClick={submitNewSubtopic}
+            disabled={!newSubtopicName.trim()}
+          >
+            <Plus size={16} />
+            {t("taxonomy.subtopics.addAction")}
+          </Button>
         </HStack>
-      ))}
+      }
+    >
+      <TooltipProvider>
+        {subtopics.map((subtopic) => (
+          <CategoryRow
+            key={subtopic.id}
+            name={subtopic.name}
+            usageLabel={
+              usage[subtopic.id] === undefined
+                ? undefined
+                : t("taxonomy.usageCount", { count: usage[subtopic.id] })
+            }
+            active={subtopic.active}
+            inactiveLabel={t("taxonomy.inactiveChip")}
+            toggleLabel={`${
+              subtopic.active
+                ? t("taxonomy.subtopics.deactivateAction")
+                : t("taxonomy.subtopics.reactivateAction")
+            }: ${subtopic.name}`}
+            onToggle={(next) =>
+              next
+                ? updateSubtopic({ id: subtopic.id, active: true })
+                : setPendingDeactivation(subtopic)
+            }
+            actions={
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={reassignButton}
+                    aria-label={`${t("taxonomy.subtopics.reassignAction")}: ${subtopic.name}`}
+                    onClick={() => {
+                      setReassignTarget(NO_TARGET);
+                      setReassigning(subtopic);
+                    }}
+                  >
+                    <ArrowsLeftRight size={20} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {t("taxonomy.subtopics.reassignAction")}
+                </TooltipContent>
+              </Tooltip>
+            }
+          />
+        ))}
+      </TooltipProvider>
+
+      {subtopics.length === 0 && (
+        <styled.p textStyle="paragraph.sm.default" color="text.lighter">
+          {t("taxonomy.subtopics.none")}
+        </styled.p>
+      )}
 
       <Dialog
         open={reassigning !== null}
         onOpenChange={(open) => !open && setReassigning(null)}
       >
-        <DialogContent size="sm">
-          <DialogTitle>{t("taxonomy.subtopics.reassignAction")}</DialogTitle>
-          <label>
-            {t("taxonomy.subtopics.reassignTargetLabel")}
-            <select
-              value={reassignTarget}
-              onChange={(e) => setReassignTarget(e.target.value)}
-            >
-              <option value="">{t("taxonomy.subtopics.reassignNone")}</option>
-              {subtopics
-                .filter((s) => s.id !== reassigning?.id)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() =>
-              reassigning &&
-              reassignSubtopic({
-                id: reassigning.id,
-                target_subtopic_id: reassignTarget || null,
-              })
-            }
-          >
-            {t("taxonomy.subtopics.confirmReassign")}
-          </button>
-        </DialogContent>
-      </Dialog>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("taxonomy.subtopics.reassignAction")}</DialogTitle>
+            <styled.p textStyle="subtitle.sm.default" color="text.lighter">
+              {t("taxonomy.subtopics.reassignSubtitle", {
+                count: reassigning ? (usage[reassigning.id] ?? 0) : 0,
+                name: reassigning?.name ?? "",
+              })}
+            </styled.p>
+          </DialogHeader>
 
-      <Dialog
-        open={pendingDeactivation !== null}
-        onOpenChange={(open) => !open && setPendingDeactivation(null)}
-      >
-        <DialogContent size="sm">
-          <DialogTitle>
-            {t("taxonomy.subtopics.deactivateConfirmTitle")}
-          </DialogTitle>
+          <TooltipProvider>
+            <Select
+              label={t("taxonomy.subtopics.reassignTargetLabel")}
+              placeholder={t("taxonomy.subtopics.reassignPlaceholder")}
+              clearable={false}
+              options={[
+                { id: NO_TARGET, text: t("taxonomy.subtopics.reassignNone") },
+                ...reassignOptions,
+              ]}
+              value={reassignTarget}
+              onChange={(option) => setReassignTarget(option.id)}
+            />
+          </TooltipProvider>
+
           <DialogFooter>
-            <button type="button" onClick={() => setPendingDeactivation(null)}>
-              {t("taxonomy.topics.cancel")}
-            </button>
-            <button
+            <Button
               type="button"
+              variant="tertiary"
+              size="sm"
+              onClick={() => setReassigning(null)}
+            >
+              {t("taxonomy.cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               onClick={() =>
-                pendingDeactivation &&
-                updateSubtopic({ id: pendingDeactivation.id, active: false })
+                reassigning &&
+                reassignSubtopic({
+                  id: reassigning.id,
+                  target_subtopic_id:
+                    reassignTarget === NO_TARGET ? null : reassignTarget,
+                })
               }
             >
-              {t("taxonomy.topics.confirmDeactivate")}
-            </button>
+              {t("taxonomy.subtopics.confirmReassign")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Stack>
+
+      <DeactivateDialog
+        open={pendingDeactivation !== null}
+        onOpenChange={(open) => !open && setPendingDeactivation(null)}
+        title={t("taxonomy.subtopics.deactivateConfirmTitle")}
+        name={pendingDeactivation?.name ?? ""}
+        usageCount={
+          pendingDeactivation ? (usage[pendingDeactivation.id] ?? 0) : 0
+        }
+        body={t("taxonomy.subtopics.deactivateBody")}
+        onConfirm={() =>
+          pendingDeactivation &&
+          updateSubtopic({ id: pendingDeactivation.id, active: false })
+        }
+      />
+    </PanelSurface>
   );
 }
