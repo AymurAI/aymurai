@@ -67,6 +67,29 @@ def unit_children(
     return list(session.exec(statement).all())
 
 
+def unit_list(session: Session, include_inactive: bool = False) -> list[OrganigramUnit]:
+    """
+    Lists every unit in one pass, ordered by `order`.
+
+    `unit_children` walks the tree a level at a time, which costs one request
+    per parent node (124 of them on the real GCBA organigram). The ABM screen
+    needs the whole tree in hand to search it, expand it and show a unit's
+    ancestors, so it reads this instead and builds the tree client-side.
+
+    Args:
+        session (Session): Database session.
+        include_inactive (bool): Whether to include logically-deleted units.
+            Defaults to False.
+
+    Returns:
+        list[OrganigramUnit]: Every matching unit record.
+    """
+    statement = select(OrganigramUnit).order_by(OrganigramUnit.order)
+    if not include_inactive:
+        statement = statement.where(OrganigramUnit.active)
+    return list(session.exec(statement).all())
+
+
 def unit_update(
     unit_id: uuid.UUID, unit_in: OrganigramUnitUpdate, session: Session
 ) -> OrganigramUnit:
