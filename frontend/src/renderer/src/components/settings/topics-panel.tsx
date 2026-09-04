@@ -10,6 +10,8 @@ import type { Topic } from "@/types/catalogs";
 import CategoryRow from "./category-row";
 import DeactivateDialog from "./deactivate-dialog";
 import PanelSurface from "./panel-surface";
+import RenameButton from "./rename-button";
+import RenameDialog from "./rename-dialog";
 
 interface TopicsPanelProps {
   selectedTopicId: string | null;
@@ -28,6 +30,7 @@ export default function TopicsPanel({
   const [pendingDeactivation, setPendingDeactivation] = useState<Topic | null>(
     null,
   );
+  const [renaming, setRenaming] = useState<Topic | null>(null);
 
   // `isLoading` (rather than `isPending`) is TanStack Query v5's "first fetch in
   // progress" flag — `isPending` alone stays true while the query is disabled,
@@ -69,6 +72,20 @@ export default function TopicsPanel({
         topic.active
           ? t("taxonomy.topics.reactivatedToast", { name: topic.name })
           : t("taxonomy.topics.deactivatedToast", { name: topic.name }),
+        "success",
+      );
+    },
+  });
+
+  // Separate from the `active` mutation above so a rename's pending state
+  // belongs to the rename dialog alone.
+  const { mutate: renameTopic, isPending: isRenaming } = useMutation({
+    ...catalogsService.updateTopic(),
+    onSuccess: (topic) => {
+      invalidateTopics();
+      setRenaming(null);
+      showToast(
+        t("taxonomy.topics.renamedToast", { name: topic.name }),
         "success",
       );
     },
@@ -173,6 +190,12 @@ export default function TopicsPanel({
             }
             selected={topic.id === selectedTopicId}
             onSelect={() => onSelectTopic(topic.id)}
+            actions={
+              <RenameButton
+                label={`${t("taxonomy.topics.renameAction")}: ${topic.name}`}
+                onClick={() => setRenaming(topic)}
+              />
+            }
           />
         ))}
       </styled.div>
@@ -184,6 +207,17 @@ export default function TopicsPanel({
             : t("taxonomy.topics.empty")}
         </styled.p>
       )}
+
+      <RenameDialog
+        open={renaming !== null}
+        onOpenChange={(open) => !open && setRenaming(null)}
+        title={t("taxonomy.topics.renameTitle")}
+        body={t("taxonomy.topics.renameBody")}
+        label={t("taxonomy.topics.nameLabel")}
+        currentName={renaming?.name ?? ""}
+        isPending={isRenaming}
+        onConfirm={(name) => renaming && renameTopic({ id: renaming.id, name })}
+      />
 
       <DeactivateDialog
         open={pendingDeactivation !== null}

@@ -76,6 +76,7 @@ let deferTopicUsage = false;
 const createTopicMock = vi.fn();
 const createSubtopicMock = vi.fn();
 const updateSubtopicMock = vi.fn();
+const updateTopicMock = vi.fn();
 
 const usageByTopic: Record<string, number> = { t1: 2, t2: 0 };
 const usageBySubtopic: Record<string, number> = { s1: 2, s2: 5, s3: 0 };
@@ -93,7 +94,7 @@ vi.mock("@/services/aymurai", () => ({
       queryFn: async () => subtopicsByTopic[topicId] ?? [],
     }),
     createTopic: () => ({ mutationFn: createTopicMock }),
-    updateTopic: () => ({ mutationFn: vi.fn() }),
+    updateTopic: () => ({ mutationFn: updateTopicMock }),
     // Usage is fetched per id, on demand, when a dialog opens — the API has no
     // bulk endpoint.
     topicUsage: (id: string) => ({
@@ -364,5 +365,112 @@ describe("TaxonomyScreen — master-detail", () => {
         expect.anything(),
       );
     });
+  });
+});
+
+describe("TaxonomyScreen — correcting names in place", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("patches the topic by id, so records tagged with it are untouched", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "taxonomy.topics.renameAction: Ambiente",
+      }),
+    );
+
+    const field = await screen.findByDisplayValue("Ambiente");
+    fireEvent.change(field, { target: { value: "Ambiente y territorio" } });
+    fireEvent.click(screen.getByRole("button", { name: "renameSubmit" }));
+
+    // `mutate()` dispatches the mutationFn one tick later, and v5 hands it a
+    // context object alongside the variables — same shape as the tests above.
+    await waitFor(() =>
+      expect(updateTopicMock).toHaveBeenCalledWith(
+        { id: "t2", name: "Ambiente y territorio" },
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("patches the subtopic by id, keeping it under the same topic", async () => {
+    renderWithClient(<TaxonomyScreen />);
+    fireEvent.click(await screen.findByText("Acceso a la justicia"));
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "taxonomy.subtopics.renameAction: Patrocinio",
+      }),
+    );
+
+    const field = await screen.findByDisplayValue("Patrocinio");
+    fireEvent.change(field, { target: { value: "Patrocinio jurídico" } });
+    fireEvent.click(screen.getByRole("button", { name: "renameSubmit" }));
+
+    await waitFor(() =>
+      expect(updateSubtopicMock).toHaveBeenCalledWith(
+        { id: "s1", name: "Patrocinio jurídico" },
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("refuses to submit a name the user has not actually changed", async () => {
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "taxonomy.topics.renameAction: Ambiente",
+      }),
+    );
+
+    await screen.findByDisplayValue("Ambiente");
+    expect(screen.getByRole("button", { name: "renameSubmit" })).toBeDisabled();
+    expect(updateTopicMock).not.toHaveBeenCalled();
+  });
+
+  it("opens on the row's own name after a previous rename was cancelled", async () => {
+    // The dialog stays mounted between openings, so a stale field would offer
+    // the last row's name as this row's current one.
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "taxonomy.topics.renameAction: Ambiente",
+      }),
+    );
+    fireEvent.change(await screen.findByDisplayValue("Ambiente"), {
+      target: { value: "Descartado" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "cancel" }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "taxonomy.topics.renameAction: Acceso a la justicia",
+      }),
+    );
+
+    expect(
+      await screen.findByDisplayValue("Acceso a la justicia"),
+    ).toBeInTheDocument();
+  });
+
+  it("selecting a topic still works with the rename button in its row", async () => {
+    // The button sits inside the row's click target; the controls group stops
+    // propagation, so pressing it must not also switch the detail panel.
+    renderWithClient(<TaxonomyScreen />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "taxonomy.topics.renameAction: Ambiente",
+      }),
+    );
+
+    expect(
+      screen.queryByText("taxonomy.subtopics.none"),
+    ).not.toBeInTheDocument();
   });
 });

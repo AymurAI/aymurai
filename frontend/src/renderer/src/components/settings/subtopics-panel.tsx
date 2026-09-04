@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { ArrowsLeftRight, Plus } from "phosphor-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,6 +26,8 @@ import CategoryRow from "./category-row";
 import DeactivateDialog from "./deactivate-dialog";
 import EmptySelection from "./empty-selection";
 import PanelSurface from "./panel-surface";
+import RenameButton from "./rename-button";
+import RenameDialog from "./rename-dialog";
 
 // See deactivate-dialog.tsx for why the primitives come from `@aymurai/ui`.
 
@@ -69,6 +72,7 @@ export default function SubtopicsPanel({
   const [newSubtopicName, setNewSubtopicName] = useState("");
   const [pendingDeactivation, setPendingDeactivation] =
     useState<Subtopic | null>(null);
+  const [renaming, setRenaming] = useState<Subtopic | null>(null);
 
   // One usage query serves both dialogs — only one can be open at a time, and
   // both need the same number for the same subtopic. See topics-panel.tsx on
@@ -103,6 +107,34 @@ export default function SubtopicsPanel({
       );
     },
   });
+
+  // Separate from the `active` mutation above: a rename has its own pending
+  // and error state, and `(topic_id, name)` is unique, so the API can refuse
+  // one with a 409 the dialog has to show.
+  const {
+    mutate: renameSubtopic,
+    isPending: isRenaming,
+    error: renameError,
+    reset: resetRename,
+  } = useMutation({
+    ...catalogsService.updateSubtopic(),
+    onSuccess: (subtopic) => {
+      invalidateSubtopics();
+      setRenaming(null);
+      showToast(
+        t("taxonomy.subtopics.renamedToast", { name: subtopic.name }),
+        "success",
+      );
+    },
+  });
+
+  const renameErrorMessage = (error: Error | null): string | undefined => {
+    if (!error) return undefined;
+    if (error instanceof AxiosError && error.response?.status === 409) {
+      return t("taxonomy.subtopics.renameConflict");
+    }
+    return t("taxonomy.subtopics.renameError");
+  };
 
   const { mutate: reassignSubtopic } = useMutation({
     ...catalogsService.reassignSubtopic(),
@@ -207,24 +239,33 @@ export default function SubtopicsPanel({
                 : setPendingDeactivation(subtopic)
             }
             actions={
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={reassignButton}
-                    aria-label={`${t("taxonomy.subtopics.reassignAction")}: ${subtopic.name}`}
-                    onClick={() => {
-                      setReassignTarget(NO_TARGET);
-                      setReassigning(subtopic);
-                    }}
-                  >
-                    <ArrowsLeftRight size={20} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {t("taxonomy.subtopics.reassignAction")}
-                </TooltipContent>
-              </Tooltip>
+              <>
+                <RenameButton
+                  label={`${t("taxonomy.subtopics.renameAction")}: ${subtopic.name}`}
+                  onClick={() => {
+                    resetRename();
+                    setRenaming(subtopic);
+                  }}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className={reassignButton}
+                      aria-label={`${t("taxonomy.subtopics.reassignAction")}: ${subtopic.name}`}
+                      onClick={() => {
+                        setReassignTarget(NO_TARGET);
+                        setReassigning(subtopic);
+                      }}
+                    >
+                      <ArrowsLeftRight size={20} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {t("taxonomy.subtopics.reassignAction")}
+                  </TooltipContent>
+                </Tooltip>
+              </>
             }
           />
         ))}
@@ -235,6 +276,24 @@ export default function SubtopicsPanel({
           {t("taxonomy.subtopics.none")}
         </styled.p>
       )}
+
+      <RenameDialog
+        open={renaming !== null}
+        onOpenChange={(open) => {
+          if (open) return;
+          setRenaming(null);
+          resetRename();
+        }}
+        title={t("taxonomy.subtopics.renameTitle")}
+        body={t("taxonomy.subtopics.renameBody")}
+        label={t("taxonomy.subtopics.nameLabel")}
+        currentName={renaming?.name ?? ""}
+        isPending={isRenaming}
+        error={renameErrorMessage(renameError)}
+        onConfirm={(name) =>
+          renaming && renameSubtopic({ id: renaming.id, name })
+        }
+      />
 
       <Dialog
         open={reassigning !== null}

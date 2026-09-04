@@ -2,6 +2,7 @@ const settings = {
   title: "Configuración",
   // Shared by the Configuración screens.
   cancel: "Cancelar",
+  renameSubmit: "Guardar cambios",
   inactiveChip: "Inactivo",
   confirmDeactivate: "Confirmar baja",
   nav: {
@@ -40,6 +41,11 @@ const settings = {
       newPlaceholder: "Nuevo tema",
       empty: "Todavía no hay temas cargados.",
       noMatches: "Ningún tema coincide con la búsqueda.",
+      renameAction: "Corregir el nombre",
+      renameTitle: "Corregir el nombre del tema",
+      renameBody:
+        "Corrige el nombre registrado. El tema conserva sus subtemas y los registros que ya lo usan.",
+      renamedToast: 'Se corrigió el nombre a "{{name}}".',
       deactivateAction: "Dar de baja",
       reactivateAction: "Reactivar",
       deactivateConfirmTitle: "¿Dar de baja este tema?",
@@ -58,6 +64,13 @@ const settings = {
       addAction: "Agregar",
       nameLabel: "Nombre del subtema",
       newPlaceholder: "Nuevo subtema",
+      renameAction: "Corregir el nombre",
+      renameTitle: "Corregir el nombre del subtema",
+      renameBody:
+        "Corrige el nombre registrado. El subtema conserva su tema y los registros que ya lo usan.",
+      renamedToast: 'Se corrigió el nombre a "{{name}}".',
+      renameConflict: "Ya existe un subtema con ese nombre en este tema.",
+      renameError: "No se pudo corregir el nombre.",
       deactivateAction: "Dar de baja",
       reactivateAction: "Reactivar",
       deactivateConfirmTitle: "¿Dar de baja este subtema?",
