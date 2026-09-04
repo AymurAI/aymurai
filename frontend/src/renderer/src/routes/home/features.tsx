@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import type { Icon } from "phosphor-react";
 import { useTranslation } from "react-i18next";
-import BuiltBy from "@/components/brand/built-by";
+import AppCredits from "@/components/brand/app-credits";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
 import { FEATURE_ICON } from "@/constants/config";
@@ -69,9 +69,9 @@ const featureGrid = css({
   },
 });
 
+// `AppCredits` centres its own contents, so this only has to place the block:
+// pushed to the bottom of the content column, clear of the feature grid.
 const builtBy = css({
-  display: "flex",
-  justifyContent: "center",
   mt: "auto",
   pt: "16",
   pb: "8",
@@ -130,9 +130,7 @@ function RouteComponent() {
                   icon={FEATURE_ICON.SUMMARIZER}
                 />
               </Grid>
-              <div className={builtBy}>
-                <BuiltBy />
-              </div>
+              <AppCredits className={builtBy} />
             </div>
           </div>
         </MainContent>
