@@ -371,6 +371,35 @@ def test_sector_candidates_resolve_via_a_disambiguated_unit_match(session, dgtal
     assert match.sector_candidates[0].score > 90
 
 
+def test_sector_candidates_carry_the_sector_id(session, dgtal_tree):
+    """A candidate must name its sector by id, not only by label.
+
+    The validation form sends `unit_id` and `sector_id` together; without the
+    id the client would have to resolve a display name back to a row, and
+    `_reconcile_recipients` stores `sector_id=None` for a request that omits
+    it -- silently blanking SECTOR_FINAL in the export.
+    """
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position=(
+            "Directora General Obras en Vías Peatonales, dependiente del "
+            "Ministerio de Salud"
+        ),
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    assert match.sector_candidates, "expected at least one ranked candidate"
+    for candidate in match.sector_candidates:
+        assert candidate.sector_id is not None
+        sector = session.get(OrganigramUnit, candidate.sector_id)
+        assert sector is not None
+        assert sector.is_sector is True
+        assert sector.name == candidate.sector_name
+
+
 def test_embeddings_cache_key_is_order_sensitive():
     """The cached vectors are positionally aligned to the corpus, so two
     different orderings of the same rows must not share a cache key.

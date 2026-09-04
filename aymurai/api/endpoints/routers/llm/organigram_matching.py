@@ -150,6 +150,7 @@ class OrganigramCandidate(BaseModel):
 
     unit_id: uuid.UUID
     unit_name: str
+    sector_id: uuid.UUID | None = None
     sector_name: str | None = None
     ruta_organigrama: str
     score: float
@@ -609,6 +610,7 @@ def _sector_candidates_from_units(
         OrganigramCandidate(
             unit_id=sector.id,
             unit_name=sector.name,
+            sector_id=sector.id,
             sector_name=sector.name,
             ruta_organigrama=ruta_organigrama(sector, session),
             score=score,

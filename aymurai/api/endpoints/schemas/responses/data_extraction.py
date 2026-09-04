@@ -10,6 +10,10 @@ class OrganigramCandidateResponse(BaseModel):
 
     unit_id: uuid.UUID
     unit_name: str
+    # The form posts `unit_id` and `sector_id` together: `_reconcile_recipients`
+    # never derives one from the other (ADR-0009), and a request that omits
+    # `sector_id` stores None, blanking SECTOR_FINAL in the export.
+    sector_id: uuid.UUID | None = None
     sector_name: str | None = None
     ruta_organigrama: str
     score: float
