@@ -38,8 +38,8 @@ error no lleva los headers.
 - **El guardarraíl de ADR-0002 se respeta**: renombrar desde el ABM hace `PATCH` del `name` y **no recomputa
   el id**, así que las referencias ya extraídas siguen resolviendo.
 - ⚠️ Lo que sí queda abierto es la dirección contraria: el re-seed pisa lo que se editó desde la app
-  (`_ensure_unit` sobrescribe nombre y ubicación desde el JSON). Se aborda en la fase 10 (#59); hasta
-  entonces, no volver a sembrar sobre una instalación con ediciones.
+  (`_ensure_unit` sobrescribe nombre y ubicación desde el JSON). Ver #71, a resolver en la fase 10
+  (#59); hasta entonces, no volver a sembrar sobre una instalación con ediciones.
 
 ## Alternativas consideradas
 
