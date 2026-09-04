@@ -65,7 +65,12 @@ test("Taxonomía: master and detail panels render side by side", async ({
   mount,
   page,
 }, testInfo) => {
-  await page.route("**/catalogs/topics", (route) =>
+  // Trailing `*`: both list factories send query params
+  // (`include_inactive`, and `flat` for units), and a glob without it stops
+  // matching the moment a `?` appears — which is exactly how this spec went
+  // quietly red. Playwright's `*` does not cross `/`, so this still does not
+  // swallow `/catalogs/topics/{id}/usage`.
+  await page.route("**/catalogs/topics*", (route) =>
     route.fulfill({
       json: [
         {
@@ -124,7 +129,8 @@ test("Organigrama: tree and detail panel render side by side", async ({
   mount,
   page,
 }, testInfo) => {
-  await page.route("**/organigram/units", (route) =>
+  // See the note on the topics route above.
+  await page.route("**/organigram/units*", (route) =>
     route.fulfill({
       json: [
         {
