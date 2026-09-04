@@ -132,9 +132,10 @@ describe("ServerScreen — the Servidor tab", () => {
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
-  it("names the build so support conversations have a version to quote", () => {
+  it("foots the panel with the DataGénero credit and the install's version", () => {
     renderScreen();
 
-    expect(screen.getByText("server.version")).toBeInTheDocument();
+    expect(screen.getByAltText("DataGenero isologo")).toBeInTheDocument();
+    expect(screen.getByText("appVersion")).toBeInTheDocument();
   });
 });
