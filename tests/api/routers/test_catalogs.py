@@ -109,7 +109,9 @@ def test_rename_keeps_the_topic_id_so_tagged_records_are_untouched(catalogs_clie
 
 def test_rename_keeps_the_subtopic_id_and_its_topic(catalogs_client):
     topic_id = _create_topic(catalogs_client)
-    subtopic_id = _create_subtopic(catalogs_client, topic_id, code="S1", name="Patrocinio")
+    subtopic_id = _create_subtopic(
+        catalogs_client, topic_id, code="S1", name="Patrocinio"
+    )
 
     response = catalogs_client.patch(
         f"/catalogs/subtopics/{subtopic_id}", json={"name": "Patrocinio jurídico"}

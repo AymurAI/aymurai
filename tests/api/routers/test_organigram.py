@@ -109,9 +109,7 @@ def test_a_patch_that_corrects_nothing_is_refused(organigram_client):
     unit_id = _create_unit(organigram_client)
     holder = _appoint(organigram_client, unit_id, name="Titular")
 
-    response = organigram_client.patch(
-        f"/organigram/holders/{holder['id']}", json={}
-    )
+    response = organigram_client.patch(f"/organigram/holders/{holder['id']}", json={})
 
     assert response.status_code == 422
 

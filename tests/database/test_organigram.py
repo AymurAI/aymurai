@@ -377,7 +377,9 @@ def test_history_follows_term_dates_not_the_order_rows_were_entered(session):
     worked through it, so insert order says nothing about the succession."""
     unit = _unit(session)
     older = holder_set_current(unit.id, "Antiguo", session, start_date=date(2018, 5, 1))
-    newer = holder_set_current(unit.id, "Reciente", session, start_date=date(2024, 3, 11))
+    newer = holder_set_current(
+        unit.id, "Reciente", session, start_date=date(2024, 3, 11)
+    )
     # Entered last, but the earliest term of the three.
     oldest = holder_set_current(
         unit.id, "El primero de todos", session, start_date=date(2010, 1, 1)
