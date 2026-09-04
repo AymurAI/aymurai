@@ -12,17 +12,34 @@ import UnitDeactivateDialog from "./unit-deactivate-dialog";
 import UnitHoldersSection from "./unit-holders-section";
 import UnitIdentityForm from "./unit-identity-form";
 
-/** Grey detail surface with white cards — `SidePanel`'s composition in `@aymurai/ui`. */
+/**
+ * Grey detail surface with white cards — `SidePanel`'s composition in
+ * `@aymurai/ui`.
+ *
+ * The scroll lives on `scrollArea`, never on this bordered box: a native
+ * scrollbar rendered on a rounded, bordered element paints across the corner
+ * radius, so the border reads as clipped at the top and bottom right. Same
+ * split `PanelSurface` already uses for the master panels.
+ */
 const panel = css({
   bg: "bg.primary",
   border: "card",
   borderRadius: "lg",
   p: "6",
-  gap: "6",
-  alignItems: "center",
-  overflowY: "auto",
+  overflow: "hidden",
   minH: "0",
   minW: "0",
+});
+
+const scrollArea = css({
+  flex: "1",
+  minH: "0",
+  minW: "0",
+  w: "full",
+  overflowY: "auto",
+  alignItems: "center",
+  gap: "6",
+  pr: "1",
 });
 
 /** Detail content tracks `sizes.panel.form`, so it stays readable on a wide pane. */
@@ -114,70 +131,74 @@ export default function OrganigramDetailPanel({
 
   return (
     <Stack className={panel}>
-      <Stack className={column}>
-        <Stack className={card}>
-          <styled.p
-            textStyle="subtitle.sm.default"
-            color="text.lighter"
-            overflow="hidden"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-          >
-            {breadcrumb || t("organigram.detail.rootUnit")}
-          </styled.p>
-          <HStack gap="2">
-            <styled.h2 textStyle="subtitle.md.strong">{unit.name}</styled.h2>
-            {unit.acronym && (
-              <styled.span className={acronymChip}>{unit.acronym}</styled.span>
-            )}
+      <Stack className={scrollArea}>
+        <Stack className={column}>
+          <Stack className={card}>
+            <styled.p
+              textStyle="subtitle.sm.default"
+              color="text.lighter"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+            >
+              {breadcrumb || t("organigram.detail.rootUnit")}
+            </styled.p>
+            <HStack gap="2">
+              <styled.h2 textStyle="subtitle.md.strong">{unit.name}</styled.h2>
+              {unit.acronym && (
+                <styled.span className={acronymChip}>
+                  {unit.acronym}
+                </styled.span>
+              )}
+            </HStack>
+          </Stack>
+
+          {!unit.active && (
+            <Callout
+              variant="warning"
+              message={t("organigram.detail.inactiveNotice")}
+            />
+          )}
+
+          <HStack className={sectorRow} justify="space-between">
+            <styled.span textStyle="paragraph.sm.default">
+              {t("organigram.detail.isSectorLabel")}
+            </styled.span>
+            <Switch
+              checked={unit.is_sector}
+              aria-label={t("organigram.detail.isSectorLabel")}
+              onCheckedChange={(checked) =>
+                setSector({ id: unit.id, is_sector: checked })
+              }
+            />
           </HStack>
+
+          <Divider color="[token(colors.brand.secondary)]" />
+
+          <UnitIdentityForm key={unit.id} unit={unit} />
+
+          <styled.div alignSelf="flex-start">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              isLoading={isSettingActive}
+              onClick={() =>
+                unit.active
+                  ? setIsDeactivating(true)
+                  : setActive({ id: unit.id, active: true })
+              }
+            >
+              {unit.active
+                ? t("organigram.detail.deactivateAction")
+                : t("organigram.detail.reactivateAction")}
+            </Button>
+          </styled.div>
+
+          <Divider color="[token(colors.brand.secondary)]" />
+
+          <UnitHoldersSection unit={unit} />
         </Stack>
-
-        {!unit.active && (
-          <Callout
-            variant="warning"
-            message={t("organigram.detail.inactiveNotice")}
-          />
-        )}
-
-        <HStack className={sectorRow} justify="space-between">
-          <styled.span textStyle="paragraph.sm.default">
-            {t("organigram.detail.isSectorLabel")}
-          </styled.span>
-          <Switch
-            checked={unit.is_sector}
-            aria-label={t("organigram.detail.isSectorLabel")}
-            onCheckedChange={(checked) =>
-              setSector({ id: unit.id, is_sector: checked })
-            }
-          />
-        </HStack>
-
-        <Divider color="[token(colors.brand.secondary)]" />
-
-        <UnitIdentityForm key={unit.id} unit={unit} />
-
-        <styled.div alignSelf="flex-start">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            isLoading={isSettingActive}
-            onClick={() =>
-              unit.active
-                ? setIsDeactivating(true)
-                : setActive({ id: unit.id, active: true })
-            }
-          >
-            {unit.active
-              ? t("organigram.detail.deactivateAction")
-              : t("organigram.detail.reactivateAction")}
-          </Button>
-        </styled.div>
-
-        <Divider color="[token(colors.brand.secondary)]" />
-
-        <UnitHoldersSection unit={unit} />
       </Stack>
 
       <UnitDeactivateDialog

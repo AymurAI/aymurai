@@ -8,18 +8,31 @@ import ConnectionStatusCard from "./connection-status-card";
  * The grey surface the other two Configuración screens are built from, with a
  * single centred column instead of a master/detail split — the same ground,
  * the same white cards, so switching tabs does not change the furniture.
+ *
+ * The scroll lives on `scrollArea`, never on this bordered box: a native
+ * scrollbar rendered on a rounded, bordered element paints across the corner
+ * radius, so the border reads as clipped at the top and bottom right. Same
+ * split `PanelSurface` already uses for the master panels.
  */
 const panel = css({
   bg: "bg.primary",
   border: "card",
   borderRadius: "lg",
   p: "6",
-  gap: "6",
-  alignItems: "center",
-  overflowY: "auto",
+  overflow: "hidden",
   flex: "1",
   minH: "0",
   minW: "0",
+});
+
+const scrollArea = css({
+  flex: "1",
+  minH: "0",
+  minW: "0",
+  w: "full",
+  overflowY: "auto",
+  alignItems: "center",
+  pr: "1",
 });
 
 /**
@@ -53,12 +66,14 @@ const credits = css({ pt: "20" });
 export default function ServerScreen() {
   return (
     <Stack className={panel}>
-      <Stack className={column}>
-        <ConnectionStatusCard />
-        <Divider color="[token(colors.brand.secondary)]" />
-        <ConnectToHost />
+      <Stack className={scrollArea}>
+        <Stack className={column}>
+          <ConnectionStatusCard />
+          <Divider color="[token(colors.brand.secondary)]" />
+          <ConnectToHost />
+        </Stack>
+        <AppCredits className={credits} />
       </Stack>
-      <AppCredits className={credits} />
     </Stack>
   );
 }
