@@ -22,23 +22,33 @@ const panel = css({
   minW: "0",
 });
 
-/** Tracks `sizes.panel.form`, like the organigram detail column. */
-const column = css({ w: "full", maxW: "[token(sizes.panel.form)]", gap: "6" });
+/**
+ * Tracks `sizes.panel.form`, like the organigram detail column.
+ *
+ * The 71px is what drops the submit button's bottom edge onto the bottom of
+ * the features home's card grid (y=640 at any window height — both screens
+ * are fixed above that point). Lining those two up is what makes the run of
+ * space down to the credit read the same on both.
+ */
+const column = css({
+  w: "full",
+  maxW: "[token(sizes.panel.form)]",
+  gap: "6",
+  mt: "[71px]",
+});
 
 /**
- * The credit block lands on the same baseline as its counterpart on the
- * features home, so navigating between the two does not shift it.
+ * The 88px `routes/home/features.tsx` leaves between its grid and the
+ * DataGénero block, minus the 8px this panel actually puts between its own
+ * children — Panda's `Stack` pattern ships `gap: 8px` and that wins over the
+ * recipe's `gap: "6"` in the generated cascade, so the clearance has to be
+ * carried here rather than split with the gap. With the column offset above,
+ * the credit lands on the same baseline (y=728) as its counterpart.
  *
- * Both are viewport-height independent — features' sits in content flow under
- * a fixed-height card grid, and everything above this one (header, title, tab
- * row, form) is fixed too — so a constant offset holds them level at any
- * window size. It is measured, not derived: 151px puts this one at the 728px
- * its counterpart occupies, on top of the panel's own 24px gap. Re-measure if
- * the features grid gains a row or this form gains a field; a validation
- * error under the address field drops it by that message's height, which is
- * the one case the two screens disagree.
+ * A validation error under the address field grows the form and pushes this
+ * down by that message's height — the one case the two screens disagree.
  */
-const credits = css({ pt: "[151px]" });
+const credits = css({ pt: "20" });
 
 export default function ServerScreen() {
   return (
