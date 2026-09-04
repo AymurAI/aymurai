@@ -3,6 +3,25 @@ import { defineConfig, defineGlobalStyles } from "@pandacss/dev";
 import pandaPreset from "@pandacss/preset-panda";
 
 const globalCss = defineGlobalStyles({
+  // Radix portals a popper (Select, Popover, Tooltip) to <body> as a SIBLING
+  // of an open dialog, and `@aymurai/ui` stamps it with an inline z-index of
+  // 10 while its dialog overlay and content are both 50 — so a dropdown
+  // opened inside a dialog paints *underneath* it, visible only where it
+  // overhangs the dialog's edge. First seen on Configuración → Taxonomía →
+  // "Reasignar registros", whose target Select was effectively unusable.
+  //
+  // A popper belongs above whatever it was opened from, so this is
+  // unconditional rather than scoped to dialogs. `!important` because the
+  // value it overrides is inline. 60 clears the dialog while staying under
+  // the transcription selection toolbar (100), which is the one thing in the
+  // app deliberately stacked higher.
+  //
+  // The real home for this is `@aymurai/ui` — it is pinned here at a GitHub
+  // tag (v0.6.0), so it lands as a consumer override until that ships.
+  "[data-radix-popper-content-wrapper]": {
+    zIndex: "60 !important",
+  },
+
   "*": {
     // was $primary; preset's fonts.primary QUOTES "Helvetica Neue"
     // ('"Archivo", -apple-system, "Helvetica Neue", Helvetica, Roboto,
