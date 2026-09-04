@@ -15,6 +15,13 @@ export interface OrganigramHolder {
   id: string;
   unit_id: string;
   name: string;
+  /**
+   * When the term began, as `YYYY-MM-DD`. Distinct from `created_at`, which
+   * says when the row was written — the two differ whenever a real history is
+   * entered after the fact. Null only on rows written before the column
+   * existed and never corrected since.
+   */
+  start_date: string | null;
   is_current: boolean;
   created_at: string;
   updated_at: string | null;
@@ -46,7 +53,10 @@ export interface AddHolderInput {
 
 export interface UpdateHolderInput {
   id: string;
-  name: string;
+  /** Omitted when only the term date is being corrected. */
+  name?: string;
+  /** `YYYY-MM-DD`. Omitted when only the name is being corrected. */
+  start_date?: string;
   /** Not sent — the panel needs it to invalidate the right holder list. */
   unit_id: string;
 }

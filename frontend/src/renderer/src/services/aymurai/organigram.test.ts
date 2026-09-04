@@ -104,6 +104,7 @@ describe("organigram service — real (non-mock) implementation", () => {
         id: "h1",
         unit_id: "u2",
         name: "María Pérez",
+        start_date: "2024-03-11",
         is_current: true,
         created_at: "x",
         updated_at: "x",
@@ -124,6 +125,7 @@ describe("organigram service — real (non-mock) implementation", () => {
         id: "h2",
         unit_id: "u2",
         name: "Juan Gómez",
+        start_date: "2026-09-04",
         is_current: true,
         created_at: "x",
         updated_at: "x",
@@ -140,6 +142,58 @@ describe("organigram service — real (non-mock) implementation", () => {
 
     expect(postSpy).toHaveBeenCalledWith("/organigram/units/u2/holders", {
       name: "Juan Gómez",
+    });
+  });
+});
+
+describe("organigram service — correcting a holder", () => {
+  const corrected = {
+    id: "h1",
+    unit_id: "u2",
+    name: "María Pérez",
+    start_date: "2020-01-15",
+    is_current: true,
+    created_at: "x",
+    updated_at: "y",
+  };
+
+  it("sends only the term date when that is all that changed", async () => {
+    // The API rejects a body with neither field and treats an omitted one as
+    // "leave it alone", so the client must not pad the payload.
+    const patchSpy = vi
+      .spyOn(api, "patch")
+      .mockResolvedValue({ data: corrected });
+
+    const { mutationFn } = organigram.updateHolder();
+    await (
+      mutationFn as (i: {
+        id: string;
+        unit_id: string;
+        start_date: string;
+      }) => Promise<unknown>
+    )({ id: "h1", unit_id: "u2", start_date: "2020-01-15" });
+
+    expect(patchSpy).toHaveBeenCalledWith("/organigram/holders/h1", {
+      start_date: "2020-01-15",
+    });
+  });
+
+  it("sends only the name when that is all that changed", async () => {
+    const patchSpy = vi
+      .spyOn(api, "patch")
+      .mockResolvedValue({ data: corrected });
+
+    const { mutationFn } = organigram.updateHolder();
+    await (
+      mutationFn as (i: {
+        id: string;
+        unit_id: string;
+        name: string;
+      }) => Promise<unknown>
+    )({ id: "h1", unit_id: "u2", name: "María Pérez" });
+
+    expect(patchSpy).toHaveBeenCalledWith("/organigram/holders/h1", {
+      name: "María Pérez",
     });
   });
 });

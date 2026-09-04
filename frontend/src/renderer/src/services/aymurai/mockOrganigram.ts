@@ -86,7 +86,14 @@ export function mockUnitHolders(unitId: string): Promise<OrganigramHolder[]> {
   return delay(
     holders
       .filter((h) => h.unit_id === unitId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      // Term date first, insert order as the tiebreaker — the same ordering
+      // `holder_history` applies, so a backdated correction reorders the list
+      // here too. Fixture rows have no term date and fall back to it.
+      .sort(
+        (a, b) =>
+          (b.start_date ?? "").localeCompare(a.start_date ?? "") ||
+          b.created_at.localeCompare(a.created_at),
+      ),
   );
 }
 
@@ -104,6 +111,9 @@ export function mockAddHolder(
     id: makeId("holder"),
     unit_id: input.unit_id,
     name: input.name,
+    // Mirrors the API's default: an appointment made now starts now, and a
+    // term that began earlier is corrected afterwards.
+    start_date: now.slice(0, 10),
     is_current: true,
     created_at: now,
     updated_at: now,
@@ -121,7 +131,9 @@ export function mockUpdateHolder(
   // untouched, so fixing a typo does not look like a change of office.
   const updated: OrganigramHolder = {
     ...existing,
-    name: input.name,
+    // Each field only when it is actually being corrected, mirroring the API.
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.start_date !== undefined ? { start_date: input.start_date } : {}),
     updated_at: now,
   };
   holders = holders.map((h) => (h.id === input.id ? updated : h));

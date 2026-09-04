@@ -272,6 +272,11 @@ function buildOrganigram(root) {
         id: `holder-${id}`,
         unit_id: id,
         name: holderName,
+        // The source organigram carries no term dates, so the fixture claims
+        // none. A seeded backend backfills `start_date` from `created_at`;
+        // here the honest value is null, which also exercises the "term date
+        // unknown" branch the UI has to render.
+        start_date: null,
         is_current: true,
         created_at: TIMESTAMP,
         updated_at: TIMESTAMP,

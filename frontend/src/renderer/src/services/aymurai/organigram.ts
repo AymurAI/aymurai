@@ -80,17 +80,24 @@ export const addHolder = () =>
     },
   });
 
-/** Corrects a holder's name in place — for fixing a typo, not for succession. */
+/**
+ * Corrects a holder record in place — a typo in the name, a term date entered
+ * from the real history — without touching `is_current`. Succession is
+ * `addHolder`; this never changes who holds the office.
+ *
+ * Only the fields actually being corrected are sent: the API rejects a body
+ * with neither, and omitting one leaves it alone rather than nulling it.
+ */
 export const updateHolder = () =>
   mutationOptions({
     mutationFn: async (input: UpdateHolderInput) => {
+      const body: { name?: string; start_date?: string } = {};
+      if (input.name !== undefined) body.name = input.name;
+      if (input.start_date !== undefined) body.start_date = input.start_date;
+
       const data = USE_MOCK_ORGANIGRAM
         ? await mock.mockUpdateHolder(input)
-        : (
-            await api.patch(`/organigram/holders/${input.id}`, {
-              name: input.name,
-            })
-          ).data;
+        : (await api.patch(`/organigram/holders/${input.id}`, body)).data;
       return organigramHolderSchema.parse(data);
     },
   });

@@ -19,6 +19,8 @@ export const organigramHolderSchema = z.object({
   id: z.string(),
   unit_id: z.string(),
   name: z.string(),
+  /** ISO date (YYYY-MM-DD) the term began, or null on a pre-migration row. */
+  start_date: z.string().nullable(),
   is_current: z.boolean(),
   created_at: z.string(),
   updated_at: z.string().nullable(),

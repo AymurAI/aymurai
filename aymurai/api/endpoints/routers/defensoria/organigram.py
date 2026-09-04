@@ -115,7 +115,9 @@ async def api_unit_holder_create(
 ):
     if not unit_get(unit_id, session):
         raise NotFoundError(detail=f"OrganigramUnit not found: {unit_id}")
-    holder = holder_set_current(unit_id, payload.name, session)
+    holder = holder_set_current(
+        unit_id, payload.name, session, start_date=payload.start_date
+    )
     return OrganigramHolderResponse(**holder.model_dump())
 
 
@@ -124,7 +126,12 @@ async def api_holder_update(
     holder_id: uuid.UUID, payload: OrganigramHolderUpdateRequest, session: SessionDep
 ):
     try:
-        holder = holder_update(holder_id, payload.name, session)
+        holder = holder_update(
+            holder_id,
+            session,
+            name=payload.name,
+            start_date=payload.start_date,
+        )
     except ValueError as exc:
         raise NotFoundError(detail=str(exc))
     return OrganigramHolderResponse(**holder.model_dump())

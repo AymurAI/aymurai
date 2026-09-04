@@ -1,10 +1,16 @@
 import json
 import uuid
+from datetime import date
 from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from aymurai.database.crud.organigram.holder import (
+    holder_history,
+    holder_set_current,
+    holder_update,
+)
 from aymurai.database.crud.organigram.sector import (
     is_sector_ancestor_of,
     resolve_sector,
@@ -311,3 +317,72 @@ def test_unit_create_keeps_an_explicitly_given_id(session):
     session.commit()
 
     assert _unit_by_cargo(session, "Unidad Semilla").id == seeded_id
+
+
+def _unit(session, name="Unidad de prueba"):
+    unit = OrganigramUnit(id=uuid.uuid4(), name=name, is_sector=False)
+    session.add(unit)
+    session.commit()
+    session.refresh(unit)
+    return unit
+
+
+def test_appointing_a_holder_dates_the_term_today_by_default(session):
+    unit = _unit(session)
+
+    holder = holder_set_current(unit.id, "Primero", session)
+
+    assert holder.start_date == date.today()
+
+
+def test_a_term_that_began_earlier_is_recorded_as_such(session):
+    """The point of the column: seeding a real organigram in 2026 records
+    people who took office years before the row was written."""
+    unit = _unit(session)
+
+    holder = holder_set_current(
+        unit.id, "Primero", session, start_date=date(2024, 3, 11)
+    )
+
+    assert holder.start_date == date(2024, 3, 11)
+    assert holder.created_at.date() == date.today()
+
+
+def test_correcting_the_date_leaves_the_name_and_currency_alone(session):
+    unit = _unit(session)
+    holder = holder_set_current(unit.id, "Primero", session)
+
+    corrected = holder_update(holder.id, session, start_date=date(2024, 3, 11))
+
+    assert corrected.id == holder.id
+    assert corrected.name == "Primero"
+    assert corrected.start_date == date(2024, 3, 11)
+    assert corrected.is_current is True
+
+
+def test_correcting_a_past_holder_never_makes_it_current_again(session):
+    unit = _unit(session)
+    first = holder_set_current(unit.id, "Primero", session)
+    holder_set_current(unit.id, "Segundo", session)
+
+    corrected = holder_update(
+        first.id, session, name="Primera", start_date=date(2020, 1, 1)
+    )
+
+    assert corrected.is_current is False
+
+
+def test_history_follows_term_dates_not_the_order_rows_were_entered(session):
+    """A history typed in after the fact arrives in whatever order the user
+    worked through it, so insert order says nothing about the succession."""
+    unit = _unit(session)
+    older = holder_set_current(unit.id, "Antiguo", session, start_date=date(2018, 5, 1))
+    newer = holder_set_current(unit.id, "Reciente", session, start_date=date(2024, 3, 11))
+    # Entered last, but the earliest term of the three.
+    oldest = holder_set_current(
+        unit.id, "El primero de todos", session, start_date=date(2010, 1, 1)
+    )
+
+    history = holder_history(unit.id, session)
+
+    assert [h.id for h in history] == [newer.id, older.id, oldest.id]

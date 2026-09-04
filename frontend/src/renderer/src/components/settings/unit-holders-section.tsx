@@ -1,17 +1,6 @@
-import {
-  Avatar,
-  AvatarPill,
-  Button,
-  Callout,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  TextField,
-} from "@aymurai/ui";
+import { Avatar, AvatarPill, Button, Callout, TextField } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PencilSimple, Plus } from "phosphor-react";
+import { Plus } from "phosphor-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { showToast } from "@/features/showToast";
@@ -19,7 +8,11 @@ import { organigramService } from "@/services/aymurai";
 import { css } from "@/styled/css";
 import { Divider, HStack, Stack, styled } from "@/styled/jsx";
 import type { OrganigramHolder, OrganigramUnit } from "@/types/organigram";
+import HolderCorrectDialog, {
+  type HolderCorrection,
+} from "./holder-correct-dialog";
 import { holderDate, holderInitials } from "./holder-format";
+import RenameButton from "./rename-button";
 
 const card = css({
   bg: "bg.secondary",
@@ -28,23 +21,6 @@ const card = css({
   py: "3",
   gap: "2",
   w: "full",
-});
-
-const editButton = css({
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  w: "8",
-  h: "8",
-  p: "0",
-  flexShrink: "0",
-  border: "[none]",
-  bg: "[transparent]",
-  color: "text.lighter",
-  borderRadius: "sm",
-  cursor: "pointer",
-  transition: "[background-color 150ms cubic-bezier(0.4, 0, 0.2, 1)]",
-  _hover: { bg: "bg.primary-alternative", color: "text.default" },
 });
 
 interface UnitHoldersSectionProps {
@@ -61,7 +37,6 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
   const queryClient = useQueryClient();
   const [newHolderName, setNewHolderName] = useState("");
   const [editing, setEditing] = useState<OrganigramHolder | null>(null);
-  const [editedName, setEditedName] = useState("");
 
   // Invalidate via the factory's own queryKey rather than a hardcoded literal
   // array — `unitHolders` keys on `["organigram-units", api.defaults.baseURL,
@@ -87,7 +62,7 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
     },
   });
 
-  const { mutate: updateHolder, isPending: isRenaming } = useMutation({
+  const { mutate: updateHolder, isPending: isCorrecting } = useMutation({
     ...organigramService.updateHolder(),
     onSuccess: (holder) => {
       invalidateHolders();
@@ -110,21 +85,17 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
     addHolder({ unit_id: unit.id, name });
   };
 
-  const startEditing = (holder: OrganigramHolder) => {
-    setEditedName(holder.name);
-    setEditing(holder);
-  };
-
   const renameButton = (holder: OrganigramHolder) => (
-    <styled.button
-      type="button"
-      className={editButton}
-      aria-label={`${t("organigram.detail.renameHolderAction")}: ${holder.name}`}
-      onClick={() => startEditing(holder)}
-    >
-      <PencilSimple size={16} />
-    </styled.button>
+    <RenameButton
+      label={`${t("organigram.detail.renameHolderAction")}: ${holder.name}`}
+      onClick={() => setEditing(holder)}
+    />
   );
+
+  // The term start when there is one; for a row written before term dates
+  // existed, the day it was recorded — the date this screen has always shown.
+  const sinceDate = (holder: OrganigramHolder) =>
+    holderDate(holder.start_date ?? holder.created_at);
 
   return (
     <>
@@ -150,7 +121,7 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
                   color="text.lighter"
                 >
                   {t("organigram.detail.holderSince", {
-                    date: holderDate(currentHolder.created_at),
+                    date: sinceDate(currentHolder),
                   })}
                 </styled.span>
               </Stack>
@@ -188,7 +159,7 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
                     color="text.lighter"
                   >
                     {t("organigram.detail.holderSince", {
-                      date: holderDate(holder.created_at),
+                      date: sinceDate(holder),
                     })}
                   </styled.span>
                   {renameButton(holder)}
@@ -234,72 +205,15 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
         </styled.div>
       </Stack>
 
-      <Dialog
-        open={editing !== null}
+      <HolderCorrectDialog
+        holder={editing}
         onOpenChange={(open) => !open && setEditing(null)}
-      >
-        <DialogContent size="sm">
-          <DialogHeader>
-            <DialogTitle>
-              {t("organigram.detail.renameHolderTitle")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {/* `DialogHeader` lays title and aside out in a row, which squeezes
-              a long title into a narrow column — this explanation is long, so
-              it goes in the body instead. */}
-          <styled.p
-            textStyle="paragraph.sm.default"
-            color="text.lighter"
-            mb="4"
-          >
-            {t("organigram.detail.renameHolderBody")}
-          </styled.p>
-
-          <TextField
-            label={t("organigram.detail.newHolderNameLabel")}
-            placeholder={t("organigram.detail.newHolderPlaceholder")}
-            value={editedName}
-            onChange={(event) => setEditedName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || !editing) return;
-              const name = editedName.trim();
-              if (name) {
-                updateHolder({ id: editing.id, unit_id: unit.id, name });
-              }
-            }}
-          />
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="tertiary"
-              size="sm"
-              onClick={() => setEditing(null)}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              isLoading={isRenaming}
-              disabled={
-                !editedName.trim() || editedName.trim() === editing?.name
-              }
-              onClick={() =>
-                editing &&
-                updateHolder({
-                  id: editing.id,
-                  unit_id: unit.id,
-                  name: editedName.trim(),
-                })
-              }
-            >
-              {t("organigram.detail.renameHolderSubmit")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        isPending={isCorrecting}
+        onConfirm={(correction: HolderCorrection) =>
+          editing &&
+          updateHolder({ id: editing.id, unit_id: unit.id, ...correction })
+        }
+      />
     </>
   );
 }

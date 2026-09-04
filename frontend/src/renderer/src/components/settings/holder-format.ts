@@ -17,11 +17,11 @@ export function holderInitials(name: string): string {
 }
 
 /**
- * ISO timestamp → `dd/mm/aaaa`, the format an es-AR reader expects.
+ * ISO date or timestamp → `dd/mm/aaaa`, the format an es-AR reader expects.
  *
- * Formatted in UTC on purpose: the API records a term's start as an instant,
- * but it is read as a calendar day, and rendering `2026-08-28T00:00:00Z` in
- * UTC-3 would show it as the 27th.
+ * Formatted in UTC on purpose: a term's start is read as a calendar day, and
+ * rendering `2026-08-28T00:00:00Z` in UTC-3 would show it as the 27th. A bare
+ * `YYYY-MM-DD` parses as UTC midnight, so the same rule keeps it on its day.
  */
 export function holderDate(isoTimestamp: string): string {
   const parsed = new Date(isoTimestamp);
@@ -32,4 +32,19 @@ export function holderDate(isoTimestamp: string): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(parsed);
+}
+
+/**
+ * The `YYYY-MM-DD` an `<input type="date">` needs, from a holder's term start
+ * or — for a row written before term dates existed — the day it was recorded,
+ * which is the date the screen has always shown for it.
+ */
+export function holderDateInputValue(holder: {
+  start_date: string | null;
+  created_at: string;
+}): string {
+  if (holder.start_date) return holder.start_date.slice(0, 10);
+  const parsed = new Date(holder.created_at);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }
