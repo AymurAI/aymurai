@@ -105,9 +105,6 @@ describe("ServerScreen — the Servidor tab", () => {
       ),
     );
     expect(screen.getByText("https://aymurai.example.org")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "server.reconnectSubmit" }),
-    ).toBeInTheDocument();
   });
 
   it("reports a saved server that is not answering", async () => {
@@ -124,12 +121,16 @@ describe("ServerScreen — the Servidor tab", () => {
     expect(screen.getByText("server.status.errorDetail")).toBeInTheDocument();
   });
 
-  it("offers no way to disconnect — a new address is how you switch servers", async () => {
+  it("offers no way to disconnect — a new address is how you switch servers", () => {
     storedHost = "https://aymurai.example.org";
     renderScreen();
 
-    await screen.findByRole("button", { name: "server.reconnectSubmit" });
+    // The submit button is the only control: saving a different address is
+    // what moves the app to another server.
     expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "home.host.connectServerSubmit" }),
+    ).toBeInTheDocument();
   });
 
   it("foots the panel with the DataGénero credit and the install's version", () => {

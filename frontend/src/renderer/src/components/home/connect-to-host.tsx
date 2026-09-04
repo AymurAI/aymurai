@@ -8,7 +8,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ZodError } from "zod";
-import { useConnectedHost } from "@/hooks/useConnectedHost";
 import { normalizeServerHost } from "@/services/api-base-url";
 import { useConnectToHost } from "@/services/aymurai";
 import * as localStore from "@/store/useLocal";
@@ -22,8 +21,6 @@ export default function ConnectToHost() {
   const remoteHost = localStore.useServerHost() ?? defaultHost;
   const { setServerHost } = localStore.useServerHostActions();
   const { t } = useTranslation();
-  const { t: settingsT } = useTranslation("settings");
-  const connectedHost = useConnectedHost();
 
   const [host, setHost] = useState(remoteHost);
 
@@ -92,9 +89,7 @@ export default function ConnectToHost() {
             address. Being connected to nothing is not a useful state. */}
         <styled.div alignSelf="center">
           <Button type="submit" isLoading={isPending}>
-            {connectedHost
-              ? settingsT("server.reconnectSubmit")
-              : t("home.host.connectServerSubmit")}
+            {t("home.host.connectServerSubmit")}
           </Button>
         </styled.div>
       </Stack>

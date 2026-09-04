@@ -19,7 +19,6 @@ const settings = {
       none: "Sin servidor guardado",
       noneDetail: "Guarda una dirección para empezar a trabajar.",
     },
-    reconnectSubmit: "Guardar y reconectar",
   },
   taxonomy: {
     // Shared between the topic and subtopic panels.
