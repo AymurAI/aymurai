@@ -20,8 +20,7 @@ const settings = {
       noneDetail: "Guarda una dirección para empezar a trabajar.",
     },
     reconnectSubmit: "Guardar y reconectar",
-    disconnectAction: "Desconectar",
-    disconnectedToast: "Se borró el servidor guardado.",
+    version: "AymurAI v{{version}}",
   },
   taxonomy: {
     // Shared between the topic and subtopic panels.

@@ -16,8 +16,6 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock("@/features/showToast", () => ({ showToast: vi.fn() }));
-
 vi.mock("@/services/aymurai", () => ({
   useConnectToHost: () => ({
     mutate: vi.fn(),
@@ -40,17 +38,13 @@ vi.mock("@/services/aymurai", () => ({
 // off, since there is no app to go back to yet.
 vi.mock("@/store/useLocal", () => ({
   useServerHost: () => null,
-  useServerHostActions: () => ({
-    setServerHost: vi.fn(),
-    clearServerHost: vi.fn(),
-  }),
+  useServerHostActions: () => ({ setServerHost: vi.fn() }),
   getServerHost: () => null,
 }));
 
 vi.mock("@/services/api", () => ({
   default: { defaults: { baseURL: undefined } },
   getApiBaseUrl: () => undefined,
-  resetApiBaseUrl: vi.fn(),
 }));
 
 function renderRoute() {

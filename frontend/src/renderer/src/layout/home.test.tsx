@@ -43,14 +43,17 @@ describe("HomeLayout", () => {
     expect(childrenArea?.className).toContain("ai_stretch");
   });
 
-  it("always renders BuiltBy regardless of variant", () => {
+  it("leaves the full height to the screen's own panels", () => {
     render(
       <HomeLayout variant="wide">
         <div>content</div>
       </HomeLayout>,
     );
 
-    expect(screen.getByAltText("DataGenero isologo")).toBeTruthy();
+    // The DataGénero credit used to sit below the children area on every
+    // Configuración screen, taking height the master/detail panels need. It
+    // lives on the features home instead, which has room to spare.
+    expect(screen.queryByAltText("DataGenero isologo")).not.toBeInTheDocument();
   });
 
   it("omits the app header while no server is configured", () => {

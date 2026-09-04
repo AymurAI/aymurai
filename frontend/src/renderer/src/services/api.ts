@@ -66,16 +66,6 @@ export function getApiBaseUrl(): string | undefined {
 }
 
 /**
- * Re-runs the precedence in `resolveInitialBaseUrl` — what "Desconectar" needs.
- * Dropping the saved host does not always leave the client unconfigured: the
- * web app falls back to its own origin, which is the right place to land.
- */
-export function resetApiBaseUrl(): string | undefined {
-  api.defaults.baseURL = resolveInitialBaseUrl();
-  return api.defaults.baseURL;
-}
-
-/**
  * Absolute URL for an API path, for the two SSE clients that use `fetch` and
  * so cannot go through axios. The only sanctioned way to build an API URL
  * outside the axios instance — never concatenate `/api` at a call site.

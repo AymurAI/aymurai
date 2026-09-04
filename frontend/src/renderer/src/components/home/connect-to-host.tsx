@@ -1,5 +1,4 @@
 import { Button, TextField } from "@aymurai/ui";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
 import {
@@ -9,23 +8,19 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ZodError } from "zod";
-import { showToast } from "@/features/showToast";
 import { useConnectedHost } from "@/hooks/useConnectedHost";
-import { resetApiBaseUrl } from "@/services/api";
 import { normalizeServerHost } from "@/services/api-base-url";
 import { useConnectToHost } from "@/services/aymurai";
 import * as localStore from "@/store/useLocal";
 import { css } from "@/styled/css";
-import { HStack, Stack, styled } from "@/styled/jsx";
+import { Stack, styled } from "@/styled/jsx";
 import { isElectronApp } from "@/utils/app-mode";
 
 export default function ConnectToHost() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const defaultHost = isElectronApp() ? "" : window.location.origin;
-  const storedHost = localStore.useServerHost();
-  const remoteHost = storedHost ?? defaultHost;
-  const { setServerHost, clearServerHost } = localStore.useServerHostActions();
+  const remoteHost = localStore.useServerHost() ?? defaultHost;
+  const { setServerHost } = localStore.useServerHostActions();
   const { t } = useTranslation();
   const { t: settingsT } = useTranslation("settings");
   const connectedHost = useConnectedHost();
@@ -60,18 +55,6 @@ export default function ConnectToHost() {
     });
   };
 
-  // Clearing the saved host is not the same as ending up unconfigured: the web
-  // app falls back to its own origin. `resetApiBaseUrl` re-runs that
-  // precedence, and the field follows wherever the client actually lands.
-  const disconnect = () => {
-    clearServerHost();
-    resetApiBaseUrl();
-    reset();
-    setHost(isElectronApp() ? "" : window.location.origin);
-    queryClient.invalidateQueries();
-    showToast(settingsT("server.disconnectedToast"), "success");
-  };
-
   const errorMessage = (err: Error | null): string => {
     if (err instanceof AxiosError) {
       if (err.code === "ERR_NETWORK") return t("home.host.errors.network");
@@ -104,21 +87,16 @@ export default function ConnectToHost() {
           error={error ? errorMessage(error) : undefined}
         />
 
-        <HStack gap="2">
+        {/* No companion "disconnect": pointing the app somewhere else is what
+            a user actually wants, and that is this same button with a new
+            address. Being connected to nothing is not a useful state. */}
+        <styled.div alignSelf="flex-start">
           <Button type="submit" isLoading={isPending}>
             {connectedHost
               ? settingsT("server.reconnectSubmit")
               : t("home.host.connectServerSubmit")}
           </Button>
-          {/* Only offered when there is a saved host to forget. The web app
-              with nothing stored is on its own origin, which is not something
-              a user can disconnect from. */}
-          {storedHost !== null && (
-            <Button type="button" variant="secondary" onClick={disconnect}>
-              {settingsT("server.disconnectAction")}
-            </Button>
-          )}
-        </HStack>
+        </styled.div>
       </Stack>
     </form>
   );

@@ -1,4 +1,3 @@
-import BuiltBy from "@/components/brand/built-by";
 import Header from "@/components/layout/header";
 import { useConnectedHost } from "@/hooks/useConnectedHost";
 import { css, cva } from "@/styled/css";
@@ -33,7 +32,6 @@ const inner = css({
   width: "full",
   height: "full",
   overflowY: "auto",
-  pb: "8",
 });
 
 const childrenArea = cva({
@@ -86,7 +84,6 @@ export default function HomeLayout({
       <main className={background}>
         <div className={inner}>
           <div className={childrenArea({ variant })}>{children}</div>
-          <BuiltBy />
         </div>
       </main>
     </div>

@@ -31,21 +31,15 @@ vi.mock("@/services/aymurai", () => ({
   }),
 }));
 
-vi.mock("@/features/showToast", () => ({ showToast: vi.fn() }));
-
 vi.mock("@/store/useLocal", () => ({
   useServerHost: () => null,
-  useServerHostActions: () => ({
-    setServerHost: vi.fn(),
-    clearServerHost: vi.fn(),
-  }),
+  useServerHostActions: () => ({ setServerHost: vi.fn() }),
   getServerHost: () => null,
 }));
 
 vi.mock("@/services/api", () => ({
   default: { defaults: { baseURL: undefined } },
   getApiBaseUrl: () => undefined,
-  resetApiBaseUrl: vi.fn(),
 }));
 
 // `ConnectToHost` clears the previous server's cached data on disconnect, so

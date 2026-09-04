@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ServerScreen from "./server-screen";
 
@@ -13,8 +13,6 @@ vi.mock("react-i18next", () => ({
 
 const connectMock = vi.fn();
 let healthcheckFails = false;
-
-vi.mock("@/features/showToast", () => ({ showToast: vi.fn() }));
 
 vi.mock("@/services/aymurai", () => ({
   useConnectToHost: () => ({
@@ -38,14 +36,10 @@ vi.mock("@/services/aymurai", () => ({
 }));
 
 let storedHost: string | null = null;
-const clearServerHostMock = vi.fn();
 
 vi.mock("@/store/useLocal", () => ({
   useServerHost: () => storedHost,
-  useServerHostActions: () => ({
-    setServerHost: vi.fn(),
-    clearServerHost: clearServerHostMock,
-  }),
+  useServerHostActions: () => ({ setServerHost: vi.fn() }),
   getServerHost: () => storedHost,
 }));
 
@@ -55,7 +49,6 @@ vi.mock("@/store/useLocal", () => ({
 vi.mock("@/services/api", () => ({
   default: { defaults: { baseURL: undefined } },
   getApiBaseUrl: () => (storedHost ? `${storedHost}/api` : undefined),
-  resetApiBaseUrl: vi.fn(),
 }));
 
 function renderScreen() {
@@ -99,9 +92,6 @@ describe("ServerScreen — the Servidor tab", () => {
       "none",
     );
     expect(screen.getByText("server.status.noneDetail")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "server.disconnectAction" }),
-    ).not.toBeInTheDocument();
   });
 
   it("names the connected server once the probe succeeds", async () => {
@@ -134,14 +124,17 @@ describe("ServerScreen — the Servidor tab", () => {
     expect(screen.getByText("server.status.errorDetail")).toBeInTheDocument();
   });
 
-  it("offers Desconectar only with a saved host, and clears it", async () => {
+  it("offers no way to disconnect — a new address is how you switch servers", async () => {
     storedHost = "https://aymurai.example.org";
     renderScreen();
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "server.disconnectAction" }),
-    );
+    await screen.findByRole("button", { name: "server.reconnectSubmit" });
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
 
-    expect(clearServerHostMock).toHaveBeenCalled();
+  it("names the build so support conversations have a version to quote", () => {
+    renderScreen();
+
+    expect(screen.getByText("server.version")).toBeInTheDocument();
   });
 });
