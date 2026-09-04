@@ -26,11 +26,19 @@ const panel = css({
 const column = css({ w: "full", maxW: "[token(sizes.panel.form)]", gap: "6" });
 
 /**
- * The credit block sits at the foot of the panel with the same clearance it
- * has on the features home (`routes/home/features.tsx`'s `builtBy`); the
- * panel's own padding supplies the space below it.
+ * The credit block lands on the same baseline as its counterpart on the
+ * features home, so navigating between the two does not shift it.
+ *
+ * Both are viewport-height independent — features' sits in content flow under
+ * a fixed-height card grid, and everything above this one (header, title, tab
+ * row, form) is fixed too — so a constant offset holds them level at any
+ * window size. It is measured, not derived: 151px puts this one at the 728px
+ * its counterpart occupies, on top of the panel's own 24px gap. Re-measure if
+ * the features grid gains a row or this form gains a field; a validation
+ * error under the address field drops it by that message's height, which is
+ * the one case the two screens disagree.
  */
-const credits = css({ mt: "auto", pt: "16" });
+const credits = css({ pt: "[151px]" });
 
 export default function ServerScreen() {
   return (

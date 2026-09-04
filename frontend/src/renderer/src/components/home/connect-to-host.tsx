@@ -90,7 +90,7 @@ export default function ConnectToHost() {
         {/* No companion "disconnect": pointing the app somewhere else is what
             a user actually wants, and that is this same button with a new
             address. Being connected to nothing is not a useful state. */}
-        <styled.div alignSelf="flex-start">
+        <styled.div alignSelf="center">
           <Button type="submit" isLoading={isPending}>
             {connectedHost
               ? settingsT("server.reconnectSubmit")
