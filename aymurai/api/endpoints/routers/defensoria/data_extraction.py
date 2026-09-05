@@ -208,6 +208,7 @@ def _recipient_detail_response(
     )
     return RecipientDetailResponse(
         id=recipient.id,
+        source_index=recipient.source_index,
         name=recipient.raw_name,
         position=recipient.raw_position,
         is_primary=recipient.is_primary,
@@ -287,6 +288,7 @@ async def api_data_extraction_validate(
                 macro_sector=r.macro_sector,
                 unit_id=r.unit_id,
                 sector_id=r.sector_id,
+                source_index=r.source_index,
             )
             for r in payload.recipients
         ],

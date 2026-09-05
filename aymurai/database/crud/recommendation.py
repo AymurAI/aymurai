@@ -119,6 +119,11 @@ class RecipientValidationData:
     sector_id: (
         uuid.UUID | None
     )  # human-confirmed, used directly -- never derived from unit_id
+    # Index into extraction.prediction.recipients this came from; None for a
+    # recipient the person added by hand. Placed last (with a default) because
+    # every field above it is a required positional/keyword arg -- a dataclass
+    # can't put a defaulted field ahead of one without a default.
+    source_index: int | None = None
 
 
 @dataclass
@@ -227,6 +232,7 @@ def _reconcile_recipients(
 
         values = {
             "order": order,
+            "source_index": item.source_index,
             "raw_name": item.name,
             "raw_position": item.position,
             "normalized_name": normalize_text(item.name) or None,

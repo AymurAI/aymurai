@@ -30,6 +30,10 @@ class RecipientValidationRequest(BaseModel):
     # the specific unit ("cargo normalizado") and the sector independently.
     unit_id: uuid.UUID | None = None
     sector_id: uuid.UUID | None = None
+    # Index into `extraction.prediction.recipients` this recipient came from;
+    # None when the person added it by hand. Lets the form diff suggestion
+    # against value without pairing the two lists by array position.
+    source_index: int | None = None
 
 
 class ValidateRecommendationRequest(BaseModel):

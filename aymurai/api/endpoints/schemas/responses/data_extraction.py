@@ -66,6 +66,7 @@ class RecipientDetailResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
+    source_index: int | None = None
     name: str | None
     position: str | None
     is_primary: bool
