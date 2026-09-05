@@ -10,7 +10,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { DotsNine, Gear } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { FEATURE_ICON } from "@/constants/config";
+import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
 import { useFileDispatch } from "@/hooks/useFiles";
 import { removeAllFiles } from "@/reducers/file/actions";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
@@ -23,7 +23,10 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
   const { t } = useTranslation();
   const dispatch = useFileDispatch();
   const navigate = useNavigate();
-  const features = Object.values(FeatureFlowEnum);
+  const features = Object.values(FeatureFlowEnum).filter(
+    (feature) =>
+      feature !== FeatureFlowEnum.Recommendations || isDefensoriaEnabled(),
+  );
 
   const handleClearFiles = () => {
     dispatch(removeAllFiles());

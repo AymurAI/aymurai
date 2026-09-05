@@ -5,6 +5,7 @@ import {
   useParams,
 } from "@tanstack/react-router";
 
+import { isDefensoriaEnabled } from "@/constants/config";
 import FileProvider from "@/context/File";
 import SummaryProvider from "@/context/Summary";
 import TranscriptionProvider from "@/context/Transcription";
@@ -31,6 +32,14 @@ export const Route = createFileRoute("/$feature")({
     stringify: ({ feature }: { feature: FeatureFlowEnum }) => ({
       feature: getFeatureRouteSlug(feature),
     }),
+  },
+  beforeLoad: ({ params }) => {
+    if (
+      params.feature === FeatureFlowEnum.Recommendations &&
+      !isDefensoriaEnabled()
+    ) {
+      throw redirect({ to: "/home/features" });
+    }
   },
   component: AppLayoutRoute,
 });

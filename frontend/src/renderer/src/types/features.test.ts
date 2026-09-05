@@ -14,6 +14,7 @@ describe("feature route slugs", () => {
       [FeatureFlowEnum.Anonymizer]: "anonymizer",
       [FeatureFlowEnum.VoiceToText]: "voice-to-text",
       [FeatureFlowEnum.Summarizer]: "summarizer",
+      [FeatureFlowEnum.Recommendations]: "recommendations",
     });
   });
 

@@ -4,6 +4,7 @@ import {
   Detective,
   FileAudio,
   type Icon,
+  Megaphone,
 } from "phosphor-react";
 import { FeatureFlowEnum } from "@/types/features";
 
@@ -36,6 +37,7 @@ export const FEATURE_ICON: Record<FeatureFlowEnum, Icon> = {
   [FeatureFlowEnum.Anonymizer]: Detective,
   [FeatureFlowEnum.VoiceToText]: FileAudio,
   [FeatureFlowEnum.Summarizer]: Article,
+  [FeatureFlowEnum.Recommendations]: Megaphone,
 };
 
 export const USE_MOCK_STT = import.meta.env.VITE_USE_MOCK_STT === "true";

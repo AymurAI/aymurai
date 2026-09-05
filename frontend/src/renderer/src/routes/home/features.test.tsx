@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route } from "./features";
 
 vi.mock("react-i18next", () => ({
@@ -63,5 +63,27 @@ describe("home/features — Summarizer card", () => {
     expect(stack?.className).toContain("h_[100dvh]");
     expect(stack?.className).not.toContain("w_screen");
     expect(stack?.className).not.toContain("h_screen");
+  });
+});
+
+describe("recommendations feature card", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is hidden when the Defensoría flag is off", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
+    const RouteComponent = Route.options.component as React.FC;
+    render(<RouteComponent />);
+
+    expect(screen.queryByText("recommendations:title")).not.toBeInTheDocument();
+  });
+
+  it("is shown when the Defensoría flag is on", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
+    const RouteComponent = Route.options.component as React.FC;
+    render(<RouteComponent />);
+
+    expect(screen.getByText("recommendations:title")).toBeInTheDocument();
   });
 });
