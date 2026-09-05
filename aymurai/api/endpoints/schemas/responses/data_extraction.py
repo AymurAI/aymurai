@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -60,6 +60,9 @@ class DataExtractionResponse(BaseModel):
     personal_data: bool | None
     publishable_content: str
     config: DataExtractionConfigResponse
+    # True when `config.catalogs_hash` no longer matches the live catalogs
+    # snapshot. Computed server-side so the hashing rule lives in one language.
+    catalogs_stale: bool = False
 
 
 class RecipientDetailResponse(BaseModel):
@@ -104,3 +107,21 @@ class RecommendationPageResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class DocumentExtractionEnvelopeResponse(BaseModel):
+    """What the server holds for one document, before deciding to infer.
+
+    Both slots nullable and independently meaningful: `prediction` alone means
+    extracted but never validated; both populated means a human already
+    validated and `prediction` is kept for the frozen suggestions and the
+    in-document highlighting.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: uuid.UUID
+    prediction: DataExtractionResponse | None = None
+    validation: RecommendationDetailResponse | None = None
+    catalogs_stale: bool = False
+    updated_at: datetime | None = None
