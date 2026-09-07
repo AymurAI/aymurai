@@ -8,9 +8,11 @@ import { useTranslation } from "react-i18next";
 import { FileAnnotator, ValidateDataset } from "@/components";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
+import RecommendationValidation from "@/components/recommendations/recommendation-validation";
 import SummaryValidation from "@/components/summarizer/summary-validation";
 import VoiceValidation from "@/components/voice-to-text/validation";
 import RequireFile from "@/features/RequireFile";
+import RequireRecommendation from "@/features/RequireRecommendation";
 import RequireSummary from "@/features/RequireSummary";
 import { useFiles } from "@/hooks";
 import { Grid } from "@/styled/jsx";
@@ -31,6 +33,14 @@ function RouteComponent() {
         <RequireSummary>
           <SummaryValidation />
         </RequireSummary>
+      </RequireFile>
+    );
+  if (feature === FeatureFlowEnum.Recommendations)
+    return (
+      <RequireFile>
+        <RequireRecommendation>
+          <RecommendationValidation />
+        </RequireRecommendation>
       </RequireFile>
     );
   return <DocumentValidation />;

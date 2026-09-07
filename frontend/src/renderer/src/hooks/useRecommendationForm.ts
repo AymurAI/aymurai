@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   listMacroSectors,
   listSubtopics,
@@ -315,8 +315,15 @@ export function useRecommendationForm(
     });
   }
 
-  function toPayload(): RecommendationValidationInput {
-    return {
+  // Memoized on `values` alone (Task 13's `<RecommendationValidation>` lifts
+  // this via `<RecommendationForm>`'s `onValuesChange` effect) -- a plain
+  // function declaration here would be a new reference every render even
+  // when `values` hasn't changed, which would make that effect's dependency
+  // list either omit `toPayload` (an exhaustive-deps false-negative) or,
+  // if listed, re-fire on every unrelated re-render and risk a feedback
+  // loop with the parent's own setState.
+  const toPayload = useCallback(
+    (): RecommendationValidationInput => ({
       recommendation_number: values.recommendation_number,
       recommendation_date_text: values.recommendation_date_text,
       topic: values.topic,
@@ -337,8 +344,9 @@ export function useRecommendationForm(
         unit_id: recipient.unit_id,
         sector_id: recipient.sector_id,
       })),
-    };
-  }
+    }),
+    [values],
+  );
 
   return {
     suggestions,

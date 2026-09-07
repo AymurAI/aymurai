@@ -14,6 +14,16 @@ const recommendations = {
     next: "Siguiente",
   },
   validation: {
+    sectionTitle: "3. Validación de datos",
+    originalDocumentLabel: "Documento original",
+    storedInference: "Se recuperó una extracción previa de este documento.",
+    alreadyValidated:
+      "Este documento ya fue validado. Podés modificar los datos antes de continuar.",
+    catalogsStale:
+      "La taxonomía de temas o sectores cambió desde que se generó esta extracción. Podés volver a extraer los datos con la información actualizada.",
+    reExtract: "Volver a extraer",
+    missingPrediction:
+      "No se encontró la información extraída para este documento.",
     recommendationNumber: "Número de recomendación",
     recommendationDate: "Fecha de la recomendación",
     recipientLabel: "Destinatario",
@@ -34,6 +44,9 @@ const recommendations = {
     personalDataYes: "Sí",
     personalDataNo: "No",
     publishableContent: "Contenido para publicar",
+    validate: "Validar documento",
+    saveFailed:
+      "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },
 };
 

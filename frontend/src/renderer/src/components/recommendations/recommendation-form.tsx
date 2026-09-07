@@ -1,6 +1,6 @@
 import { Radio, Select, TextField } from "@aymurai/ui";
 import { Trash } from "phosphor-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DecisionTabs from "@/components/decision-tabs";
 import RadioGroup from "@/components/radio/radio-group";
@@ -12,12 +12,22 @@ import type {
   DataExtractionPrediction,
   FormOption,
   RecommendationValidation,
+  RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { RecipientFields } from "./recipient-fields";
 
 export interface RecommendationFormProps {
   prediction: DataExtractionPrediction;
   validation: RecommendationValidation | null;
+  /**
+   * Reports the current save payload every time the person edits a field —
+   * lets the hosting screen (Task 13's `<RecommendationValidation>`) submit
+   * what's actually on screen instead of the raw model inference. Mirrors
+   * the historical desktop-app's `onValuesChange` callback
+   * (`recomendacion-form.tsx`), which fed the same shape up via an
+   * identical `useEffect`.
+   */
+  onValuesChange?: (payload: RecommendationValidationInput) => void;
 }
 
 const removeRecipientButton = css({
@@ -84,6 +94,7 @@ function toSelectOptions(options: FormOption[]) {
 export default function RecommendationForm({
   prediction,
   validation,
+  onValuesChange,
 }: RecommendationFormProps) {
   const { t } = useTranslation("recommendations");
   const {
@@ -96,7 +107,16 @@ export default function RecommendationForm({
     topicOptions,
     subtopicOptions,
     macroSectorOptions,
+    toPayload,
   } = useRecommendationForm(prediction, validation);
+
+  // Fires on mount (with the seeded values) and again on every subsequent
+  // edit -- `toPayload` (memoized on `values` in `useRecommendationForm`) is
+  // a stable dependency, so this only re-runs when the person actually
+  // changes something, not on every unrelated re-render.
+  useEffect(() => {
+    onValuesChange?.(toPayload());
+  }, [toPayload, onValuesChange]);
 
   const [selectedTab, setSelectedTab] = useState(0);
   const selectedIndex = Math.min(selectedTab, values.recipients.length - 1);

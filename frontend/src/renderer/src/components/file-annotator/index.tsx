@@ -32,6 +32,12 @@ import {
 import * as S from "./FileAnnotator.styles";
 import { generateSplits } from "./generateSplits";
 import { SearchBar } from "./SearchBar";
+import type { ExtractedValueAnnotation } from "./types";
+
+// Stable across renders so `extraAnnotations?.get(p.id) ?? EMPTY_EXTRA` never
+// forces `Paragraph`'s memoized annotations to recompute for a paragraph that
+// has no extracted-value highlights of its own.
+const EMPTY_EXTRA: ExtractedValueAnnotation[] = [];
 
 const labelManagerWrapper = css({
   display: "flex",
@@ -63,6 +69,7 @@ interface ParagraphProps {
   predictions: PredictLabel[];
   searchMatches: SearchMatch[];
   activeSearchMatchId: string | null;
+  extraAnnotations: ExtractedValueAnnotation[];
 }
 const Paragraph = memo(
   ({
@@ -71,17 +78,27 @@ const Paragraph = memo(
     predictions,
     searchMatches,
     activeSearchMatchId,
+    extraAnnotations,
   }: ParagraphProps) => {
     const { label } = useAnnotation();
 
     const annotations = useMemo(() => {
-      return createAnnotationsWithSearch(
-        predictions,
-        searchMatches,
-        label,
-        activeSearchMatchId,
-      );
-    }, [predictions, searchMatches, label, activeSearchMatchId]);
+      return [
+        ...createAnnotationsWithSearch(
+          predictions,
+          searchMatches,
+          label,
+          activeSearchMatchId,
+        ),
+        ...extraAnnotations,
+      ];
+    }, [
+      predictions,
+      searchMatches,
+      label,
+      activeSearchMatchId,
+      extraAnnotations,
+    ]);
 
     const splits = generateSplits(children, annotations);
 
@@ -141,11 +158,16 @@ interface Props {
   // full otherwise) - see file-annotator/index.test.tsx's
   // "variant=full (rule A) when the panel starts closed".
   narrowDocument?: boolean;
+  // Extracted-value highlights (Recomendaciones' `buildAnnotations`, Task 8),
+  // keyed by paragraph id. Optional and additive: every other caller (which
+  // doesn't pass it) renders exactly as before.
+  extraAnnotations?: Map<string, ExtractedValueAnnotation[]>;
 }
 export default function FileAnnotator({
   file,
   isAnnotable = false,
   narrowDocument = false,
+  extraAnnotations,
 }: Props) {
   const [search, setSearch] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(
@@ -314,6 +336,7 @@ export default function FileAnnotator({
                   predictions={predictionsMap.get(p.id) ?? []}
                   searchMatches={searchMatchesMap.get(p.id) ?? []}
                   activeSearchMatchId={activeSearchMatchId}
+                  extraAnnotations={extraAnnotations?.get(p.id) ?? EMPTY_EXTRA}
                 >
                   {p.value}
                 </Paragraph>
