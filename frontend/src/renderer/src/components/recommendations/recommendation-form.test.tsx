@@ -1,6 +1,6 @@
 import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -199,5 +199,100 @@ describe("RecommendationForm", () => {
     );
 
     expect(screen.getAllByRole("combobox")).toHaveLength(3);
+  });
+
+  // Task 13 added `onValuesChange` so `<RecommendationValidation>` can read
+  // live form values (to feed the document highlight), but nothing exercised
+  // it against the real component -- every existing test either mounts this
+  // form without the prop, or (in `recommendation-validation.test.tsx`)
+  // mocks this whole module out. This mounts the real
+  // `useRecommendationForm` + effect wiring end to end.
+  it("reports the current payload via onValuesChange on mount and after an edit, without looping", () => {
+    const onValuesChange = vi.fn();
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction()}
+        validation={null}
+        onValuesChange={onValuesChange}
+      />,
+    );
+
+    // Fires once on mount with the seeded values.
+    expect(onValuesChange).toHaveBeenCalledTimes(1);
+    expect(onValuesChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ recommendation_number: "123/2026" }),
+    );
+
+    fireEvent.change(screen.getByLabelText("validation.recommendationNumber"), {
+      target: { value: "999/2026" },
+    });
+
+    // Exactly one more call for the one edit -- not a handful, not a loop.
+    expect(onValuesChange).toHaveBeenCalledTimes(2);
+    expect(onValuesChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ recommendation_number: "999/2026" }),
+    );
+  });
+
+  // The test above uses a bare `vi.fn()` spy, which never feeds back into a
+  // re-render of `RecommendationForm` -- it can't actually exercise the
+  // failure mode `toPayload`'s `useCallback` memoization
+  // (`hooks/useRecommendationForm.ts`) guards against. `<RecommendationValidation>`
+  // instead passes its own `setPayload` (a real `useState` setter) as
+  // `onValuesChange`, so calling it DOES re-render the form's parent, which
+  // re-renders `RecommendationForm` itself. If `toPayload` ever goes back to
+  // being a plain function declaration (a new reference every render, even
+  // when `values` hasn't changed), the mount effect's dependency list would
+  // see a "changed" `toPayload` on every one of those parent-triggered
+  // re-renders and re-fire indefinitely -- `setPayload` again, re-render
+  // again, forever (React's own "Maximum update depth exceeded" safety net
+  // is what would actually stop it, as a thrown error). This wrapper mirrors
+  // that real wiring (`onValuesChange={setPayload}`, not an inline callback)
+  // to pin the settled, non-looping behavior.
+  it("settles after a bounded number of renders when onValuesChange is a real state setter (regression guard for toPayload's memoization)", async () => {
+    const renderCount = { current: 0 };
+
+    function Wrapper() {
+      const [payload, setPayload] =
+        useState<RecommendationValidationInput | null>(null);
+      renderCount.current += 1;
+      return (
+        <>
+          <RecommendationForm
+            prediction={aPrediction()}
+            validation={null}
+            onValuesChange={setPayload}
+          />
+          <div data-testid="reported-number">
+            {payload?.recommendation_number}
+          </div>
+        </>
+      );
+    }
+
+    renderWithClient(<Wrapper />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("reported-number")).toHaveTextContent(
+        "123/2026",
+      ),
+    );
+    // Steady state is 2: Wrapper's own mount render, plus exactly one more
+    // from the mount effect's `setPayload` call. A non-memoized `toPayload`
+    // would keep climbing well past this on its own, with no edit at all.
+    const rendersAfterMount = renderCount.current;
+    expect(rendersAfterMount).toBeLessThanOrEqual(2);
+
+    fireEvent.change(screen.getByLabelText("validation.recommendationNumber"), {
+      target: { value: "999/2026" },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("reported-number")).toHaveTextContent(
+        "999/2026",
+      ),
+    );
+    // One more settled render for the one edit -- not runaway.
+    expect(renderCount.current).toBeLessThanOrEqual(rendersAfterMount + 2);
   });
 });

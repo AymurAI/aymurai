@@ -75,6 +75,7 @@ export default function RecommendationValidation() {
     null,
   );
   const [saveFailed, setSaveFailed] = useState(false);
+  const [reExtractFailed, setReExtractFailed] = useState(false);
 
   const saveMutation = useMutation(validateRecommendation());
   const reExtractMutation = useMutation(extractDocument());
@@ -85,15 +86,17 @@ export default function RecommendationValidation() {
   // historical screen's own choice to highlight from the saved/inferred
   // values, not a live diff).
   //
-  // Task 8's own docstring flags a real limitation this screen inherits:
-  // recipients are paired to their highlight by array index
-  // (`recipient:${index}:name`), not a stable id -- `RecipientPrediction`
-  // has none. If the person deletes a recipient (via
-  // `<RecommendationForm>`'s "Eliminar destinatario") *before* saving, the
-  // highlight for every recipient after the deleted one can point at the
-  // wrong name/position until the extraction is reloaded fresh. Not fixed
-  // here -- the historical screen had the identical limitation -- just
-  // flagged again at the point where it actually surfaces.
+  // A real limitation this screen inherits from how `buildAnnotations`
+  // (`utils/recommendations/build-annotations.ts`) builds its fields: each
+  // recipient is paired to its highlight by array index
+  // (`recipient:${index}:name`, see that file's `fieldsToLocate`), not a
+  // stable id -- `RecipientPrediction` has none. If the person deletes a
+  // recipient (via `<RecommendationForm>`'s "Eliminar destinatario")
+  // *before* saving, the highlight for every recipient after the deleted
+  // one can point at the wrong name/position until the extraction is
+  // reloaded fresh. Not fixed here -- the historical screen had the
+  // identical limitation -- just flagged again at the point where it
+  // actually surfaces.
   const annotations = useMemo(
     () =>
       recommendation.prediction
@@ -104,6 +107,7 @@ export default function RecommendationValidation() {
 
   const handleReExtract = () => {
     if (!recommendation.documentId) return;
+    setReExtractFailed(false);
     reExtractMutation.mutate(
       {
         documentId: recommendation.documentId,
@@ -122,6 +126,13 @@ export default function RecommendationValidation() {
               catalogsStale: prediction.catalogs_stale,
             }),
           );
+        },
+        // A silent failure here is exactly what this task exists to avoid
+        // for the save path -- the same must hold for re-extraction: without
+        // this, a failed request just re-enables the button with no
+        // feedback, and the person has no way to tell a retry is needed.
+        onError: () => {
+          setReExtractFailed(true);
         },
       },
     );
@@ -229,6 +240,13 @@ export default function RecommendationValidation() {
               >
                 {t("validation.reExtract")}
               </Button>
+              {reExtractFailed && (
+                <Callout
+                  message={t("validation.reExtractFailed")}
+                  variant="error"
+                  role="alert"
+                />
+              )}
             </Stack>
           )}
 

@@ -22,6 +22,8 @@ const recommendations = {
     catalogsStale:
       "La taxonomía de temas o sectores cambió desde que se generó esta extracción. Podés volver a extraer los datos con la información actualizada.",
     reExtract: "Volver a extraer",
+    reExtractFailed:
+      "No se pudo volver a extraer los datos. Revisá tu conexión e intentá de nuevo.",
     missingPrediction:
       "No se encontró la información extraída para este documento.",
     recommendationNumber: "Número de recomendación",

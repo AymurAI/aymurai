@@ -234,6 +234,23 @@ describe("RecommendationValidation", () => {
     );
   });
 
+  it("shows an error and leaves the button available to retry when re-extraction fails", async () => {
+    mockExtract.mockRejectedValueOnce(new Error("500"));
+    renderValidation({ catalogsStale: true });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.reExtract" }),
+    );
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: "validation.reExtract" }),
+    ).not.toBeDisabled();
+    // Doesn't clobber the extraction already in the context -- only a
+    // successful re-extraction dispatches `loaded`.
+    expect(mockDispatch).not.toHaveBeenCalled();
+  });
+
   it("sends the typed value to the server, not the raw inference", async () => {
     renderValidation();
 
