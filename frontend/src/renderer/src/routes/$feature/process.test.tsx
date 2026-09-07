@@ -107,6 +107,9 @@ vi.mock("@/components/summarizer/summary-process", () => ({
   default: () => null,
 }));
 vi.mock("@/components/voice-to-text/process", () => ({ default: () => null }));
+vi.mock("@/components/recommendations/recommendation-process", () => ({
+  default: () => null,
+}));
 
 vi.mock("@/services/taskbar", () => ({
   default: { notify: vi.fn() },
