@@ -172,7 +172,9 @@ def test_envelope_carries_the_stored_prediction(client, session, stored_extracti
     assert body["validation"] is None
 
 
-def test_envelope_carries_both_once_validated(client, session, validated_recommendation):
+def test_envelope_carries_both_once_validated(
+    client, session, validated_recommendation
+):
     """Once a human validated, both slots are populated.
 
     The process screen shows values from `validation` and keeps `prediction`
