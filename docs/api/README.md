@@ -37,10 +37,28 @@ This document describes the currently mounted public API in `aymurai/api/main.py
 | `POST` | `/api/convert/docx/pdf` | Convert DOCX to PDF |
 | `POST` | `/api/convert/odt/pdf` | Convert ODT to PDF |
 | `POST` | `/api/convert/odt/docx` | Convert ODT to DOCX |
+| `POST` | `/api/llm/data-extraction` | Run (or replay cached) LLM structured extraction over a document |
+| `PUT` | `/api/llm/data-extraction/{document_id}/validate` | Persist a human-validated recommendation |
+| `GET` | `/api/llm/data-extraction/recommendations` | Paginated, filtered list of validated recommendations |
+| `GET` | `/api/llm/data-extraction/recommendations/{recommendation_id}` | Detail of one validated recommendation |
+| `GET` | `/api/llm/data-extraction/export` | Export all recommendations as `.xlsx` or `.csv` |
+| `POST` `GET` `PATCH` `DELETE` | `/api/organigram/units[/{unit_id}]` | Organigram unit tree CRUD |
+| `GET` `POST` | `/api/organigram/units/{unit_id}/holders` | Holder history for a unit |
+| `PATCH` | `/api/organigram/holders/{holder_id}` | Rename a holder |
+| `POST` `GET` `PATCH` `DELETE` | `/api/catalogs/topics[/{topic_id}]` | Topic catalog CRUD |
+| `POST` `GET` `PATCH` `DELETE` | `/api/catalogs/subtopics[/{subtopic_id}]` | Subtopic catalog CRUD |
+| `GET` `PATCH` `DELETE` | `/api/catalogs/macro_sectors[/{macro_sector_id}]` | Fixed macro-sector list (edit/deactivate only) |
 
 Routes under `/api/llm/*` and `/api/asr/*` proxy external services (`llama-server`
 and `coro` respectively) and are only usable once those are configured. They
 answer `500 Configuration error` when their base URL is unset.
+
+The `/api/llm/data-extraction*`, `/api/organigram/*`, and `/api/catalogs/*`
+routes are additionally **feature-flagged**: they are mounted only when
+`DEFENSORIA_ENABLED=true` (default `False`). When the flag is off, none of
+these paths exist at all (plain `404`, not a configuration error). See
+[Defensoría del Pueblo (feature-flagged)](#defensoría-del-pueblo-feature-flagged)
+below and the [pipeline reference](../pipelines/defensoria/README.md).
 
 ## Core Data Contracts
 
@@ -511,6 +529,305 @@ curl -X POST "http://localhost:8899/api/convert/pdf/docx?backend=libreoffice" \
 Common errors:
 - `400` unsupported input extension
 - `500` conversion tool failure
+
+## Defensoría del Pueblo (Feature-Flagged)
+
+Customization for the Defensoría del Pueblo (CABA): an LLM-based structured
+extraction that replaces the generic NER flow for this deployment, plus admin
+CRUD for the institutional org chart ("organigram") and the topic/subtopic/
+macro-sector catalogs it depends on. Mounted only when `DEFENSORIA_ENABLED=true`.
+See the [pipeline reference](../pipelines/defensoria/README.md) for the full
+end-to-end flow and the [database reference](../database/README.md#defensoría-del-pueblo-caba)
+for the tables involved.
+
+### Data extraction
+
+#### `POST /api/llm/data-extraction`
+- Query param: `use_cache=true|false` (default `true`)
+- Request body: `DataExtractionRequest`
+
+```json
+{
+  "document": {
+    "document": ["Buenos Aires, 17 de noviembre de 2024.", "Se recomienda ..."],
+    "document_id": "7e6b6f35-2f29-58f7-9f8e-fd1d9026a6bc"
+  },
+  "model": null,
+  "options": null
+}
+```
+
+`document_id` is expected to be a `UUID5` the caller derives deterministically
+from the document text, so re-submitting identical content is a cache hit.
+
+- Response `200`: `DataExtractionResponse`
+
+```json
+{
+  "document_id": "7e6b6f35-2f29-58f7-9f8e-fd1d9026a6bc",
+  "recommendation_number": "1234/24",
+  "recommendation_date": "2024-11-17",
+  "recipients": [
+    {
+      "name": "Juan Pérez",
+      "position": "Director",
+      "is_primary": true,
+      "macro_sector": "GCBA",
+      "unit_id": null,
+      "unit_name": null,
+      "sector_id": null,
+      "sector_name": null,
+      "match_method": null,
+      "sector_candidates": [
+        {
+          "unit_id": "3fae2e6a-1111-4c22-9a3c-abcdefabcdef",
+          "unit_name": "Ministerio de Salud",
+          "sector_name": "Ministerio de Salud",
+          "ruta_organigrama": "GCBA > Ministerio de Salud",
+          "score": 92.5
+        }
+      ]
+    }
+  ],
+  "topic": "SALUD",
+  "subtopic": "Hospitales",
+  "personal_data": false,
+  "publishable_content": "Se recomienda ...",
+  "config": {
+    "model": "qwen3-8b",
+    "options": {"max_tokens": 1024, "attempts": 1},
+    "catalogs_hash": "a1b2c3..."
+  }
+}
+```
+
+`unit_id`/`sector_id` on each recipient are a **live, non-persisted**
+organigram match — see [organigram matching](../pipelines/defensoria/README.md#organigram-matching).
+`sector_candidates` is always populated with ranked alternatives regardless of
+whether a match was auto-resolved, so a human can pick a different one at
+validation time.
+
+```bash
+curl -s -X POST "http://localhost:8899/api/llm/data-extraction?use_cache=true" \
+  -H "Content-Type: application/json" \
+  -d '{"document":{"document":["Buenos Aires, 17 de noviembre de 2024.","Se recomienda ..."],"document_id":"7e6b6f35-2f29-58f7-9f8e-fd1d9026a6bc"}}'
+```
+
+Common errors:
+- `422` document too large for the model's context window (`ContextTooSmallError`)
+- `422` standard FastAPI request-body validation failure
+- `500 Configuration error` when `LLAMACPP_BASE_URL` is unset
+
+#### `PUT /api/llm/data-extraction/{document_id}/validate`
+- Path param: `document_id` (`UUID`) — must already have a cached extraction
+- Request body: `ValidateRecommendationRequest`
+
+```json
+{
+  "recommendation_number": "1234/24",
+  "recommendation_date_text": "17 de noviembre de 2024",
+  "topic": "SALUD",
+  "subtopic": "Hospitales",
+  "personal_data": false,
+  "publishable_content": "Se recomienda ...",
+  "recipients": [
+    {
+      "id": null,
+      "name": "Juan Pérez",
+      "position": "Director",
+      "is_primary": true,
+      "macro_sector": "GCBA",
+      "unit_id": "3fae2e6a-1111-4c22-9a3c-abcdefabcdef",
+      "sector_id": "3fae2e6a-1111-4c22-9a3c-abcdefabcdef"
+    }
+  ]
+}
+```
+
+A recipient's `id` is present when correcting an existing one and omitted
+(`null`) when adding a new one; recipients missing from the list are deleted.
+
+- Response `200`: `RecommendationDetailResponse` (`RecommendationResponse` plus `source_text` and the raw `prediction`)
+
+```bash
+curl -s -X PUT http://localhost:8899/api/llm/data-extraction/7e6b6f35-2f29-58f7-9f8e-fd1d9026a6bc/validate \
+  -H "Content-Type: application/json" \
+  -d '{"publishable_content":"Se recomienda ...","recipients":[]}'
+```
+
+Common errors:
+- `404 Resource not found` — no cached extraction for `document_id` yet
+- `422` — `unit_id`/`sector_id` reference a nonexistent organigram unit
+  (`OrganigramReferenceNotFoundError`), or `sector_id` names a unit that
+  isn't a sector (`is_sector=false`), or is inconsistent with `unit_id`'s
+  organigram position (`InconsistentSectorError`). The whole call is one
+  transaction — a rejected recipient rolls back every other field too.
+
+#### `GET /api/llm/data-extraction/recommendations`
+- Query params (all optional): `topic_id`, `sector_id` (`UUID`), `date_from`,
+  `date_to` (inclusive, on `recommendation_date`), `q` (case-insensitive
+  substring search over `publishable_content` — literal, `%`/`_` in `q` are
+  escaped rather than treated as SQL `LIKE` wildcards), `page` (default `1`),
+  `page_size` (default `20`)
+- Response `200`: `RecommendationPageResponse`
+
+```json
+{"items": [ /* RecommendationResponse[] */ ], "total": 1, "page": 1, "page_size": 20}
+```
+
+```bash
+curl -s "http://localhost:8899/api/llm/data-extraction/recommendations?topic_id=c1d2...&page=1&page_size=20"
+```
+
+#### `GET /api/llm/data-extraction/recommendations/{recommendation_id}`
+- Response `200`: `RecommendationDetailResponse`
+- Response `404`: unknown `recommendation_id`
+
+#### `GET /api/llm/data-extraction/export`
+- Query param: `format=xlsx|csv` (default `xlsx`)
+- Response `200`: binary file (`recomendaciones.xlsx` with a second
+  `destinatarios` sheet, or `recomendaciones.csv` with only the
+  recommendations rows)
+
+```bash
+curl -s "http://localhost:8899/api/llm/data-extraction/export?format=xlsx" -o recomendaciones.xlsx
+```
+
+### Organigram
+
+#### `POST /api/organigram/units`
+- Request body: `OrganigramUnitCreateRequest`
+
+```json
+{"parent_id": null, "name": "Ministerio de Salud", "acronym": "MSAL", "short_name": "Salud", "is_sector": true, "order": 0}
+```
+
+- Response `200`/`201`: `OrganigramUnitResponse`
+
+```json
+{
+  "id": "3fae2e6a-1111-4c22-9a3c-abcdefabcdef",
+  "parent_id": null,
+  "name": "Ministerio de Salud",
+  "acronym": "MSAL",
+  "short_name": "Salud",
+  "is_sector": true,
+  "active": true,
+  "order": 0,
+  "created_at": "2024-11-17T12:00:00",
+  "updated_at": null
+}
+```
+
+#### `GET /api/organigram/units`
+- Query params: `parent_id` (`UUID`, optional — lists that unit's children,
+  or the roots when omitted), `include_inactive` (default `false`),
+  `flat` (default `false` — with `true`, returns every unit in one call
+  instead of one level at a time, for clients that render/search/expand the
+  whole tree)
+- Response `200`: `list[OrganigramUnitResponse]`
+
+#### `GET /api/organigram/units/{unit_id}`
+- Response `200`: `OrganigramUnitResponse`; `404` if unknown
+
+#### `PATCH /api/organigram/units/{unit_id}`
+- Request body: `OrganigramUnitUpdateRequest` (all fields optional, only set fields are applied)
+- Response `200`: `OrganigramUnitResponse`; `404` if unknown
+
+#### `DELETE /api/organigram/units/{unit_id}`
+- Soft-deletes (`active=false`); response `200`; `404` if unknown
+
+#### `GET /api/organigram/units/{unit_id}/holders`
+- Response `200`: `list[OrganigramHolderResponse]` (full history, most recent first)
+
+#### `POST /api/organigram/units/{unit_id}/holders`
+- Request body: `OrganigramHolderCreateRequest`
+
+```json
+{"name": "María Gómez"}
+```
+
+- Sets the new current holder (adds a history row); response `200`: `OrganigramHolderResponse`
+
+```json
+{
+  "id": "b2c3...uuid...",
+  "unit_id": "3fae2e6a-1111-4c22-9a3c-abcdefabcdef",
+  "name": "María Gómez",
+  "is_current": true,
+  "created_at": "2024-11-17T12:00:00",
+  "updated_at": null
+}
+```
+
+#### `PATCH /api/organigram/holders/{holder_id}`
+- Request body: `OrganigramHolderUpdateRequest` (`{"name": "..."}`)
+- Response `200`: `OrganigramHolderResponse`; `404` if unknown
+
+### Catalogs
+
+#### `POST /api/catalogs/topics`
+- Request body: `TopicCreateRequest`
+
+```json
+{"code": "SALUD", "name": "Salud", "order": 0}
+```
+
+- Response `200`/`201`: `TopicResponse`; `409 Resource conflict` if `code` already exists
+
+#### `GET /api/catalogs/topics`
+- Query param: `include_inactive` (default `false`)
+- Response `200`: `list[TopicResponse]`
+
+#### `GET /api/catalogs/topics/{topic_id}` / `PATCH` / `DELETE`
+- `PATCH` body: `TopicUpdateRequest` (`code`, `name`, `active`, `order`, all optional)
+- `DELETE` soft-deletes (`active=false`)
+- `404` if unknown
+
+#### `GET /api/catalogs/topics/{topic_id}/usage`
+- Response `200`: `{"count": <int>}` — records referencing this topic
+
+#### `POST /api/catalogs/subtopics`
+- Request body: `SubtopicCreateRequest`
+
+```json
+{"topic_id": "c1d2...uuid...", "code": "HOSP", "name": "Hospitales", "order": 0}
+```
+
+- Response `200`/`201`: `SubtopicResponse`; `409 Resource conflict` if `code`
+  already exists globally, or if `name` already exists within the same
+  `topic_id` (reported with a distinct message per case, so the client knows
+  which field to change)
+
+#### `GET /api/catalogs/subtopics`
+- Query params: `topic_id` (`UUID`, optional), `include_inactive` (default `false`)
+- Response `200`: `list[SubtopicResponse]`
+
+#### `GET /api/catalogs/subtopics/{subtopic_id}` / `PATCH` / `DELETE`
+Same shape as topics; `404` if unknown.
+
+#### `GET /api/catalogs/subtopics/{subtopic_id}/usage`
+- Response `200`: `{"count": <int>}`
+
+#### `POST /api/catalogs/subtopics/{subtopic_id}/reassign`
+- Request body: `{"target_subtopic_id": "<UUID>"}`
+- Repoints every referencing record to the target subtopic (use before deleting one)
+- Response `200`: `{"reassigned": <int>}`
+
+#### `GET /api/catalogs/macro_sectors` / `GET .../{macro_sector_id}` / `PATCH` / `DELETE`
+- Fixed set of 4 seeded rows (`GCBA`, `ORGANISMOS_NACIONALES`,
+  `OBRA_SOCIAL_PREPAGA`, `EMPRESA`) — **no create endpoint**, and `code` is
+  never editable.
+- `PATCH` body: `MacroSectorUpdateRequest` (`name`, `active`, `order`, all optional)
+- `DELETE` soft-deletes (`active=false`)
+
+```bash
+curl -s http://localhost:8899/api/catalogs/macro_sectors
+```
+
+Common errors across catalogs endpoints:
+- `404 Resource not found` — unknown id
+- `409 Resource conflict` — duplicate `code` on create
 
 ## Legacy / Not Public (Not Mounted)
 The following route modules exist in code but are not included in `core.router` at runtime:

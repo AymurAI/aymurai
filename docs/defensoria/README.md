@@ -41,5 +41,11 @@ Dos consecuencias operativas:
 
 ## Estado
 
-Diseño cerrado; implementación no comenzada. Las **fases 1 y 2** (catálogos y organigrama) no dependen de
-nada y son paralelizables.
+Implementado y mergeado a `feature/defensoria`, apagado por flag (`DEFENSORIA_ENABLED=false` por defecto)
+hasta el merge final a `dev`. `ANALYSIS.md` y `PLAN.md` quedan como registro de diseño — documentan intención,
+no necesariamente el comportamiento final. Para el comportamiento tal como quedó implementado, ver:
+
+- Pipeline: [`../pipelines/defensoria/README.md`](../pipelines/defensoria/README.md)
+- API: [`../api/README.md#defensoría-del-pueblo-feature-flagged`](../api/README.md#defensoría-del-pueblo-feature-flagged)
+- Base de datos: [`../database/README.md#defensoría-del-pueblo-caba`](../database/README.md#defensoría-del-pueblo-caba)
+- Configuración: [`../configuration/README.md#defensoría-del-pueblo-data-extraction`](../configuration/README.md#defensoría-del-pueblo-data-extraction)

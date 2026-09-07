@@ -115,6 +115,32 @@ thinking por request, y `enable_thinking` depende del modelo. Si los resúmenes
 vuelven vacíos, el modelo está gastando todo su `max_tokens` en razonamiento —
 subí `max_tokens` o poné `LLM_THINK_BUDGET=0`.
 
+## Defensoría del Pueblo (extracción de datos)
+
+Las rutas `/api/llm/data-extraction*`, `/api/organigram/*` y `/api/catalogs/*`
+implementan la customización para la Defensoría del Pueblo (CABA) — ver la
+[referencia de pipeline](../pipelines/defensoria/README.md). Comparten
+`LLAMACPP_BASE_URL`/`LLAMACPP_API_KEY` con la sumarización con LLM.
+
+| Variable | Default | Propósito |
+|---|---|---|
+| `DEFENSORIA_ENABLED` | `False` | Monta los tres routers de arriba cuando es `true`. Tablas/migraciones/seeds siempre corren, sin importar el valor |
+| `DATA_EXTRACTION_MAX_TOKENS` | `1024` | `max_tokens` para el llamado de extracción |
+| `DATA_EXTRACTION_MAX_RETRIES` | `2` | Intentos extra ante salida JSON/schema inválida (3 intentos en total) |
+| `DATA_EXTRACTION_SEARCH_BACKEND` | `hybrid` | Scorer del matching de organigrama: `fuzzy`, `embeddings` o `hybrid` |
+| `DATA_EXTRACTION_TOP_K` | `5` | Sectores alternativos rankeados devueltos por destinatario (`sector_candidates`) |
+| `DATA_EXTRACTION_HYBRID_WEIGHT` | `0.25` | Peso del score de embeddings en modo `hybrid`; fuzzy se queda con el resto |
+| `DATA_EXTRACTION_NAME_EVIDENCE_WEIGHT` | `1.0` | Descuento aplicado a un match por nombre de titular antes de compararlo con su umbral |
+| `DATA_EXTRACTION_NAME_SCORE_THRESHOLD` | `90` | Score mínimo para que un match por nombre de titular resuelva un destinatario |
+| `DATA_EXTRACTION_POSITION_SCORE_THRESHOLD` | `85` | Score mínimo para que un match de cargo/posición resuelva un destinatario |
+| `EXPORT_TIMEZONE` | `America/Argentina/Buenos_Aires` | Zona horaria en la que el export `.xlsx`/`.csv` formatea timestamps naive-UTC |
+
+El matching de organigrama solo corre para destinatarios cuyo macro-sector es
+`GCBA`; cualquier otro macro-sector corta directo a "sin match" sin importar
+estos umbrales. Ver
+[matching de organigrama](../pipelines/defensoria/README.md#matching-de-organigrama)
+para el orden de resolución completo.
+
 ## Transcripción ASR
 
 Las rutas `/api/asr/*` hacen de proxy sobre un server

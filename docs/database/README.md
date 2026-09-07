@@ -19,7 +19,17 @@ Related code:
 - `aymurai/api/main.py`
 - `aymurai/database/versions/13f78d08e925_create_database.py` (base schema)
 - `aymurai/database/versions/49b3f24f7ad0_add_audio_transcription_table.py`
-- `aymurai/database/versions/8f2c6a10b7d3_add_llm_summarization_table.py` (head)
+- `aymurai/database/versions/8f2c6a10b7d3_add_llm_summarization_table.py`
+- `aymurai/database/versions/dd89f40c7c3e_add_catalogs_tables.py`
+- `aymurai/database/versions/ddf5877c18e3_add_organigram_tables.py`
+- `aymurai/database/versions/fb3a0fa1490d_add_llm_extraction_table.py`
+- `aymurai/database/versions/bd2987fdfc0e_add_dataset_recommendation_recipient_tables.py` (head)
+
+The last four are the Defensoría del Pueblo (CABA) feature (see
+[below](#defensoría-del-pueblo-caba)) and apply in that order — `catalogs` and
+`organigram` first, since `recipient`/`recommendation` have foreign keys into
+them. **These migrations always run**, independent of the `DEFENSORIA_ENABLED`
+feature flag, which only gates whether the corresponding routers are mounted.
 
 ## ER Diagram
 Rendered inline so it can never drift out of sync with a stale image.
@@ -96,10 +106,123 @@ erDiagram
         DATETIME updated_at
     }
 
+    dataset {
+        UUID id PK
+        TEXT code
+        TEXT name
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recommendation {
+        UUID id PK
+        UUID dataset_id FK
+        UUID document_id
+        TEXT recommendation_number
+        TEXT recommendation_date_text
+        DATE recommendation_date
+        UUID topic_id FK
+        UUID subtopic_id FK
+        BOOLEAN personal_data
+        TEXT publishable_content
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recipient {
+        UUID id PK
+        UUID recommendation_id FK
+        INTEGER order
+        TEXT raw_name
+        TEXT raw_position
+        TEXT normalized_name
+        TEXT normalized_position
+        BOOLEAN is_primary
+        UUID macro_sector_id FK
+        UUID unit_id FK
+        UUID sector_id FK
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    llm_extraction {
+        UUID id PK
+        TEXT file_name
+        TEXT source_text
+        JSON prediction
+        JSON config
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    topic {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    subtopic {
+        UUID id PK
+        UUID topic_id FK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    macro_sector {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_unit {
+        UUID id PK
+        UUID parent_id FK
+        TEXT name
+        TEXT acronym
+        TEXT short_name
+        BOOLEAN is_sector
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_holder {
+        UUID id PK
+        UUID unit_id FK
+        TEXT name
+        BOOLEAN is_current
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
     anonymization_document ||--o{ anonymization_document_paragraph : links
     anonymization_paragraph ||--o{ anonymization_document_paragraph : links
     datapublic_document ||--o{ datapublic_document_paragraph : links
     datapublic_paragraph ||--o{ datapublic_document_paragraph : links
+
+    dataset ||--o{ recommendation : "dataset_id"
+    topic ||--o{ subtopic : "topic_id"
+    topic ||--o{ recommendation : "topic_id (nullable)"
+    subtopic ||--o{ recommendation : "subtopic_id (nullable)"
+    recommendation ||--o{ recipient : "recommendation_id"
+    macro_sector ||--o{ recipient : "macro_sector_id (nullable)"
+    organigram_unit ||--o{ recipient : "unit_id (nullable)"
+    organigram_unit ||--o{ recipient : "sector_id (nullable)"
+    organigram_unit ||--o{ organigram_unit : "parent_id (nullable)"
+    organigram_unit ||--o{ organigram_holder : "unit_id"
 ```
 
 ## Tables
@@ -199,6 +322,170 @@ Unlike `llm_summarization`, reads here **do** collapse: `ASRDocument.from_transc
 returns `validation or transcription`, so a validated transcription shadows the
 machine one.
 
+## Defensoría del Pueblo (CABA)
+Nine tables back the Defensoría del Pueblo customization (see the
+[pipeline reference](../pipelines/defensoria/README.md)). Their routers are
+mounted only when `DEFENSORIA_ENABLED=true`, but **the tables, migrations,
+and seed data always exist** regardless of the flag.
+
+SQLite foreign-key enforcement (`PRAGMA foreign_keys=ON`) was added
+per-connection specifically because this schema is FK-heavy
+(`aymurai/database/session.py`); it applies database-wide, not just to these
+tables.
+
+### `llm_extraction`
+Standalone raw-extraction cache — no foreign keys. Keyed by a client-supplied
+content hash rather than an app-generated id.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key, **caller-supplied** (the request's `document_id`) |
+| `file_name` | `TEXT` | yes | Original filename, when known |
+| `source_text` | `TEXT` | no | Document text the extraction ran against |
+| `prediction` | `JSON` | no | Raw LLM output, verbatim |
+| `config` | `JSON` | no | Generation config (`model`, `options`, `catalogs_hash`) |
+| `created_at` | `DATETIME` | no | Server default `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | yes | Updated on row changes |
+
+### `dataset`
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | no | Unique. A single fixed row, `"defensoria-recommendations"`, created lazily; there is no create endpoint |
+| `name` | `TEXT` | no | Display label |
+| `created_at` | `DATETIME` | no | Server default `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | yes | Updated on row changes |
+
+### `recommendation`
+The human-validated document-level record — only exists after
+`PUT /api/llm/data-extraction/{document_id}/validate`.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `dataset_id` | `UUID` | no | FK -> `dataset.id`, indexed |
+| `document_id` | `UUID` | no | Indexed. **Not a database FK** — correlates by convention with `llm_extraction.id` (both are the client-supplied content hash), but referential integrity between them is not DB-enforced |
+| `recommendation_number` | `TEXT` | yes | |
+| `recommendation_date_text` | `TEXT` | yes | Verbatim prose date, from the model or a human |
+| `recommendation_date` | `DATE` | yes | Normalized parse of the above; `null` when the prose doesn't parse |
+| `topic_id` | `UUID` | yes | FK -> `topic.id` |
+| `subtopic_id` | `UUID` | yes | FK -> `subtopic.id` |
+| `personal_data` | `BOOLEAN` | yes | Tri-state: `NULL` means not yet answered |
+| `publishable_content` | `TEXT` | no | |
+| `created_at` | `DATETIME` | no | Server default `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | yes | Updated on row changes |
+
+Unique constraint: `(dataset_id, document_id)`.
+
+### `recipient`
+A destination office/person attached to a `recommendation`.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `recommendation_id` | `UUID` | no | FK -> `recommendation.id`, indexed |
+| `order` | `INTEGER` | no | Default `0` |
+| `raw_name` | `TEXT` | yes | Verbatim extracted/entered name |
+| `raw_position` | `TEXT` | yes | Verbatim extracted/entered position ("cargo") |
+| `normalized_name` | `TEXT` | yes | Indexed; feeds the organigram-matching learned index |
+| `normalized_position` | `TEXT` | yes | Indexed; feeds the learned index |
+| `is_primary` | `BOOLEAN` | no | Default `False` |
+| `macro_sector_id` | `UUID` | yes | FK -> `macro_sector.id` |
+| `unit_id` | `UUID` | yes | FK -> `organigram_unit.id`; human-confirmed |
+| `sector_id` | `UUID` | yes | FK -> `organigram_unit.id` (second edge into the same table); human-confirmed **independently** of `unit_id`, denormalized on purpose so a later organigram reorg doesn't retroactively change history |
+| `created_at` | `DATETIME` | no | Server default `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | yes | Updated on row changes |
+
+Application-level (not DB-enforced) invariants, checked in
+`recommendation_upsert`/`_reconcile_recipients`, not by a constraint or
+trigger: `sector_id` must always name a unit with `is_sector=true`, and when
+both `unit_id` and `sector_id` are set, `sector_id` must be an `is_sector`
+ancestor-or-self of `unit_id` (membership, not identity with whatever
+`resolve_sector(unit_id)` would auto-suggest — that helper skips deactivated
+sectors, so it isn't always the nearest one). The whole validation call is
+one transaction (ADR-0009): a rejected recipient rolls back the
+`recommendation` row's own field changes too.
+
+### `topic` / `subtopic` / `macro_sector`
+The classification catalogs used by extraction and validation.
+
+**`topic`**
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | yes | Unique; the Defensoría's original `area` code, `null` for app-created topics |
+| `name` | `TEXT` | no | |
+| `active` | `BOOLEAN` | no | Default `True`; soft-delete flag |
+| `order` | `INTEGER` | no | Default `0`, display ordering |
+| `created_at` / `updated_at` | `DATETIME` | no / yes | Standard |
+
+**`subtopic`**
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `topic_id` | `UUID` | no | FK -> `topic.id` |
+| `code` | `TEXT` | yes | Unique (globally, not per-topic); the Defensoría's `codigo` |
+| `name` | `TEXT` | no | |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | no | Default `0` |
+| `created_at` / `updated_at` | `DATETIME` | no / yes | Standard |
+
+Unique constraints: `(code)`, `(topic_id, name)`.
+
+**`macro_sector`**
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | no | Unique; one of `GCBA`, `ORGANISMOS_NACIONALES`, `OBRA_SOCIAL_PREPAGA`, `EMPRESA`. Drives behavior — only `GCBA` triggers organigram matching — and is never editable via the API |
+| `name` | `TEXT` | no | Editable display label |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | no | Default `0` |
+| `created_at` / `updated_at` | `DATETIME` | no / yes | Standard |
+
+Fixed, seeded set of 4 rows — the API can rename/reorder/deactivate a macro
+sector but never create or delete one.
+
+### `organigram_unit` / `organigram_holder`
+The institutional org chart.
+
+**`organigram_unit`**
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key. For seeded rows this is a deterministic `uuid5` of the unit's path, fixed forever once assigned (never recomputed on rename); units created through the API get a random `uuid4` instead, since they have no path to derive one from |
+| `parent_id` | `UUID` | yes | FK -> `organigram_unit.id` (self-referential tree), indexed |
+| `name` | `TEXT` | no | |
+| `acronym` | `TEXT` | yes | e.g. `AGIP` |
+| `short_name` | `TEXT` | yes | Curated override for a handful of autonomous bodies |
+| `is_sector` | `BOOLEAN` | no | Default `False`; curated flag marking "deepest ancestor-or-self that counts as a sector" |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | yes | Display order among siblings |
+| `created_at` / `updated_at` | `DATETIME` | no / yes | Standard |
+
+**`organigram_holder`**
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `unit_id` | `UUID` | no | FK -> `organigram_unit.id`, indexed |
+| `name` | `TEXT` | no | Holder's name |
+| `is_current` | `BOOLEAN` | no | Default `False`; curated, not "latest row" |
+| `created_at` / `updated_at` | `DATETIME` | no / yes | Standard; history is append-only — setting a new current holder always inserts a row and flips the previous one to `False`, never updates in place |
+
+Partial unique index on `(unit_id) WHERE is_current = 1` — at most one
+current holder per unit, enforced at the DB level.
+
+### Constraints and deletes
+No `ON DELETE CASCADE` anywhere — every foreign key is plain
+`NO ACTION`/`RESTRICT`. "Deletes" on `topic`, `subtopic`, `macro_sector`, and
+`organigram_unit` are all soft (`active=false`); there is no hard-delete path
+for any of them. `recipient` rows dropped during re-validation, and
+`llm_extraction`/`recommendation` upserts, are the only hard writes/deletes
+in this feature.
+
+### Seeding
+`aymurai/scripts/seed.py` (`catalogs` and `organigram` subcommands) is a
+**manual** CLI step — unlike `alembic upgrade head`, it is not run
+automatically on API startup. See the
+[pipeline reference](../pipelines/defensoria/README.md#seeding-the-organigram-and-catalogs).
 
 ## Endpoint to Persistence Mapping
 
@@ -248,6 +535,35 @@ machine one.
 - `POST /api/asr/validation/document/{document_id}`
   - Writes `validation` (and `name` when a `title` is provided).
 
+### Defensoría del Pueblo (CABA)
+Feature-flagged behind `DEFENSORIA_ENABLED`; see the
+[pipeline reference](../pipelines/defensoria/README.md).
+
+- `POST /api/llm/data-extraction`
+  - Reads `llm_extraction` by `document_id` when `use_cache=true`.
+  - On a miss, inserts/replaces the `llm_extraction` row with the raw prediction.
+  - Reads `topic`, `subtopic`, `macro_sector` to build the prompt's live taxonomy.
+  - Reads `organigram_unit`/`organigram_holder`/`recipient` (learned index) to
+    resolve each recipient's suggested `unit_id`/`sector_id` — never persisted
+    at this step.
+- `PUT /api/llm/data-extraction/{document_id}/validate`
+  - Requires an existing `llm_extraction` row; `404` otherwise.
+  - Upserts `recommendation` (unique per `dataset_id` + `document_id`,
+    lazily creating the single `dataset` row on first use).
+  - Reconciles `recipient` rows (update-by-id / insert-if-new / delete-if-missing).
+- `GET /api/llm/data-extraction/recommendations[/{recommendation_id}]`
+  - Reads `recommendation` (+ joined `recipient`, `topic`, `subtopic`,
+    `organigram_unit`); `404` when a specific id is absent.
+- `GET /api/llm/data-extraction/export`
+  - Reads `recommendation` and `recipient` only — never `llm_extraction`.
+- `POST/GET/PATCH/DELETE /api/organigram/units[/{unit_id}]`, `.../holders[/{holder_id}]`
+  - Full CRUD on `organigram_unit` and `organigram_holder`; deletes are soft
+    (`active=false`) for units, and setting a holder inserts a new
+    `organigram_holder` row rather than updating in place.
+- `POST/GET/PATCH/DELETE /api/catalogs/topics[/{topic_id}]`, `.../subtopics[/{subtopic_id}]`, `.../macro_sectors[/{macro_sector_id}]`
+  - Full CRUD (macro sectors: edit/deactivate only) on `topic`, `subtopic`,
+    `macro_sector`. `POST .../subtopics/{id}/reassign` repoints `recipient`/
+    other referencing rows to a different `subtopic_id` before a delete.
 
 ## Legacy Note
 Route modules for dataset CRUD (`/api/datapublic/dataset/*`) exist in code but are not mounted in the public router. Do not treat them as active public API until exposed in `core.router`.

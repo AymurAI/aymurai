@@ -114,6 +114,32 @@ budget, and `enable_thinking` is model-dependent. If summaries come back empty,
 the model is spending its whole `max_tokens` on reasoning — raise `max_tokens`
 or set `LLM_THINK_BUDGET=0`.
 
+## Defensoría del Pueblo (data extraction)
+
+The `/api/llm/data-extraction*`, `/api/organigram/*`, and `/api/catalogs/*`
+routes implement the Defensoría del Pueblo (CABA) customization — see the
+[pipeline reference](../pipelines/defensoria/README.md). They share
+`LLAMACPP_BASE_URL`/`LLAMACPP_API_KEY` with LLM summarization.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DEFENSORIA_ENABLED` | `False` | Mounts the three routers above when `true`. Tables/migrations/seeds always run regardless |
+| `DATA_EXTRACTION_MAX_TOKENS` | `1024` | `max_tokens` for the extraction call |
+| `DATA_EXTRACTION_MAX_RETRIES` | `2` | Extra attempts on invalid JSON/schema output (so 3 attempts total) |
+| `DATA_EXTRACTION_SEARCH_BACKEND` | `hybrid` | Organigram matching scorer: `fuzzy`, `embeddings`, or `hybrid` |
+| `DATA_EXTRACTION_TOP_K` | `5` | Ranked alternative sectors returned per recipient (`sector_candidates`) |
+| `DATA_EXTRACTION_HYBRID_WEIGHT` | `0.25` | Weight on the embeddings score in `hybrid` mode; fuzzy gets the rest |
+| `DATA_EXTRACTION_NAME_EVIDENCE_WEIGHT` | `1.0` | Discount applied to a holder-name match before comparing it to its threshold |
+| `DATA_EXTRACTION_NAME_SCORE_THRESHOLD` | `90` | Minimum score for a holder-name match to resolve a recipient |
+| `DATA_EXTRACTION_POSITION_SCORE_THRESHOLD` | `85` | Minimum score for a cargo/position match to resolve a recipient |
+| `EXPORT_TIMEZONE` | `America/Argentina/Buenos_Aires` | Timezone the `.xlsx`/`.csv` export formats naive-UTC timestamps in |
+
+Organigram matching only runs for recipients whose macro sector is `GCBA`;
+every other macro sector short-circuits to no match regardless of these
+thresholds. See
+[organigram matching](../pipelines/defensoria/README.md#organigram-matching)
+for the full resolution order.
+
 ## ASR transcription
 
 The `/api/asr/*` routes proxy a [`coro`](https://github.com/collectiveai-team/coro)

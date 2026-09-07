@@ -68,7 +68,120 @@ erDiagram
         DATETIME updated_at
     }
 
+    dataset {
+        UUID id PK
+        TEXT code
+        TEXT name
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recommendation {
+        UUID id PK
+        UUID dataset_id FK
+        UUID document_id
+        TEXT recommendation_number
+        TEXT recommendation_date_text
+        DATE recommendation_date
+        UUID topic_id FK
+        UUID subtopic_id FK
+        BOOLEAN personal_data
+        TEXT publishable_content
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recipient {
+        UUID id PK
+        UUID recommendation_id FK
+        INTEGER order
+        TEXT raw_name
+        TEXT raw_position
+        TEXT normalized_name
+        TEXT normalized_position
+        BOOLEAN is_primary
+        UUID macro_sector_id FK
+        UUID unit_id FK
+        UUID sector_id FK
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    llm_extraction {
+        UUID id PK
+        TEXT file_name
+        TEXT source_text
+        JSON prediction
+        JSON config
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    topic {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    subtopic {
+        UUID id PK
+        UUID topic_id FK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    macro_sector {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_unit {
+        UUID id PK
+        UUID parent_id FK
+        TEXT name
+        TEXT acronym
+        TEXT short_name
+        BOOLEAN is_sector
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_holder {
+        UUID id PK
+        UUID unit_id FK
+        TEXT name
+        BOOLEAN is_current
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
     anonymization_document ||--o{ anonymization_document_paragraph : links
     anonymization_paragraph ||--o{ anonymization_document_paragraph : links
     datapublic_document ||--o{ datapublic_document_paragraph : links
     datapublic_paragraph ||--o{ datapublic_document_paragraph : links
+
+    dataset ||--o{ recommendation : "dataset_id"
+    topic ||--o{ subtopic : "topic_id"
+    topic ||--o{ recommendation : "topic_id (nullable)"
+    subtopic ||--o{ recommendation : "subtopic_id (nullable)"
+    recommendation ||--o{ recipient : "recommendation_id"
+    macro_sector ||--o{ recipient : "macro_sector_id (nullable)"
+    organigram_unit ||--o{ recipient : "unit_id (nullable)"
+    organigram_unit ||--o{ recipient : "sector_id (nullable)"
+    organigram_unit ||--o{ organigram_unit : "parent_id (nullable)"
+    organigram_unit ||--o{ organigram_holder : "unit_id"

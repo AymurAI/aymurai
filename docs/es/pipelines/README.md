@@ -4,8 +4,10 @@ Idioma: [English](../../pipelines/README.md) | **Español**
 Esta sección documenta los flujos del backend de AymurAI, uno por flujo.
 
 Dos de ellos son pipelines de ML de AymurAI, configurados por un archivo JSON bajo
-`resources/pipelines/production/`. Los otros dos orquestan servicios externos y no
-tienen config de pipeline propia.
+`resources/pipelines/production/`. Otros dos orquestan servicios externos y no
+tienen config de pipeline propia. Un quinto flujo, gateado por feature flag,
+agrega una extracción con LLM específica de un cliente sobre el mismo servicio
+externo.
 
 ## Pipelines de ML
 - Anonymizer: [anonymizer/README.md](anonymizer/README.md)
@@ -14,6 +16,9 @@ tienen config de pipeline propia.
 ## Flujos sobre servicios
 - Sumarización (llama.cpp): [summarization/README.md](summarization/README.md)
 - Transcripción / ASR (coro): [transcription/README.md](transcription/README.md)
+
+## Flujos gateados por feature flag
+- Extracción de datos para la Defensoría del Pueblo (CABA) (llama.cpp, `DEFENSORIA_ENABLED`): [defensoria/README.md](defensoria/README.md)
 
 ## Documentos de modelos relacionados
 - Índice de modelos: [../models/README.md](../models/README.md)
@@ -37,6 +42,7 @@ campos `device` de esos archivos. Ver la
 | `datapublic` | `POST /api/datapublic/predict/{document_id}` | pipeline `datapublic` |
 | sumarización | `POST /api/llm/summarize` | `llama-server` externo |
 | transcripción | `POST /api/asr/transcribe` | server `coro` externo |
+| extracción defensoría | `POST /api/llm/data-extraction` | `llama-server` externo (gateado por flag) |
 
 ## Documentos relacionados
 - Referencia de API: [../api/README.md](../api/README.md)

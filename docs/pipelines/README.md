@@ -4,8 +4,9 @@ Language: **English** | [Español](../es/pipelines/README.md)
 This section documents the AymurAI backend workflows by flow.
 
 Two of them are AymurAI ML pipelines, configured by a JSON file under
-`resources/pipelines/production/`. The other two orchestrate external services
-and have no pipeline config of their own.
+`resources/pipelines/production/`. Two more orchestrate external services and
+have no pipeline config of their own. A fifth, feature-flagged flow adds a
+customer-specific LLM extraction on top of the same external service.
 
 ## ML pipelines
 - Anonymizer: [anonymizer/README.md](anonymizer/README.md)
@@ -14,6 +15,9 @@ and have no pipeline config of their own.
 ## Service-backed flows
 - Summarization (llama.cpp): [summarization/README.md](summarization/README.md)
 - Transcription / ASR (coro): [transcription/README.md](transcription/README.md)
+
+## Feature-flagged flows
+- Defensoría del Pueblo (CABA) data extraction (llama.cpp, `DEFENSORIA_ENABLED`): [defensoria/README.md](defensoria/README.md)
 
 ## Related model docs
 - Models index: [../models/README.md](../models/README.md)
@@ -37,6 +41,7 @@ the `device` fields in these files. See the
 | `datapublic` | `POST /api/datapublic/predict/{document_id}` | `datapublic` pipeline |
 | summarization | `POST /api/llm/summarize` | external `llama-server` |
 | transcription | `POST /api/asr/transcribe` | external `coro` server |
+| defensoria data extraction | `POST /api/llm/data-extraction` | external `llama-server` (feature-flagged) |
 
 ## Related docs
 - API reference: [../api/README.md](../api/README.md)

@@ -16,6 +16,7 @@ Documentación operativa de AymurAI `v2.0.0`.
 - Flujo datapublic: [pipelines/datapublic/README.md](pipelines/datapublic/README.md)
 - Flujo de sumarización: [pipelines/summarization/README.md](pipelines/summarization/README.md)
 - Flujo de transcripción (ASR): [pipelines/transcription/README.md](pipelines/transcription/README.md)
+- Extracción de datos para la Defensoría del Pueblo (CABA) (gateada por feature flag): [pipelines/defensoria/README.md](pipelines/defensoria/README.md)
 
 ## Entidades
 - Índice de entidades: [entities/README.md](entities/README.md)
@@ -34,6 +35,7 @@ propuestas; las páginas lo aclaran explícitamente donde divergen de producció
 
 - Desambiguación de entidades: [anonymization/README.md](anonymization/README.md)
 - Métrica de evaluación de la desambiguación: [../metrics/entity-disambiguation-metric.md](../metrics/entity-disambiguation-metric.md)
+- Registro de diseño de la Defensoría del Pueblo (CABA) — análisis, plan, ADRs: [../defensoria/README.md](../defensoria/README.md)
 
 ## Gobernanza
 Estos documentos están disponibles solo en inglés.
