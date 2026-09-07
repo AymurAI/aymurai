@@ -19,6 +19,7 @@ import type { SelectOption } from "@/types/select";
 import { getActiveAnonymizerLabelOptions } from "@/utils/anonymizer/labels";
 import { filterActivePredictions } from "@/utils/anonymizer/predictions";
 import LabelManager from "../anonymizer/label-manager";
+import ExtractedAnnotation from "../file/extracted-annotation";
 import SearchAnnotation from "../file/search-annotation";
 import TagAnnotation from "../file/tag-annotation";
 import {
@@ -109,6 +110,12 @@ const Paragraph = memo(
                 <TagAnnotation key={key} annotation={s}>
                   {content}
                 </TagAnnotation>
+              );
+            case "extracted":
+              return (
+                <ExtractedAnnotation key={key} annotation={s}>
+                  {content}
+                </ExtractedAnnotation>
               );
             case "text":
             default:
