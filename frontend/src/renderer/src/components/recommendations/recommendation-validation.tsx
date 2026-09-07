@@ -86,17 +86,25 @@ export default function RecommendationValidation() {
   // historical screen's own choice to highlight from the saved/inferred
   // values, not a live diff).
   //
-  // A real limitation this screen inherits from how `buildAnnotations`
-  // (`utils/recommendations/build-annotations.ts`) builds its fields: each
-  // recipient is paired to its highlight by array index
+  // `buildAnnotations` (`utils/recommendations/build-annotations.ts`) pairs
+  // each recipient to its highlight by array index
   // (`recipient:${index}:name`, see that file's `fieldsToLocate`), not a
-  // stable id -- `RecipientPrediction` has none. If the person deletes a
-  // recipient (via `<RecommendationForm>`'s "Eliminar destinatario")
-  // *before* saving, the highlight for every recipient after the deleted
-  // one can point at the wrong name/position until the extraction is
-  // reloaded fresh. Not fixed here -- the historical screen had the
-  // identical limitation -- just flagged again at the point where it
-  // actually surfaces.
+  // stable id -- `RecipientPrediction` has none. This is a REGRESSION versus
+  // the historical screen, not an inherited limitation: its
+  // `build-annotations.ts` (`origin/feat/recomendaciones-defensoria`) paired
+  // each recipient by the saved destinatario's own id
+  // (`` `destinatario:${destinatario.id}:nombre` ``), which survives a
+  // deletion unaffected. If the person deletes a recipient (via
+  // `<RecommendationForm>`'s "Eliminar destinatario") *before* saving, the
+  // highlight for every recipient after the deleted one can point at the
+  // wrong name/position until the extraction is reloaded fresh. In practice
+  // this carries no risk today: `ExtractedValueAnnotation.field`/`isActive`
+  // aren't read by anything that could desync from it (see
+  // `components/file/extracted-annotation.tsx`, the only consumer of
+  // `.field`, which only mirrors it into a `data-` attribute). Not fixed
+  // here -- reintroducing id-stable pairing is out of scope for this fix
+  // wave -- just corrected so this no longer misattributes the regression to
+  // the historical port.
   const annotations = useMemo(
     () =>
       recommendation.prediction
