@@ -1,5 +1,5 @@
-import type { Paragraph } from "@/types/file";
 import { describe, expect, it } from "vitest";
+import type { Paragraph } from "@/types/file";
 import { locateValue, normalizeForMatch } from "./locate-value";
 
 const p = (id: string, value: string): Paragraph => ({

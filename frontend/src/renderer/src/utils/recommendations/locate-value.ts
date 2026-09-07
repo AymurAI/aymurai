@@ -1,5 +1,5 @@
-import type { Paragraph } from "@/types/file";
 import { distance } from "fastest-levenshtein";
+import type { Paragraph } from "@/types/file";
 
 export interface LocatedRange {
   paragraphId: string;
