@@ -62,6 +62,10 @@ export const USE_MOCK_CATALOGS =
 export const USE_MOCK_ORGANIGRAM =
   import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
 
+// Same as USE_MOCK_CATALOGS above, for `/api/llm/data-extraction/*`.
+export const USE_MOCK_DATA_EXTRACTION =
+  import.meta.env.VITE_USE_MOCK_DATA_EXTRACTION === "true";
+
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
 // only the two Defensoría-specific screens and their nav entries are.
