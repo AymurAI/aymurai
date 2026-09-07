@@ -116,6 +116,21 @@ describe("RecommendationProcess", () => {
     expect(screen.getByText("process.errorText")).toBeInTheDocument();
   });
 
+  it("Reintentar is offered and works after a manual Stop, with no error banner", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+
+    // Stop is not an error: it must not use the error copy/banner.
+    expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
+
+    // `retry` is a shared module-level mock across this file's tests (not
+    // cleared between them) -- reset it here so this assertion is about
+    // THIS click, not however many other tests happened to run first.
+    retry.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "process.retry" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it("never shows Reintentar for the scanned-PDF terminal error", () => {
     setStatus({ status: "error", isScannedPdf: true });
     render(<RecommendationProcess />);

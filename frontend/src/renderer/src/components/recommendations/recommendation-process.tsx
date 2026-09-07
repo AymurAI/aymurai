@@ -45,6 +45,11 @@ export default function RecommendationProcess() {
 
   const isReady = extraction.status === "ready";
   const isError = extraction.status === "error";
+  // A manual Stop must be retriable too -- see `useDataExtraction`'s `retry`,
+  // which no longer requires an error flag to fire. `status` stays "stopped"
+  // internally (distinct copy/visuals below), but the Reintentar affordance
+  // has to treat it the same as "error" or the button would never appear.
+  const isStopped = extraction.status === "stopped";
 
   // A real local LLM extraction can take minutes with no numeric progress to
   // report (see `progress` below). Without any moving signal, a healthy slow
@@ -68,14 +73,13 @@ export default function RecommendationProcess() {
   // `useDataExtraction`'s own status already accounts for every stage
   // (parsing/checking/extracting), so — unlike the generic screen — there is
   // no separate per-stage table to fold in here.
-  const combinedStatus: PredictStatus =
-    extraction.status === "stopped"
-      ? "stopped"
-      : isError
-        ? "error"
-        : isReady
-          ? "completed"
-          : "processing";
+  const combinedStatus: PredictStatus = isStopped
+    ? "stopped"
+    : isError
+      ? "error"
+      : isReady
+        ? "completed"
+        : "processing";
 
   // No per-paragraph ratio to weight here: it's a single LLM call, so we
   // report an indeterminate 0.5 while it runs and 1 once it's done.
@@ -133,17 +137,22 @@ export default function RecommendationProcess() {
                   onAbort={handleAbort}
                 />
               )}
-              {isError && (
+              {(isError || isStopped) && (
                 <Stack gap="3" direction="column" alignItems="flex-start">
-                  <Callout
-                    message={t(
-                      extraction.isScannedPdf
-                        ? "process.noTextError"
-                        : "process.errorText",
-                    )}
-                    variant="error"
-                    noBorder
-                  />
+                  {/* No Callout for a manual Stop: it's not an error, just
+                      what the person asked for -- the Retry button alone is
+                      enough to let them pick the flow back up. */}
+                  {isError && (
+                    <Callout
+                      message={t(
+                        extraction.isScannedPdf
+                          ? "process.noTextError"
+                          : "process.errorText",
+                      )}
+                      variant="error"
+                      noBorder
+                    />
+                  )}
                   {/* A scanned PDF is terminal: it will not succeed on a
                       second attempt, and Reintentar would just waste the
                       person's time. */}

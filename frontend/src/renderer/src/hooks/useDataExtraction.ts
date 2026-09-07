@@ -122,6 +122,19 @@ export function useDataExtraction(
 
   const mutation = useMutation(extractDocument());
 
+  // Cancel any in-flight extraction on unmount (or when the target document
+  // changes) instead of leaving it orphaned. This also means a genuine
+  // remount (e.g. navigate to preview and back) never races an old,
+  // still-running request: the old one is aborted first. Ported from the
+  // historical desktop-app's identical cleanup effect
+  // (`useDataExtraction.ts`, branch `feat/recomendaciones-defensoria`).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `documentId` is listed only to re-run this cleanup when the target document changes -- it is not read by the callback itself.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [documentId]);
+
   useEffect(() => {
     if (manualStop.current) return;
     if (!envelopeQuery.isSuccess || documentId === undefined) return;
@@ -223,27 +236,33 @@ export function useDataExtraction(
     if (!file || state.isScannedPdf) return;
     manualStop.current = false;
 
-    if (parseQuery.isError) {
+    // Whichever stage hasn't succeeded yet is the one that needs re-running
+    // -- it either failed outright, or it's the one Stop aborted mid-flight.
+    // Checking `isSuccess` rather than `isError` is what makes a stopped
+    // stage retriable too: `queryClient.cancelQueries` on a query with no
+    // prior data (see `abort` below) does NOT flip that query into an error
+    // state, so gating on `isError` alone would leave `retry` a no-op after
+    // Stop. This mirrors the historical hook's identical criterion
+    // (`!query.isSuccess` -> refetch that stage, else re-run the mutation).
+    if (!parseQuery.isSuccess) {
       dispatch(startParsing(file.name));
       parseQuery.refetch();
       return;
     }
     if (documentId === undefined) return;
-    if (envelopeQuery.isError) {
+    if (!envelopeQuery.isSuccess) {
       dispatch(startChecking(documentId));
       envelopeQuery.refetch();
       return;
     }
-    if (mutation.isError) {
-      dispatch(startExtracting());
-      const controller = new AbortController();
-      abortRef.current = controller;
-      mutation.mutate({
-        documentId,
-        paragraphs: paragraphs ?? [],
-        signal: controller.signal,
-      });
-    }
+    dispatch(startExtracting());
+    const controller = new AbortController();
+    abortRef.current = controller;
+    mutation.mutate({
+      documentId,
+      paragraphs: paragraphs ?? [],
+      signal: controller.signal,
+    });
   };
 
   const abort = () => {

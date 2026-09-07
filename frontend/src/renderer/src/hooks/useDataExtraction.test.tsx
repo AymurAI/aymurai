@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RecommendationProvider from "@/context/Recommendation";
 import api from "@/services/api";
@@ -197,5 +197,32 @@ describe("useDataExtraction", () => {
     expect(result.current.isScannedPdf).toBe(true);
     expect(api.get).not.toHaveBeenCalled();
     expect(extractSpy).not.toHaveBeenCalled();
+  });
+
+  it("resumes correctly after Stop mid envelope-search, then retry", async () => {
+    setUpPosts();
+    // Never resolves on its own -- simulates the envelope GET still being
+    // in flight when Stop is pressed (`cancelQueries` on a query with no
+    // prior data does not itself settle the promise; see `abort`'s note in
+    // `useDataExtraction.ts`).
+    vi.spyOn(api, "get").mockImplementationOnce(() => new Promise(() => {}));
+
+    const { result } = renderUseDataExtraction();
+
+    await waitFor(() => expect(result.current.status).toBe("checking"));
+
+    act(() => result.current.abort());
+    expect(result.current.status).toBe("stopped");
+
+    // Retry must be reachable and effective with no error flag ever having
+    // been set (Stop alone never produces one) -- this is the regression:
+    // `retry()` used to require `parseQuery.isError`/`envelopeQuery.isError`/
+    // `mutation.isError`, none of which a manual Stop ever sets.
+    mockEnvelope({ prediction: null, validation: null });
+    act(() => result.current.retry());
+
+    await waitFor(() => expect(result.current.origin).toBe("inference"));
+    expect(result.current.status).toBe("ready");
+    expect(extractSpy).toHaveBeenCalledTimes(1);
   });
 });
