@@ -50,6 +50,16 @@ const recommendations = {
     saveFailed:
       "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },
+  finish: {
+    sectionTitle: "4. Finalización",
+    description:
+      "Los datos encontrados por AymurAI y validados en el paso anterior ya son parte de la base estructurada de recomendaciones.",
+    subtitle: "Archivo procesado",
+    restart: "Procesar otro documento",
+    download: "Descargar la base de recomendaciones",
+    downloadFailed:
+      "No se pudo descargar el archivo. Revisá tu conexión e intentá nuevamente.",
+  },
 };
 
 export default recommendations;
