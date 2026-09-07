@@ -275,6 +275,24 @@ export default function RecommendationValidation() {
           )}
 
           <RecommendationForm
+            // `useRecommendationForm` freezes its `values`/`suggestions` on
+            // first render (`initialRef`) and never re-reads `prediction`
+            // afterwards -- a successful re-extraction (`handleReExtract`
+            // below) dispatches a NEW `prediction` in place, but without a
+            // changing `key` here React just re-renders the same component
+            // instance and the form silently keeps showing the stale
+            // extraction. `catalogs_hash` is guaranteed to differ across a
+            // re-extraction in practice: the "Volver a extraer" button only
+            // ever renders when `catalogsStale` is true, i.e. the catalogs
+            // snapshot changed since the stored `prediction` was generated,
+            // and a fresh extraction stamps the new snapshot's hash. A
+            // different `key` forces React to unmount + remount
+            // `<RecommendationForm>`, which resets `initialRef` naturally --
+            // and, just as importantly, keeps `selectedRecipientCandidates`
+            // (which reads `prediction.recipients` by `source_index`) from
+            // pairing an old `source_index` against the new prediction's
+            // recipients.
+            key={recommendation.prediction.config.catalogs_hash}
             prediction={recommendation.prediction}
             validation={recommendation.validation}
             onValuesChange={setPayload}
