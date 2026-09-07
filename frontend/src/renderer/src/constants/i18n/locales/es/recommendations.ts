@@ -20,6 +20,7 @@ const recommendations = {
     removeRecipient: "Eliminar destinatario",
     name: "Nombre",
     position: "Cargo",
+    unit: "Unidad del organigrama",
     isPrimary: "¿Es destinatario principal?",
     isPrimaryYes: "Sí",
     isPrimaryNo: "No",
