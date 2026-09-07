@@ -175,6 +175,37 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
   });
 });
 
+// Isolated from the describe blocks above: the file-level `vi.mock` pins
+// USE_MOCK_DATA_EXTRACTION to false for every static import, so exercising the
+// mock branch needs a fresh module registry with that flag overridden, same
+// as `services/api.test.ts` does for its own per-test env/mock switching.
+describe("dataExtraction service — mock implementation", () => {
+  afterEach(() => {
+    vi.doUnmock("@/constants/config");
+    vi.resetModules();
+  });
+
+  it("returns the mock export without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const getSpy = vi.spyOn(mockedApi, "get");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { mutationFn } = mockedDataExtraction.downloadRecommendationsExport();
+    const result = await (
+      mutationFn as (format?: "xlsx" | "csv") => Promise<Blob>
+    )("csv");
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(result).toBeInstanceOf(Blob);
+  });
+});
+
 describe("dataExtraction service — validates responses with zod", () => {
   afterEach(() => {
     vi.restoreAllMocks();

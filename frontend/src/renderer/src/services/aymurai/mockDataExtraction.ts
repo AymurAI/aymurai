@@ -189,3 +189,21 @@ export function mockValidateRecommendation(input: {
   validations.set(input.documentId, created);
   return delay(created);
 }
+
+/**
+ * Minimal placeholder file — enough for the download flow to exercise a real
+ * `Blob` end to end without depending on a real xlsx/csv writer in the mock.
+ */
+export function mockDownloadRecommendationsExport(
+  format: "xlsx" | "csv",
+): Promise<Blob> {
+  const type =
+    format === "csv"
+      ? "text/csv"
+      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const placeholder =
+    format === "csv"
+      ? "recommendation_number,topic,subtopic\n123/2026,Salud,Acceso a medicamentos\n"
+      : "mock xlsx placeholder";
+  return delay(new Blob([placeholder], { type }));
+}

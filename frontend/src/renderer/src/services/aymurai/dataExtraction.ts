@@ -75,10 +75,14 @@ export const validateRecommendation = () =>
 export const downloadRecommendationsExport = () =>
   mutationOptions({
     mutationFn: async (format: "xlsx" | "csv" = "xlsx") => {
-      const response = await api.get("/llm/data-extraction/export", {
-        params: { format },
-        responseType: "blob",
-      });
-      return response.data as Blob;
+      const data = USE_MOCK_DATA_EXTRACTION
+        ? await mock.mockDownloadRecommendationsExport(format)
+        : (
+            await api.get("/llm/data-extraction/export", {
+              params: { format },
+              responseType: "blob",
+            })
+          ).data;
+      return data as Blob;
     },
   });
