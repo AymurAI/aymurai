@@ -13,6 +13,7 @@ import type {
   FormOption,
   RecommendationValidation,
 } from "@/types/dataExtraction";
+import { RecipientFields } from "./recipient-fields";
 
 export interface RecommendationFormProps {
   prediction: DataExtractionPrediction;
@@ -56,11 +57,21 @@ function toSelectOptions(options: FormOption[]) {
  * single source of truth for edits) and renders every field.
  *
  * Ported from the historical desktop-app (`recomendacion-form.tsx` +
- * `destinatario-fields.tsx`, branch `feat/recomendaciones-defensoria`), with
- * the per-recipient fields folded into this one file rather than split into
- * a sibling component — Task 11's brief lists only this file, and recipients
- * here are addressed by array index (the hook's `setRecipient(index, patch)`)
- * rather than the historical per-recipient local id.
+ * `destinatario-fields.tsx`, branch `feat/recomendaciones-defensoria`).
+ * Per-recipient fields (name/position/the organigram unit selector/
+ * is_primary/macro_sector) live in `<RecipientFields>` (Task 12) — Task 11
+ * had folded them inline here instead, since its own brief listed only this
+ * file and `recipient-fields.tsx` didn't exist yet; Task 12 built that
+ * component but, by the same file-list logic, didn't wire it in here either.
+ * This fix round closes that gap.
+ *
+ * `<RecipientFields>` needs the selected recipient's `sector_candidates`
+ * (Task 6's `OrganigramCandidate[]`, empty for a non-GCBA recipient by
+ * design), which only `prediction.recipients` carries -- `values`/
+ * `suggestions` (from the hook) are shaped as `RecipientFormValues` and don't
+ * carry it. Looked up by `source_index` (never array position -- a deleted
+ * recipient shifts every later index), falling back to `[]` for a hand-added
+ * recipient (`source_index === null`) or one whose index no longer resolves.
  *
  * `date` stays free text (the model returns prose like "22 de noviembre"),
  * never a date picker. `personal_data` is tri-state: `RadioGroup` starts
@@ -107,9 +118,15 @@ export default function RecommendationForm({
 
   const topicOutOfCatalog = isOutOfCatalog(topicOptions, values.topic);
   const subtopicOutOfCatalog = isOutOfCatalog(subtopicOptions, values.subtopic);
-  const macroSectorOutOfCatalog = selectedRecipient
-    ? isOutOfCatalog(macroSectorOptions, selectedRecipient.macro_sector)
-    : false;
+
+  // `RecipientFields` needs the raw `sector_candidates` for the selected
+  // recipient -- absent from `values`/`suggestions` (`RecipientFormValues`
+  // has no candidates field), so this reads `prediction` directly, paired by
+  // `source_index` per the hook's own pairing rule (never array position).
+  const selectedRecipientCandidates = selectedRecipient
+    ? (prediction.recipients[selectedRecipient.source_index ?? -1]
+        ?.sector_candidates ?? [])
+    : [];
 
   return (
     <Stack gap="8">
@@ -152,71 +169,14 @@ export default function RecommendationForm({
         )}
 
         {selectedRecipient && (
-          <Stack gap="4">
-            <TextField
-              label={t("validation.name")}
-              value={selectedRecipient.name ?? ""}
-              suggestion={suggestedRecipient?.name ?? undefined}
-              onChange={(event) =>
-                setRecipient(selectedIndex, { name: event.target.value })
-              }
-            />
-
-            <TextField
-              label={t("validation.position")}
-              value={selectedRecipient.position ?? ""}
-              suggestion={suggestedRecipient?.position ?? undefined}
-              onChange={(event) =>
-                setRecipient(selectedIndex, { position: event.target.value })
-              }
-            />
-
-            <RadioGroup
-              label={t("validation.isPrimary")}
-              name={`is-primary-${selectedIndex}`}
-            >
-              <Radio
-                checked={selectedRecipient.is_primary === true}
-                onChange={() =>
-                  setRecipient(selectedIndex, { is_primary: true })
-                }
-              >
-                {t("validation.isPrimaryYes")}
-              </Radio>
-              <Radio
-                checked={selectedRecipient.is_primary === false}
-                onChange={() =>
-                  setRecipient(selectedIndex, { is_primary: false })
-                }
-              >
-                {t("validation.isPrimaryNo")}
-              </Radio>
-            </RadioGroup>
-
-            <Stack gap="1">
-              <Select
-                label={t("validation.macroSector")}
-                options={toSelectOptions(macroSectorOptions)}
-                value={selectedRecipient.macro_sector ?? undefined}
-                suggestion={
-                  suggestedRecipient?.macro_sector
-                    ? { id: suggestedRecipient.macro_sector }
-                    : undefined
-                }
-                onChange={(option) =>
-                  setRecipient(selectedIndex, { macro_sector: option.id })
-                }
-              />
-              {/* `Select` (@aymurai/ui) has no `error` prop, unlike
-                  `TextField` — render the out-of-catalog notice as its own
-                  text instead of silently discarding the model's value. */}
-              {macroSectorOutOfCatalog && (
-                <p className={errorText}>
-                  {t("validation.macroSectorOutOfCatalog")}
-                </p>
-              )}
-            </Stack>
-          </Stack>
+          <RecipientFields
+            index={selectedIndex}
+            value={selectedRecipient}
+            suggestion={suggestedRecipient}
+            candidates={selectedRecipientCandidates}
+            macroSectorOptions={macroSectorOptions}
+            onChange={(patch) => setRecipient(selectedIndex, patch)}
+          />
         )}
       </Stack>
 
