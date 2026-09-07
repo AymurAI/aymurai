@@ -189,7 +189,31 @@ export default function RecommendationValidation() {
     <>
       <Header title={t("title")} feature={feature} currentStep={3} />
       <Grid
-        columns={2}
+        // RSP: `columns={2}` (the value this replaces) maps to a single
+        // fixed `repeat(2, minmax(0, 1fr))` at every viewport (see
+        // `styled/patterns/grid.mjs`'s `transform` -- `columns` isn't
+        // responsive-aware the way `gridTemplateColumns` is), so the document
+        // and form panes never stacked below `lg` and instead got squeezed
+        // to ~half the viewport width each on a narrow screen. Same
+        // `gridTemplateColumns` escape as `validate-dataset/index.tsx` (no
+        // token category for this property per `.claude/rules/panda-css.md`,
+        // so `strictTokens` doesn't require the bracket here -- kept for the
+        // `token()`-free literal's consistency with that file's precedent).
+        //
+        // Rows: even 50/50 split once stacked, unlike
+        // `validate-dataset/index.tsx`'s tuned 62/38 -- both panes here
+        // already scroll independently (FileAnnotator internally,
+        // the form Stack via its own `overflowY: auto` below), so neither
+        // pane needs a taller share to avoid clipping content; no design
+        // spec exists for a different split.
+        gridTemplateColumns={{
+          base: "[minmax(0, 1fr)]",
+          lg: "[repeat(2, minmax(0, 1fr))]",
+        }}
+        gridTemplateRows={{
+          base: "[minmax(0, 1fr) minmax(0, 1fr)]",
+          lg: "[minmax(0, 1fr)]",
+        }}
         gap="0"
         flex="1"
         minHeight="0"
