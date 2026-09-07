@@ -1,11 +1,13 @@
 import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   DataExtractionPrediction,
   OrganigramCandidate,
+  RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import RecommendationForm from "./recommendation-form";
 
