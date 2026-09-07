@@ -47,7 +47,12 @@ const CANDIDATES: OrganigramCandidate[] = [
 describe("RecipientUnitSelect", () => {
   it("is not rendered when there are no candidates", () => {
     renderWithProvider(
-      <RecipientUnitSelect candidates={[]} value={null} onChange={vi.fn()} />,
+      <RecipientUnitSelect
+        candidates={[]}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
     );
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
@@ -57,7 +62,8 @@ describe("RecipientUnitSelect", () => {
     renderWithProvider(
       <RecipientUnitSelect
         candidates={CANDIDATES}
-        value={null}
+        unitId={null}
+        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -82,7 +88,8 @@ describe("RecipientUnitSelect", () => {
     renderWithProvider(
       <RecipientUnitSelect
         candidates={CANDIDATES}
-        value={null}
+        unitId={null}
+        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -95,7 +102,8 @@ describe("RecipientUnitSelect", () => {
     renderWithProvider(
       <RecipientUnitSelect
         candidates={CANDIDATES}
-        value={null}
+        unitId={null}
+        sectorId={null}
         onChange={onChange}
       />,
     );
@@ -106,5 +114,39 @@ describe("RecipientUnitSelect", () => {
       unit_id: CANDIDATES[0].unit_id,
       sector_id: CANDIDATES[0].sector_id,
     });
+  });
+
+  // Real server shape (`_sector_candidates_from_units`, backend): every
+  // candidate's `unit_id` and `sector_id` are the SAME sector id -- unlike
+  // `CANDIDATES` above (`u1`/`s1`, distinct ids), which happened not to catch
+  // this. The backend's automatic resolution sets `unit_id` to a *leaf*
+  // unit (never a candidate here) and `sector_id` to that leaf's ancestor
+  // sector -- which IS one of these candidates.
+  const REAL_SHAPE_CANDIDATES: OrganigramCandidate[] = [
+    {
+      unit_id: "sector-1",
+      unit_name: "Secretaría de Gobierno y Vínculo Ciudadano",
+      sector_id: "sector-1",
+      sector_name: "GCBA",
+      ruta_organigrama: "Jefatura de Gabinete › Secretaría de Gobierno",
+      score: 90.4,
+    },
+  ];
+
+  it("preselects the candidate the backend already resolved, matched by sector_id", () => {
+    renderWithProvider(
+      <RecipientUnitSelect
+        candidates={REAL_SHAPE_CANDIDATES}
+        // A leaf unit id, distinct from any candidate here -- exactly the
+        // shape the backend's automatic resolution produces.
+        unitId="leaf-unit-42"
+        sectorId="sector-1"
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox")).toHaveTextContent(
+      REAL_SHAPE_CANDIDATES[0].unit_name,
+    );
   });
 });

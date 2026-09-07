@@ -109,7 +109,8 @@ export function RecipientFields({
       <RecipientUnitSelect
         label={t("validation.unit")}
         candidates={candidates}
-        value={value.unit_id}
+        unitId={value.unit_id}
+        sectorId={value.sector_id}
         onChange={(picked) =>
           onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
         }
