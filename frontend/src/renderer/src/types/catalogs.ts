@@ -19,6 +19,22 @@ export interface Subtopic {
   updated_at: string | null;
 }
 
+/**
+ * The 4 fixed macro sectors (GCBA / Organismos Nacionales / Obra Social -
+ * Prepaga / Empresa) — unlike topic/subtopic, `code` is never nullable: it
+ * governs behavior server-side (only "GCBA" triggers the organigram
+ * cross-check), so every row is seeded with one.
+ */
+export interface MacroSector {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+  order: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export interface CategoryUsage {
   count: number;
 }

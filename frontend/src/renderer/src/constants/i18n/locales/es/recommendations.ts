@@ -13,6 +13,27 @@ const recommendations = {
     retry: "Reintentar",
     next: "Siguiente",
   },
+  validation: {
+    recommendationNumber: "Número de recomendación",
+    recommendationDate: "Fecha de la recomendación",
+    recipientLabel: "Destinatario",
+    removeRecipient: "Eliminar destinatario",
+    name: "Nombre",
+    position: "Cargo",
+    isPrimary: "¿Es destinatario principal?",
+    isPrimaryYes: "Sí",
+    isPrimaryNo: "No",
+    macroSector: "Sector",
+    macroSectorOutOfCatalog: "Sector fuera de la lista definida",
+    topic: "Tema",
+    subtopic: "Subtema",
+    topicOutOfCatalog: "Tema fuera de la taxonomía definida",
+    subtopicOutOfCatalog: "Subtema fuera de la taxonomía del tema seleccionado",
+    personalData: "¿El contenido incluye datos personales?",
+    personalDataYes: "Sí",
+    personalDataNo: "No",
+    publishableContent: "Contenido para publicar",
+  },
 };
 
 export default recommendations;
