@@ -25,4 +25,12 @@ describe("filesForFeatureLoad", () => {
       expect(filesForFeatureLoad(feature, files)).toEqual(files);
     }
   });
+
+  it("keeps a single document for recommendations", () => {
+    const files = [file("a.pdf"), file("b.pdf")];
+
+    expect(filesForFeatureLoad(FeatureFlowEnum.Recommendations, files)).toEqual(
+      [files[1]],
+    );
+  });
 });
