@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
 import { RecipientUnitSelect } from "./recipient-unit-select";
 
@@ -166,10 +166,22 @@ describe("RecipientUnitSelect", () => {
   });
 });
 
+// Reassignable per-test so the loading/error tests below can control what
+// `listUnits()`'s `queryFn` does without a separate `vi.mock` per case --
+// the closure is only invoked at render time (well after this module's
+// top-level code runs), same as the existing `FULL_CORPUS` forward
+// reference below.
+let listUnitsQueryFn: () => Promise<unknown> = () =>
+  Promise.resolve(FULL_CORPUS);
+
+afterEach(() => {
+  listUnitsQueryFn = () => Promise.resolve(FULL_CORPUS);
+});
+
 vi.mock("@/services/aymurai/organigram", () => ({
   listUnits: () => ({
     queryKey: ["organigram-units"],
-    queryFn: async () => FULL_CORPUS,
+    queryFn: () => listUnitsQueryFn(),
   }),
   createUnit: () => ({
     mutationFn: async (input: { name: string }) => ({
@@ -203,7 +215,12 @@ const FULL_CORPUS = [
 ];
 
 function renderWithQueryClient(ui: ReactElement) {
-  const queryClient = new QueryClient();
+  // `retry: false` -- otherwise a rejected `queryFn` (the error-state test
+  // below) retries with backoff under the default `QueryClient` options,
+  // making `unitsQuery.isError` slow to become true and the test flaky.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>{ui}</TooltipProvider>
@@ -301,5 +318,53 @@ describe("RecipientUnitSelect — search beyond the top 5", () => {
         sector_id: null,
       }),
     );
+  });
+
+  // Regression: `unitsQuery.data` is `undefined` both while the corpus is
+  // still loading and after a failed fetch, which would otherwise make
+  // `searchResults` resolve to `[]` indistinguishably from "confirmed zero
+  // matches" -- offering to create a unit in either case risks creating a
+  // duplicate `OrganigramUnit` row for something that already exists in the
+  // not-yet-loaded/failed corpus.
+  it("does not offer to create a unit while the corpus is still loading", async () => {
+    listUnitsQueryFn = () => new Promise(() => {}); // never resolves
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    expect(
+      await screen.findByText(/buscando en el organigrama/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /crear/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer to create a unit when the corpus fails to load", async () => {
+    listUnitsQueryFn = () => Promise.reject(new Error("network error"));
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    expect(
+      await screen.findByText(/no se pudo cargar el organigrama/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /crear/i }),
+    ).not.toBeInTheDocument();
   });
 });

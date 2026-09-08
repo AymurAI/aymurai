@@ -48,6 +48,12 @@ const searchResultButton = css({
   rounded: "sm",
 });
 
+const statusText = css({
+  display: "block",
+  color: "text.lighter",
+  p: "2",
+});
+
 function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
   const q = needle.toLowerCase();
   return (
@@ -86,6 +92,14 @@ export function RecipientUnitSelect({
           matchesQuery(unit, trimmedQuery),
         )
       : [];
+  // `unitsQuery.data` is `undefined` both while the corpus is still loading
+  // and after a failed fetch, which would otherwise make `searchResults`
+  // resolve to `[]` indistinguishably from "confirmed zero matches across
+  // the whole organigram" -- offering to create a unit in either case risks
+  // creating a duplicate `OrganigramUnit` row for something that already
+  // exists in the not-yet-loaded/failed corpus. Only offer "create" once the
+  // corpus has actually loaded successfully.
+  const canOfferCreate = trimmedQuery.length > 0 && unitsQuery.isSuccess;
 
   return (
     <Stack gap="2">
@@ -129,7 +143,15 @@ export function RecipientUnitSelect({
               {unit.name}
             </button>
           ))}
-          {searchResults.length === 0 && (
+          {searchResults.length === 0 && unitsQuery.isLoading && (
+            <span className={statusText}>Buscando en el organigrama…</span>
+          )}
+          {searchResults.length === 0 && unitsQuery.isError && (
+            <span className={statusText}>
+              No se pudo cargar el organigrama para buscar. Reintentá más tarde.
+            </span>
+          )}
+          {searchResults.length === 0 && canOfferCreate && (
             <button
               type="button"
               className={searchResultButton}
