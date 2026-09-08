@@ -12,6 +12,39 @@ const recommendations = {
       "Selecciona o arrastra el archivo para\nagregar a la base de recomendaciones",
     dropAreaFormats: documentFormats,
   },
+  preview: {
+    sectionTitle: "1. Selección de archivo",
+    filesLabel: "Vista previa del documento",
+    validFormats: documentFormats,
+    loadMore: "Cargar más documentos",
+    continue: "Continuar",
+  },
+  howItWorks: {
+    step1: {
+      alt: "Interfaz web con selector y cursor",
+      title: "Selecciona el documento con la recomendación",
+      subtitle:
+        "Sube el documento que quieres incorporar a la base de recomendaciones.",
+    },
+    step2: {
+      alt: "Barra de búsqueda con cursor",
+      title: "La inteligencia artificial analiza el documento",
+      subtitle:
+        "Extrae automáticamente la información relevante de la recomendación.",
+    },
+    step3: {
+      alt: "Visor de documentos con controles de revisión",
+      title: "Revisión y validación humana",
+      subtitle:
+        "Es importante que verifiques que los datos sean correctos antes de continuar.",
+    },
+    step4: {
+      alt: "Binoculares con globo terráqueo",
+      title: "Registro de la recomendación",
+      subtitle:
+        "El documento pasa a formar parte de la base estructurada de recomendaciones de la Defensoría.",
+    },
+  },
   process: {
     sectionTitle: "2. Extracción de datos",
     processingTitle: "AymurAI está extrayendo los datos de los archivos.",

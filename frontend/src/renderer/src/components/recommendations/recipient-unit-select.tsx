@@ -1,5 +1,5 @@
-import { Search, Select } from "@aymurai/ui";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { Callout, Search, Select } from "@aymurai/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { createUnit, listUnits } from "@/services/aymurai/organigram";
 import { css } from "@/styled/css";
@@ -71,6 +71,8 @@ export function RecipientUnitSelect({
   label,
 }: RecipientUnitSelectProps) {
   const [query, setQuery] = useState("");
+  const [createUnitFailed, setCreateUnitFailed] = useState(false);
+  const queryClient = useQueryClient();
   const unitsQuery = useQuery(listUnits());
   const createUnitMutation = useMutation(createUnit());
 
@@ -157,12 +159,26 @@ export function RecipientUnitSelect({
               className={searchResultButton}
               disabled={createUnitMutation.isPending}
               onClick={() => {
+                setCreateUnitFailed(false);
                 createUnitMutation.mutate(
                   { parent_id: null, name: trimmedQuery, is_sector: false },
                   {
                     onSuccess: (unit) => {
+                      // The organigram search above reads from `listUnits()`'s
+                      // cache -- without invalidating it here, searching the
+                      // same text again within this mounted instance still
+                      // sees the stale (pre-creation) corpus, so the "Crear…"
+                      // button reappears and risks creating a duplicate
+                      // `OrganigramUnit` row. Matches unit-create-dialog.tsx's
+                      // invalidation of the same query on a successful create.
+                      queryClient.invalidateQueries({
+                        queryKey: listUnits().queryKey,
+                      });
                       onChange({ unit_id: unit.id, sector_id: null });
                       setQuery("");
+                    },
+                    onError: () => {
+                      setCreateUnitFailed(true);
                     },
                   },
                 );
@@ -170,6 +186,13 @@ export function RecipientUnitSelect({
             >
               Crear "{trimmedQuery}" como nueva unidad
             </button>
+          )}
+          {createUnitFailed && (
+            <Callout
+              message="No se pudo crear la unidad. Revisá tu conexión e intentá de nuevo."
+              variant="error"
+              role="alert"
+            />
           )}
         </Stack>
       )}

@@ -173,18 +173,26 @@ describe("RecipientUnitSelect", () => {
 // reference below.
 let listUnitsQueryFn: () => Promise<unknown> = () =>
   Promise.resolve(FULL_CORPUS);
+let createUnitMutationFn: (input: { name: string }) => Promise<unknown> = (
+  input,
+) =>
+  Promise.resolve({
+    id: "new-unit-id",
+    parent_id: null,
+    name: input.name,
+    acronym: null,
+    short_name: null,
+    is_sector: false,
+    active: true,
+    order: 1,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: null,
+  });
 
 afterEach(() => {
   listUnitsQueryFn = () => Promise.resolve(FULL_CORPUS);
-});
-
-vi.mock("@/services/aymurai/organigram", () => ({
-  listUnits: () => ({
-    queryKey: ["organigram-units"],
-    queryFn: () => listUnitsQueryFn(),
-  }),
-  createUnit: () => ({
-    mutationFn: async (input: { name: string }) => ({
+  createUnitMutationFn = (input) =>
+    Promise.resolve({
       id: "new-unit-id",
       parent_id: null,
       name: input.name,
@@ -195,7 +203,16 @@ vi.mock("@/services/aymurai/organigram", () => ({
       order: 1,
       created_at: "2026-01-01T00:00:00Z",
       updated_at: null,
-    }),
+    });
+});
+
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({
+    queryKey: ["organigram-units"],
+    queryFn: () => listUnitsQueryFn(),
+  }),
+  createUnit: () => ({
+    mutationFn: async (input: { name: string }) => createUnitMutationFn(input),
   }),
 }));
 
@@ -221,11 +238,14 @@ function renderWithQueryClient(ui: ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>{ui}</TooltipProvider>
-    </QueryClientProvider>,
-  );
+  return {
+    queryClient,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>{ui}</TooltipProvider>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe("RecipientUnitSelect — search beyond the top 5", () => {
@@ -318,6 +338,64 @@ describe("RecipientUnitSelect — search beyond the top 5", () => {
         sector_id: null,
       }),
     );
+  });
+
+  // Regression: creating a unit through this selector must invalidate the
+  // shared `listUnits()` query so a subsequent search within the same
+  // mounted instance sees the newly-created unit instead of the stale
+  // cache -- otherwise the "Crear…" button reappears for the same text and
+  // risks creating a duplicate `OrganigramUnit` row. Matches
+  // unit-create-dialog.tsx's invalidation of the same query on success.
+  it("invalidates the units query cache after creating a new unit", async () => {
+    const { queryClient } = renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /crear "una unidad que no existe" como nueva unidad/i,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ["organigram-units"] }),
+      ),
+    );
+  });
+
+  it("shows an inline error when creating a new unit fails", async () => {
+    listUnitsQueryFn = () => Promise.resolve(FULL_CORPUS);
+    createUnitMutationFn = () => Promise.reject(new Error("network error"));
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /crear "una unidad que no existe" como nueva unidad/i,
+      }),
+    );
+
+    expect(
+      await screen.findByText(/no se pudo crear la unidad/i),
+    ).toBeInTheDocument();
   });
 
   // Regression: `unitsQuery.data` is `undefined` both while the corpus is
