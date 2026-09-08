@@ -1,7 +1,17 @@
+import { documentFormats } from "./document-formats";
+
 const recommendations = {
   title: "Recomendaciones",
   subtitle:
     "Registra las recomendaciones de la Defensoría en una base estructurada",
+  onboarding: {
+    sectionTitle: "1. Selección de archivo",
+    loadDocuments: "Cargar documento",
+    validFormats: documentFormats,
+    dropAreaTitle:
+      "Selecciona o arrastra el archivo para\nagregar a la base de recomendaciones",
+    dropAreaFormats: documentFormats,
+  },
   process: {
     sectionTitle: "2. Extracción de datos",
     processingTitle: "AymurAI está extrayendo los datos de los archivos.",
