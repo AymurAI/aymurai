@@ -102,13 +102,23 @@ function RouteComponent() {
                 {t("home.features.greeting")}
               </styled.h1>
               <Grid gap="6" className={featureGrid}>
-                <FeatureCardLink
-                  to="/$feature"
-                  params={{ feature: FeatureFlowEnum.Dataset }}
-                  title={t("dataset:title")}
-                  subtitle={t("dataset:subtitle")}
-                  icon={FEATURE_ICON.DATA_SET}
-                />
+                {isDefensoriaEnabled() ? (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Recommendations }}
+                    title={t("dataset:title")}
+                    subtitle={t("recommendations:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                ) : (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Dataset }}
+                    title={t("dataset:title")}
+                    subtitle={t("dataset:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                )}
                 <FeatureCardLink
                   to="/$feature"
                   params={{ feature: FeatureFlowEnum.Anonymizer }}
@@ -130,15 +140,6 @@ function RouteComponent() {
                   subtitle={t("summarizer:subtitle")}
                   icon={FEATURE_ICON.SUMMARIZER}
                 />
-                {isDefensoriaEnabled() && (
-                  <FeatureCardLink
-                    to="/$feature"
-                    params={{ feature: FeatureFlowEnum.Recommendations }}
-                    title={t("recommendations:title")}
-                    subtitle={t("recommendations:subtitle")}
-                    icon={FEATURE_ICON.RECOMMENDATIONS}
-                  />
-                )}
               </Grid>
               <AppCredits className={builtBy} />
             </div>

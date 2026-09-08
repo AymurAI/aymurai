@@ -101,7 +101,7 @@ describe("FeaturesMenu — Summarizer", () => {
   });
 });
 
-describe("FeaturesMenu — recommendations flag gate", () => {
+describe("FeaturesMenu — recommendations replaces Set de Datos", () => {
   beforeEach(() => {
     dispatch.mockClear();
     navigate.mockClear();
@@ -111,17 +111,30 @@ describe("FeaturesMenu — recommendations flag gate", () => {
     vi.unstubAllEnvs();
   });
 
-  it("does not list recommendations when the flag is off", () => {
+  it("lists Set de Datos linking to Dataset when the flag is off", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
     render(<FeaturesMenu />);
     fireEvent.click(screen.getByRole("button", { name: "Ir al inicio" }));
-    expect(screen.queryByText("recommendations:title")).toBeNull();
+    fireEvent.click(screen.getByText("dataset:title"));
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/$feature/onboarding",
+      params: { feature: "DATA_SET" },
+      viewTransition: false,
+    });
   });
 
-  it("lists recommendations when the flag is on", () => {
+  it("keeps the Set de Datos label but routes to Recommendations when the flag is on", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
     render(<FeaturesMenu />);
     fireEvent.click(screen.getByRole("button", { name: "Ir al inicio" }));
-    expect(screen.getByText("recommendations:title")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("dataset:title"));
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/$feature/onboarding",
+      params: { feature: "RECOMMENDATIONS" },
+      viewTransition: false,
+    });
+    expect(screen.queryByText("recommendations:title")).toBeNull();
   });
 });

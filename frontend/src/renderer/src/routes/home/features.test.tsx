@@ -66,24 +66,34 @@ describe("home/features — Summarizer card", () => {
   });
 });
 
-describe("recommendations feature card", () => {
+describe("recommendations feature replaces Set de Datos card", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("is hidden when the Defensoría flag is off", () => {
+  it("shows Set de Datos linking to Dataset when the flag is off", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
     const RouteComponent = Route.options.component as React.FC;
     render(<RouteComponent />);
 
+    const link = screen.getByText("dataset:title").closest("a");
+    expect(link).toHaveAttribute("href", expect.stringContaining("DATA_SET"));
     expect(screen.queryByText("recommendations:title")).not.toBeInTheDocument();
+    expect(screen.getByText("dataset:subtitle")).toBeInTheDocument();
   });
 
-  it("is shown when the Defensoría flag is on", () => {
+  it("keeps the Set de Datos name but routes to Recommendations when the flag is on", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
     const RouteComponent = Route.options.component as React.FC;
     render(<RouteComponent />);
 
-    expect(screen.getByText("recommendations:title")).toBeInTheDocument();
+    const link = screen.getByText("dataset:title").closest("a");
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("RECOMMENDATIONS"),
+    );
+    expect(screen.queryByText("recommendations:title")).not.toBeInTheDocument();
+    expect(screen.queryByText("dataset:subtitle")).not.toBeInTheDocument();
+    expect(screen.getByText("recommendations:subtitle")).toBeInTheDocument();
   });
 });
