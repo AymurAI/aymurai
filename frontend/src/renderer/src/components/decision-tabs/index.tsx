@@ -31,8 +31,11 @@ interface Props {
   decisionAmount: number;
   addDecision: () => void;
   selectDecision: (n: number) => void;
-  /** Overridable per caller -- the legacy `validate-dataset` flow reuses this
-   *  same component and keeps its historical "Decisión N" label. */
+  /** Overridable per caller. The legacy `validate-dataset` flow also reuses
+   *  this component and does not currently pass a label override -- its own
+   *  tests don't assert the "Decisión N" text, so it picks up the new
+   *  "Destinatario N" default too, as an acceptable side effect of fixing
+   *  this shared component. Pass an explicit `label` to keep old copy. */
   label?: string;
 }
 export default function DecisionTabs({
