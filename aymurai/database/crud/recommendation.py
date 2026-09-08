@@ -135,6 +135,10 @@ class RecommendationValidationData:
     personal_data: bool | None
     publishable_content: str
     recipients: list[RecipientValidationData] = field(default_factory=list)
+    # Explicit human override from the date-picker field, wins over
+    # `parse_recommendation_date(recommendation_date_text)` when given --
+    # `None` keeps today's auto-parse-on-every-save behavior unchanged.
+    recommendation_date: date | None = None
 
 
 def _resolve_topic_subtopic(
@@ -282,7 +286,11 @@ def recommendation_upsert(
     """
     dataset = get_or_create_default_dataset(session)
     topic_id, subtopic_id = _resolve_topic_subtopic(data.topic, data.subtopic, session)
-    recommendation_date = parse_recommendation_date(data.recommendation_date_text)
+    recommendation_date = (
+        data.recommendation_date
+        if data.recommendation_date is not None
+        else parse_recommendation_date(data.recommendation_date_text)
+    )
 
     recommendation = session.exec(
         select(Recommendation)

@@ -296,6 +296,7 @@ async def api_data_extraction_validate(
     data = RecommendationValidationData(
         recommendation_number=payload.recommendation_number,
         recommendation_date_text=payload.recommendation_date_text,
+        recommendation_date=payload.recommendation_date,
         topic=payload.topic,
         subtopic=payload.subtopic,
         personal_data=payload.personal_data,

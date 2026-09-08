@@ -589,3 +589,33 @@ def test_q_search_treats_a_backslash_as_literal_text(session):
     assert len(recommendation_list(session, q="\\")[0]) == 1
     assert len(recommendation_list(session, q=r"c:\temp")[0]) == 1
     assert len(recommendation_list(session, q=r"c:\%")[0]) == 0
+
+
+def test_recommendation_upsert_uses_explicit_date_over_auto_parse(session):
+    document_id = uuid.uuid4()
+    data = RecommendationValidationData(
+        recommendation_number="123",
+        recommendation_date_text="10 de julio de 2024",
+        recommendation_date=date(2024, 7, 11),  # human-corrected, off by a day
+        topic=None,
+        subtopic=None,
+        personal_data=None,
+        publishable_content="contenido",
+    )
+    recommendation = recommendation_upsert(document_id, data, session)
+    assert recommendation.recommendation_date == date(2024, 7, 11)
+
+
+def test_recommendation_upsert_falls_back_to_auto_parse_when_date_omitted(session):
+    document_id = uuid.uuid4()
+    data = RecommendationValidationData(
+        recommendation_number="123",
+        recommendation_date_text="10 de julio de 2024",
+        recommendation_date=None,
+        topic=None,
+        subtopic=None,
+        personal_data=None,
+        publishable_content="contenido",
+    )
+    recommendation = recommendation_upsert(document_id, data, session)
+    assert recommendation.recommendation_date == date(2024, 7, 10)

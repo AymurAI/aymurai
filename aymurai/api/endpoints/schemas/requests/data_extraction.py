@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,6 +42,10 @@ class ValidateRecommendationRequest(BaseModel):
 
     recommendation_number: str | None = None
     recommendation_date_text: str | None = None
+    # Explicit human override, wins over the backend's auto-parse of
+    # `recommendation_date_text` when given -- `None` (old clients included)
+    # keeps today's auto-parse-on-every-save behavior unchanged.
+    recommendation_date: date | None = None
     topic: str | None = None
     subtopic: str | None = None
     personal_data: bool | None = None
