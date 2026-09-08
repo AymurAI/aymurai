@@ -15,6 +15,7 @@ import type {
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { RecipientFields } from "./recipient-fields";
+import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecommendationFormProps {
   prediction: DataExtractionPrediction;
@@ -150,13 +151,11 @@ export default function RecommendationForm({
 
   return (
     <Stack gap="8">
-      <TextField
+      <ValidatedTextField
         label={t("validation.recommendationNumber")}
         value={values.recommendation_number ?? ""}
-        suggestion={suggestions.recommendation_number ?? undefined}
-        onChange={(event) =>
-          setValue("recommendation_number", event.target.value)
-        }
+        suggestion={suggestions.recommendation_number}
+        onChange={(value) => setValue("recommendation_number", value)}
       />
 
       <TextField

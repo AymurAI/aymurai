@@ -1,4 +1,4 @@
-import { Radio, Select, TextField } from "@aymurai/ui";
+import { Radio, Select } from "@aymurai/ui";
 import { useTranslation } from "react-i18next";
 import RadioGroup from "@/components/radio/radio-group";
 import { css } from "@/styled/css";
@@ -9,6 +9,7 @@ import type {
   RecipientFormValues,
 } from "@/types/dataExtraction";
 import { RecipientUnitSelect } from "./recipient-unit-select";
+import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecipientFieldsProps {
   /** Index into `values.recipients` -- used only to key the `is_primary`
@@ -92,18 +93,18 @@ export function RecipientFields({
 
   return (
     <Stack gap="4">
-      <TextField
+      <ValidatedTextField
         label={t("validation.name")}
         value={value.name ?? ""}
-        suggestion={suggestion?.name ?? undefined}
-        onChange={(event) => onChange({ name: event.target.value })}
+        suggestion={suggestion?.name}
+        onChange={(name) => onChange({ name })}
       />
 
-      <TextField
+      <ValidatedTextField
         label={t("validation.position")}
         value={value.position ?? ""}
-        suggestion={suggestion?.position ?? undefined}
-        onChange={(event) => onChange({ position: event.target.value })}
+        suggestion={suggestion?.position}
+        onChange={(position) => onChange({ position })}
       />
 
       <RecipientUnitSelect
