@@ -136,6 +136,7 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
     const payload: RecommendationValidationInput = {
       recommendation_number: null,
       recommendation_date_text: null,
+      recommendation_date: null,
       topic: null,
       subtopic: null,
       personal_data: null,
@@ -251,6 +252,7 @@ describe("dataExtraction service — validates responses with zod", () => {
         payload: {
           recommendation_number: null,
           recommendation_date_text: null,
+          recommendation_date: null,
           topic: null,
           subtopic: null,
           personal_data: null,

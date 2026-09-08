@@ -38,6 +38,7 @@ const recommendations = {
       "No se encontró la información extraída para este documento.",
     recommendationNumber: "Número de recomendación",
     recommendationDate: "Fecha de la recomendación",
+    recommendationDateRaw: "Texto original detectado",
     recipientLabel: "Destinatario",
     removeRecipient: "Eliminar destinatario",
     name: "Nombre",

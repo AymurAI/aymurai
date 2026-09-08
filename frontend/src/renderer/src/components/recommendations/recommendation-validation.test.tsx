@@ -116,6 +116,7 @@ vi.mock("./recommendation-form", () => ({
       () => ({
         recommendation_number: prediction.recommendation_number,
         recommendation_date_text: prediction.recommendation_date,
+        recommendation_date: null,
         topic: prediction.topic,
         subtopic: prediction.subtopic,
         personal_data: prediction.personal_data,

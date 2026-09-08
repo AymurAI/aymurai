@@ -95,6 +95,7 @@ export interface RecipientValidationInput {
 export interface RecommendationValidationInput {
   recommendation_number: string | null;
   recommendation_date_text: string | null;
+  recommendation_date: string | null;
   topic: string | null;
   subtopic: string | null;
   personal_data: boolean | null;
@@ -119,6 +120,8 @@ export interface RecommendationFormValues {
   recommendation_number: string | null;
   /** Free prose, not a date: the model returns things like "22 de noviembre". */
   recommendation_date_text: string | null;
+  /** `YYYY-MM-DD` for the native date input, or `null` for its empty state. */
+  recommendation_date: string | null;
   topic: string | null;
   subtopic: string | null;
   /** Tri-state: null means the question was not answered. */

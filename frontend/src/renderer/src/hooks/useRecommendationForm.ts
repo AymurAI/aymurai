@@ -16,6 +16,7 @@ import type {
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 
 export interface UseRecommendationFormResult {
   /** Frozen at first render — see `useRecommendationForm`'s doc. */
@@ -108,6 +109,7 @@ function valuesFromPrediction(
   return {
     recommendation_number: prediction.recommendation_number,
     recommendation_date_text: prediction.recommendation_date,
+    recommendation_date: parseSpanishProseDate(prediction.recommendation_date),
     topic: prediction.topic,
     subtopic: prediction.subtopic,
     personal_data: prediction.personal_data,
@@ -137,6 +139,7 @@ function buildInitial(
   const values: RecommendationFormValues = {
     recommendation_number: validation.recommendation_number,
     recommendation_date_text: validation.recommendation_date_text,
+    recommendation_date: validation.recommendation_date,
     topic: validation.topic,
     subtopic: validation.subtopic,
     personal_data: validation.personal_data,
@@ -326,6 +329,7 @@ export function useRecommendationForm(
     (): RecommendationValidationInput => ({
       recommendation_number: values.recommendation_number,
       recommendation_date_text: values.recommendation_date_text,
+      recommendation_date: values.recommendation_date,
       topic: values.topic,
       subtopic: values.subtopic,
       // `null` ("sin responder") travels through as-is: coercing it to

@@ -50,6 +50,13 @@ const errorText = css({
   color: "system.error",
 });
 
+/**
+ * `TextField` narrows `type` to text|number, but forwards the value straight
+ * onto its `<input>` -- matches `holder-correct-dialog.tsx`'s identical cast
+ * for the same reason (a native date input, not a custom picker).
+ */
+const DATE_TYPE = "date" as "text";
+
 /** `value` the model returned isn't among `options`' non-flagged entries —
  *  i.e. it's the out-of-catalog extra `useRecommendationForm` appended. */
 function isOutOfCatalog(options: FormOption[], value: string | null): boolean {
@@ -84,8 +91,11 @@ function toSelectOptions(options: FormOption[]) {
  * recipient shifts every later index), falling back to `[]` for a hand-added
  * recipient (`source_index === null`) or one whose index no longer resolves.
  *
- * `date` stays free text (the model returns prose like "22 de noviembre"),
- * never a date picker. `personal_data` is tri-state: `RadioGroup` starts
+ * The recommendation date has two fields: the raw prose the model returned
+ * (always editable free text, never replaced) and a native `type="date"`
+ * picker seeded from it via `parseSpanishProseDate`, which the person can
+ * override -- that override wins over the backend's own auto-parse.
+ * `personal_data` is tri-state: `RadioGroup` starts
  * with neither radio marked when it's `null` ("sin responder").
  *
  * The existing `DecisionTabs` (ported earlier, for a different flow) has no
@@ -158,12 +168,19 @@ export default function RecommendationForm({
         onChange={(value) => setValue("recommendation_number", value)}
       />
 
+      <ValidatedTextField
+        label={t("validation.recommendationDateRaw")}
+        value={values.recommendation_date_text ?? ""}
+        suggestion={suggestions.recommendation_date_text}
+        onChange={(value) => setValue("recommendation_date_text", value)}
+      />
+
       <TextField
         label={t("validation.recommendationDate")}
-        value={values.recommendation_date_text ?? ""}
-        suggestion={suggestions.recommendation_date_text ?? undefined}
+        type={DATE_TYPE}
+        value={values.recommendation_date ?? ""}
         onChange={(event) =>
-          setValue("recommendation_date_text", event.target.value)
+          setValue("recommendation_date", event.target.value || null)
         }
       />
 
