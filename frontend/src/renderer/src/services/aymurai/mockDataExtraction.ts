@@ -5,6 +5,7 @@ import type {
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 
 const now = "2026-08-28T00:00:00Z";
 
@@ -177,7 +178,14 @@ export function mockValidateRecommendation(input: {
     document_id: input.documentId,
     recommendation_number: input.payload.recommendation_number,
     recommendation_date_text: input.payload.recommendation_date_text,
-    recommendation_date: existing?.recommendation_date ?? null,
+    // Mirrors `recommendation_upsert` (`aymurai/database/crud/recommendation.py`):
+    // the explicit override wins when given, else re-derive from the prose
+    // text on every save -- never falls back to the previously stored value,
+    // so an edited `recommendation_date_text` with no picker override keeps
+    // re-parsing instead of going stale.
+    recommendation_date:
+      input.payload.recommendation_date ??
+      parseSpanishProseDate(input.payload.recommendation_date_text),
     topic: input.payload.topic,
     subtopic: input.payload.subtopic,
     personal_data: input.payload.personal_data,
