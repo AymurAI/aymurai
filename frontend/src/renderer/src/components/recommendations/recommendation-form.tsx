@@ -169,14 +169,12 @@ export default function RecommendationForm({
       />
 
       <Stack gap="4">
-        <Stack direction="row" gap="2" alignItems="center">
-          <DecisionTabs
-            selected={selectedIndex}
-            decisionAmount={values.recipients.length}
-            addDecision={handleAddRecipient}
-            selectDecision={setSelectedTab}
-          />
-        </Stack>
+        <DecisionTabs
+          selected={selectedIndex}
+          decisionAmount={values.recipients.length}
+          addDecision={handleAddRecipient}
+          selectDecision={setSelectedTab}
+        />
         {values.recipients.length > 1 && (
           <styled.button
             type="button"
