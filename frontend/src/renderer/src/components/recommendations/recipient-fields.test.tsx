@@ -1,4 +1,5 @@
 import { TooltipProvider } from "@aymurai/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -13,13 +14,56 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({
+    queryKey: ["organigram-units"],
+    queryFn: async () => [],
+  }),
+  createUnit: () => ({
+    mutationFn: async (input: { name: string }) => ({
+      id: "new-unit-id",
+      parent_id: null,
+      name: input.name,
+      acronym: null,
+      short_name: null,
+      is_sector: false,
+      active: true,
+      order: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    }),
+  }),
+}));
+
 // `<RecipientUnitSelect>`'s options carry a `description` (@aymurai/ui's
 // `Select`), which wraps each option in a Radix Tooltip -- it throws without
 // a `TooltipProvider` ancestor even before the dropdown opens. The app root
 // (`app.tsx`) supplies one globally; tests need their own, matching
-// `recipient-unit-select.test.tsx`/`how-it-works.test.tsx`.
+// `recipient-unit-select.test.tsx`/`how-it-works.test.tsx`. `RecipientFields`
+// renders `<RecipientUnitSelect>`, which now calls `useQuery`/`useMutation`
+// unconditionally (the full-corpus search + create-unit affordance), so
+// every render here also needs a `QueryClientProvider` ancestor.
+function withProviders(queryClient: QueryClient, ui: ReactElement) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
 function renderWithProvider(ui: ReactElement) {
-  return render(<TooltipProvider>{ui}</TooltipProvider>);
+  const queryClient = new QueryClient();
+  const result = render(withProviders(queryClient, ui));
+  return {
+    ...result,
+    // `rerender` re-renders whatever tree it's given at the existing root --
+    // it does not reapply `renderWithProvider`'s wrapping, so a bare
+    // `rerender(<Foo />)` would drop the `QueryClientProvider` ancestor
+    // `RecipientUnitSelect` needs. Rewrap here so callers can keep passing
+    // just the next tree, the same shape as the original `render` call.
+    rerender: (nextUi: ReactElement) =>
+      result.rerender(withProviders(queryClient, nextUi)),
+  };
 }
 
 const MACRO_SECTOR_OPTIONS: FormOption[] = [

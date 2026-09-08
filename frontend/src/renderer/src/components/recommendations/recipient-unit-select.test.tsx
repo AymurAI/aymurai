@@ -1,5 +1,12 @@
 import { TooltipProvider } from "@aymurai/ui";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
@@ -20,9 +27,17 @@ vi.stubGlobal(
 // `Select`'s option description (@aymurai/ui) renders inside a Radix
 // Tooltip, which throws without a `TooltipProvider` ancestor -- the app root
 // (`app.tsx`) supplies one globally; tests need their own, matching
-// `how-it-works.test.tsx`'s identical wrapping.
+// `how-it-works.test.tsx`'s identical wrapping. `RecipientUnitSelect` now
+// also calls `useQuery`/`useMutation` unconditionally (the full-corpus
+// search + create-unit affordance), so every render needs a
+// `QueryClientProvider` ancestor too, not just the new search tests below.
 function renderWithProvider(ui: ReactElement) {
-  return render(<TooltipProvider>{ui}</TooltipProvider>);
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
+  );
 }
 
 const CANDIDATES: OrganigramCandidate[] = [
@@ -147,6 +162,144 @@ describe("RecipientUnitSelect", () => {
 
     expect(screen.getByRole("combobox")).toHaveTextContent(
       REAL_SHAPE_CANDIDATES[0].unit_name,
+    );
+  });
+});
+
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({
+    queryKey: ["organigram-units"],
+    queryFn: async () => FULL_CORPUS,
+  }),
+  createUnit: () => ({
+    mutationFn: async (input: { name: string }) => ({
+      id: "new-unit-id",
+      parent_id: null,
+      name: input.name,
+      acronym: null,
+      short_name: null,
+      is_sector: false,
+      active: true,
+      order: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    }),
+  }),
+}));
+
+const FULL_CORPUS = [
+  {
+    id: "u9",
+    parent_id: null,
+    name: "Dirección General de Custodios",
+    acronym: "DGC",
+    short_name: null,
+    is_sector: false,
+    active: true,
+    order: 1,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: null,
+  },
+];
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe("RecipientUnitSelect — search beyond the top 5", () => {
+  it("still renders a way to assign a unit when there are zero candidates", () => {
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={[]}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/buscar otra unidad/i)).toBeInTheDocument();
+  });
+
+  it("shows a full-corpus match by partial text even when it's not in the top-5 candidates", async () => {
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "custodios" },
+    });
+    expect(
+      await screen.findByText("Dirección General de Custodios"),
+    ).toBeInTheDocument();
+  });
+
+  it("picking a full-corpus match emits its id with a null sector_id", async () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "custodios" },
+    });
+    fireEvent.click(await screen.findByText("Dirección General de Custodios"));
+    expect(onChange).toHaveBeenCalledWith({ unit_id: "u9", sector_id: null });
+  });
+
+  it("offers to create a new unit when nothing matches", async () => {
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: /crear "una unidad que no existe" como nueva unidad/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("creating a new unit emits its id with a null sector_id", async () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <RecipientUnitSelect
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/buscar otra unidad/i), {
+      target: { value: "una unidad que no existe" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /crear "una unidad que no existe" como nueva unidad/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({
+        unit_id: "new-unit-id",
+        sector_id: null,
+      }),
     );
   });
 });

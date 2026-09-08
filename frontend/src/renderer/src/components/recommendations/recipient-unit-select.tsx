@@ -1,5 +1,11 @@
-import { Select } from "@aymurai/ui";
+import { Search, Select } from "@aymurai/ui";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { createUnit, listUnits } from "@/services/aymurai/organigram";
+import { css } from "@/styled/css";
+import { Stack } from "@/styled/jsx";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
+import type { OrganigramUnit } from "@/types/organigram";
 
 export interface RecipientUnitSelectValue {
   unit_id: string;
@@ -31,6 +37,26 @@ export interface RecipientUnitSelectProps {
   label?: string;
 }
 
+const searchResultButton = css({
+  display: "block",
+  width: "full",
+  textAlign: "left",
+  cursor: "pointer",
+  border: "[none]",
+  bg: "bg.secondary",
+  p: "2",
+  rounded: "sm",
+});
+
+function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
+  const q = needle.toLowerCase();
+  return (
+    unit.name.toLowerCase().includes(q) ||
+    (unit.acronym ?? "").toLowerCase().includes(q) ||
+    (unit.short_name ?? "").toLowerCase().includes(q)
+  );
+}
+
 export function RecipientUnitSelect({
   candidates,
   unitId,
@@ -38,7 +64,9 @@ export function RecipientUnitSelect({
   onChange,
   label,
 }: RecipientUnitSelectProps) {
-  if (candidates.length === 0) return null;
+  const [query, setQuery] = useState("");
+  const unitsQuery = useQuery(listUnits());
+  const createUnitMutation = useMutation(createUnit());
 
   const options = candidates.map((candidate) => ({
     id: candidate.unit_id,
@@ -51,17 +79,78 @@ export function RecipientUnitSelect({
   );
   const selectValue = resolved?.unit_id ?? unitId ?? undefined;
 
+  const trimmedQuery = query.trim();
+  const searchResults =
+    trimmedQuery.length > 0
+      ? (unitsQuery.data ?? []).filter((unit) =>
+          matchesQuery(unit, trimmedQuery),
+        )
+      : [];
+
   return (
-    <Select
-      label={label}
-      options={options}
-      value={selectValue}
-      onChange={(option) => {
-        const picked = candidates.find(
-          (candidate) => candidate.unit_id === option.id,
-        );
-        onChange({ unit_id: option.id, sector_id: picked?.sector_id ?? null });
-      }}
-    />
+    <Stack gap="2">
+      {candidates.length > 0 && (
+        <Select
+          label={label}
+          options={options}
+          value={selectValue}
+          onChange={(option) => {
+            const picked = candidates.find(
+              (candidate) => candidate.unit_id === option.id,
+            );
+            onChange({
+              unit_id: option.id,
+              sector_id: picked?.sector_id ?? null,
+            });
+          }}
+        />
+      )}
+
+      <Search
+        value={query}
+        aria-label="Buscar otra unidad del organigrama"
+        placeholder="Buscar otra unidad del organigrama…"
+        onChange={(event) => setQuery(event.target.value)}
+        onClear={() => setQuery("")}
+      />
+
+      {trimmedQuery.length > 0 && (
+        <Stack gap="1">
+          {searchResults.map((unit) => (
+            <button
+              key={unit.id}
+              type="button"
+              className={searchResultButton}
+              onClick={() => {
+                onChange({ unit_id: unit.id, sector_id: null });
+                setQuery("");
+              }}
+            >
+              {unit.name}
+            </button>
+          ))}
+          {searchResults.length === 0 && (
+            <button
+              type="button"
+              className={searchResultButton}
+              disabled={createUnitMutation.isPending}
+              onClick={() => {
+                createUnitMutation.mutate(
+                  { parent_id: null, name: trimmedQuery, is_sector: false },
+                  {
+                    onSuccess: (unit) => {
+                      onChange({ unit_id: unit.id, sector_id: null });
+                      setQuery("");
+                    },
+                  },
+                );
+              }}
+            >
+              Crear "{trimmedQuery}" como nueva unidad
+            </button>
+          )}
+        </Stack>
+      )}
+    </Stack>
   );
 }
