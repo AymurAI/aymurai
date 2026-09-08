@@ -25,7 +25,17 @@ describe("FeaturesMenu", () => {
     navigate.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("clears files and navigates to the selected feature only after the navigation resolves", async () => {
+    // The "dataset:title" slot routes to Dataset or Recommendations
+    // depending on the flag (see the "recommendations replaces Set de
+    // Datos" describe block below) -- stub it off so this test's target
+    // doesn't silently depend on the ambient VITE_DEFENSORIA_ENABLED env
+    // var (e.g. a developer's local frontend/.env).
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
     let resolveNavigate: () => void = () => {};
     navigate.mockImplementationOnce(
       () =>
