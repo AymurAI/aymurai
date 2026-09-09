@@ -1,6 +1,12 @@
 import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactElement } from "react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -123,6 +129,73 @@ const A_CANDIDATE: OrganigramCandidate = {
   ruta_organigrama: "Jefatura de Gabinete › Secretaría de Gobierno",
   score: 87.6,
 };
+
+describe("RecommendationForm — unified date field", () => {
+  it("shows the raw detected text as a hover tooltip on the date field", async () => {
+    vi.useFakeTimers();
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction({ recommendation_date: "10 de julio de 2024" })}
+        validation={null}
+      />,
+    );
+
+    // `pointerenter`/`pointerleave` don't bubble, and Radix's `asChild`
+    // merges its listeners onto whatever DOM node `TextField` renders as
+    // its own root (its outer container, not the `<input>` itself) --
+    // firing a pointer event on the input found via `getByLabelText` would
+    // never reach that listener. Focus does bubble via React's `onFocus`
+    // delegation (`focusin` under the hood) regardless of which node it
+    // landed on, and Radix Tooltip opens on focus the same as on hover.
+    fireEvent.focus(screen.getByLabelText("validation.recommendationDate"));
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "10 de julio de 2024",
+    );
+    vi.useRealTimers();
+  });
+
+  it("does not wrap the date field in a tooltip when there is no raw text", async () => {
+    vi.useFakeTimers();
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction({ recommendation_date: null })}
+        validation={null}
+      />,
+    );
+
+    fireEvent.focus(screen.getByLabelText("validation.recommendationDate"));
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("editing the date field's value calls onValuesChange with the new date", () => {
+    const onValuesChange = vi.fn();
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction()}
+        validation={null}
+        onValuesChange={onValuesChange}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("validation.recommendationDate"),
+      { target: { value: "2024-07-10" } },
+    );
+
+    expect(onValuesChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ recommendation_date: "2024-07-10" }),
+    );
+  });
+});
 
 describe("RecommendationForm", () => {
   it("renders an out-of-catalog topic as the selected option, with its error inline", () => {

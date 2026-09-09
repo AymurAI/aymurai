@@ -1,4 +1,11 @@
-import { Radio, Select, TextField } from "@aymurai/ui";
+import {
+  Radio,
+  Select,
+  TextField,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@aymurai/ui";
 import { Trash } from "phosphor-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -91,11 +98,12 @@ function toSelectOptions(options: FormOption[]) {
  * recipient shifts every later index), falling back to `[]` for a hand-added
  * recipient (`source_index === null`) or one whose index no longer resolves.
  *
- * The recommendation date has two fields: the raw prose the model returned
- * (always editable free text, never replaced) and a native `type="date"`
- * picker seeded from it via `parseSpanishProseDate`, which the person can
- * override -- that override wins over the backend's own auto-parse.
- * `personal_data` is tri-state: `RadioGroup` starts
+ * The recommendation date is a single native `type="date"` picker, seeded
+ * from the model's raw prose via `parseSpanishProseDate` and overridable by
+ * the person -- that override wins over the backend's own auto-parse. The
+ * raw prose itself (`recommendation_date_text`) is never re-edited here
+ * (PLAN.md §D.3: conserved verbatim) but surfaces as a hover tooltip on the
+ * date field for context. `personal_data` is tri-state: `RadioGroup` starts
  * with neither radio marked when it's `null` ("sin responder").
  *
  * The existing `DecisionTabs` (ported earlier, for a different flow) has no
@@ -168,21 +176,33 @@ export default function RecommendationForm({
         onChange={(value) => setValue("recommendation_number", value)}
       />
 
-      <ValidatedTextField
-        label={t("validation.recommendationDateRaw")}
-        value={values.recommendation_date_text ?? ""}
-        suggestion={suggestions.recommendation_date_text}
-        onChange={(value) => setValue("recommendation_date_text", value)}
-      />
-
-      <TextField
-        label={t("validation.recommendationDate")}
-        type={DATE_TYPE}
-        value={values.recommendation_date ?? ""}
-        onChange={(event) =>
-          setValue("recommendation_date", event.target.value || null)
-        }
-      />
+      {(() => {
+        const dateField = (
+          <TextField
+            label={t("validation.recommendationDate")}
+            type={DATE_TYPE}
+            value={values.recommendation_date ?? ""}
+            onChange={(event) =>
+              setValue("recommendation_date", event.target.value || null)
+            }
+          />
+        );
+        // The raw prose the model returned is never re-edited from here --
+        // per PLAN.md §D.3 it's always conserved verbatim -- but it's the
+        // whole reason the parsed date looks the way it does, so it's worth
+        // surfacing as context rather than a second editable field.
+        return values.recommendation_date_text ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{dateField}</TooltipTrigger>
+            <TooltipContent side="top">
+              {t("validation.recommendationDateRaw")}:{" "}
+              {values.recommendation_date_text}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          dateField
+        );
+      })()}
 
       <Stack gap="4">
         <DecisionTabs
