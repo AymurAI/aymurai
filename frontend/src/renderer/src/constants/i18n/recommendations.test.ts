@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import recommendations from "./recommendations";
+import recommendations from "./locales/es/recommendations";
 
 describe("recommendations i18n — onboarding", () => {
   it("defines every onboarding key the shared DocumentOnboarding screen reads", () => {
