@@ -197,6 +197,66 @@ describe("RecommendationForm — unified date field", () => {
   });
 });
 
+describe("RecommendationForm — is_primary is independent per recipient", () => {
+  it("shows each recipient's own is_primary when switching tabs, not whichever was checked first", () => {
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction({
+          recipients: [
+            {
+              name: "Ana Pérez",
+              position: "Directora",
+              is_primary: true,
+              macro_sector: "GCBA",
+              unit_id: null,
+              unit_name: null,
+              sector_id: null,
+              sector_name: null,
+              match_method: null,
+              sector_candidates: [],
+            },
+            {
+              name: "Beto Gómez",
+              position: "Subdirector",
+              is_primary: false,
+              macro_sector: "GCBA",
+              unit_id: null,
+              unit_name: null,
+              sector_id: null,
+              sector_name: null,
+              match_method: null,
+              sector_candidates: [],
+            },
+          ],
+        })}
+        validation={null}
+      />,
+    );
+
+    // Destinatario 1 (Ana): Sí checked, No unchecked.
+    expect(
+      screen.getByRole("radio", { name: "validation.isPrimaryYes" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "validation.isPrimaryNo" }),
+    ).not.toBeChecked();
+
+    fireEvent.click(screen.getByText("Destinatario 2"));
+
+    // Destinatario 2 (Beto) must show its OWN is_primary (false), not
+    // Ana's -- this is the exact regression `RadioGroup`'s stale internal
+    // `selected` state caused: re-rendering the same tree position with a
+    // different recipient's `checked` props kept showing whichever radio
+    // was checked when the group first mounted.
+    expect(
+      screen.getByRole("radio", { name: "validation.isPrimaryYes" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "validation.isPrimaryNo" }),
+    ).toBeChecked();
+  });
+});
+
 describe("RecommendationForm", () => {
   it("renders an out-of-catalog topic as the selected option, with its error inline", () => {
     renderWithClient(
