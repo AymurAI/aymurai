@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import DecisionTabs from "./index";
 
 describe("DecisionTabs", () => {
@@ -32,5 +32,33 @@ describe("DecisionTabs", () => {
     expect(
       container.querySelector("[data-radix-scroll-area-viewport]"),
     ).not.toBeNull();
+  });
+
+  describe("clicking a tab scrolls it into view", () => {
+    beforeEach(() => {
+      Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    it("calls scrollIntoView on the clicked tab, nearest/smooth", () => {
+      const selectDecision = vi.fn();
+      render(
+        <DecisionTabs
+          selected={0}
+          decisionAmount={10}
+          addDecision={vi.fn()}
+          selectDecision={selectDecision}
+        />,
+      );
+
+      const target = screen.getByText("Destinatario 8");
+      fireEvent.click(target);
+
+      expect(selectDecision).toHaveBeenCalledWith(7);
+      expect(target.closest("button")?.scrollIntoView).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    });
   });
 });

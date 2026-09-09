@@ -1,4 +1,5 @@
 import { Plus } from "phosphor-react";
+import { useRef } from "react";
 import ScrollArea from "@/components/ui/scroll-area";
 import { css } from "@/styled/css";
 import { Stack } from "@/styled/jsx";
@@ -24,6 +25,11 @@ const scrollArea = css({
 
 const tabsRow = css({
   minW: "[max-content]",
+  // Radix's horizontal scrollbar overlays the viewport's bottom edge
+  // (`position: absolute`, set internally by @radix-ui/react-scroll-area --
+  // `ui/scroll-area.tsx` doesn't override it) -- reserve room below the tabs
+  // so the scrollbar thumb doesn't sit on top of the button labels.
+  pb: "[14px]",
 });
 
 interface Props {
@@ -46,8 +52,19 @@ export default function DecisionTabs({
   label = "Destinatario",
 }: Props) {
   const decisionArr = nArray(decisionAmount, undefined).map((_, i) => i);
+  const tabRefs = useRef<Array<HTMLElement | null>>([]);
 
-  const selectDecisionHandler = (n: number) => () => selectDecision(n);
+  const selectDecisionHandler = (n: number) => () => {
+    selectDecision(n);
+    // Bring the clicked tab fully into view -- `scrollIntoView` walks up to
+    // the nearest scrollable ancestor (the Radix viewport) on its own, no
+    // manual scrollLeft math needed.
+    tabRefs.current[n]?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "nearest",
+    });
+  };
 
   return (
     <Stack direction="row" gap="2" alignItems="center">
@@ -56,6 +73,9 @@ export default function DecisionTabs({
           {decisionArr.map((dec) => (
             <Tab
               key={dec}
+              ref={(el: HTMLElement | null) => {
+                tabRefs.current[dec] = el;
+              }}
               as="button"
               css={{ cursor: "pointer" }}
               onClick={selectDecisionHandler(dec)}
