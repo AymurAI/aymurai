@@ -49,6 +49,13 @@ const recommendations = {
     sectionTitle: "2. Extracción de datos",
     processingTitle: "AymurAI está extrayendo los datos de los archivos.",
     processingSubtitle: "Este proceso puede tardar algunos minutos.",
+    finishedTitle: "AymurAI finalizó la extracción de datos del documento.",
+    finishedSubtitle: "Podés continuar con la validación de los datos.",
+    errorTitle: "Ocurrió un problema al procesar el documento.",
+    errorSubtitle: "El documento no pudo procesarse correctamente.",
+    stoppedTitle: "Detuviste el procesamiento del documento.",
+    stoppedSubtitle: "Volvé a intentarlo para reiniciar el procesamiento.",
+    stoppedText: "El procesamiento del documento fue detenido manualmente.",
     storedInference: "Se recuperó una extracción previa de este documento.",
     errorText: "Ocurrió un error al extraer los datos del documento.",
     noTextError:

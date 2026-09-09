@@ -82,6 +82,42 @@ describe("RecommendationProcess", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the processing title/subtitle while running, not the finished copy", () => {
+    setStatus({ status: "extracting" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.processingTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.processingSubtitle")).toBeInTheDocument();
+    expect(screen.queryByText("process.finishedTitle")).not.toBeInTheDocument();
+  });
+
+  it("switches to the finished title/subtitle once ready, not the processing copy", () => {
+    setStatus({ status: "ready" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.finishedTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.finishedSubtitle")).toBeInTheDocument();
+    expect(
+      screen.queryByText("process.processingTitle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the error title/subtitle (not processing/finished) when the extraction failed", () => {
+    setStatus({ status: "error" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.errorTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.errorSubtitle")).toBeInTheDocument();
+    expect(
+      screen.queryByText("process.processingTitle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the stopped title/subtitle (not the error copy) after a manual Stop", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.stoppedTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.stoppedSubtitle")).toBeInTheDocument();
+    expect(screen.queryByText("process.errorTitle")).not.toBeInTheDocument();
+  });
+
   it("Detener calls abort", () => {
     setStatus({ status: "checking" });
     render(<RecommendationProcess />);
@@ -137,12 +173,15 @@ describe("RecommendationProcess", () => {
     expect(screen.getByText("process.errorText")).toBeInTheDocument();
   });
 
-  it("Reintentar is offered and works after a manual Stop, with no error banner", () => {
+  it("Reintentar is offered and works after a manual Stop, with a warning banner, not an error one", () => {
     setStatus({ status: "stopped" });
     render(<RecommendationProcess />);
 
-    // Stop is not an error: it must not use the error copy/banner.
+    // Stop is not an error: it must not use the error copy/banner, but it
+    // does get its own (warning-styled) message, unlike the other flows'
+    // silent Stop.
     expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
+    expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
 
     // `retry` is a shared module-level mock across this file's tests (not
     // cleared between them) -- reset it here so this assertion is about

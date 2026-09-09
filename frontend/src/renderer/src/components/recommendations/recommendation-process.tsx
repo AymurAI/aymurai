@@ -92,10 +92,22 @@ export default function RecommendationProcess() {
               <HStack justifyContent="space-between" alignItems="center">
                 <Stack direction="column" gap="1">
                   <styled.h2 textStyle="subtitle.md.default">
-                    {t("process.processingTitle")}
+                    {isReady
+                      ? t("process.finishedTitle")
+                      : isStopped
+                        ? t("process.stoppedTitle")
+                        : isError
+                          ? t("process.errorTitle")
+                          : t("process.processingTitle")}
                   </styled.h2>
                   <styled.p textStyle="subtitle.sm.default" color="text.lighter">
-                    {t("process.processingSubtitle")}
+                    {isReady
+                      ? t("process.finishedSubtitle")
+                      : isStopped
+                        ? t("process.stoppedSubtitle")
+                        : isError
+                          ? t("process.errorSubtitle")
+                          : t("process.processingSubtitle")}
                   </styled.p>
                 </Stack>
                 <HStack gap="4" alignItems="center">
@@ -124,9 +136,6 @@ export default function RecommendationProcess() {
 
               {(isError || isStopped) && (
                 <Stack gap="3" direction="column" alignItems="flex-start">
-                  {/* No Callout for a manual Stop: it's not an error, just
-                      what the person asked for -- the Retry button alone is
-                      enough to let them pick the flow back up. */}
                   {isError && (
                     <Callout
                       message={t(
@@ -135,6 +144,18 @@ export default function RecommendationProcess() {
                           : "process.errorText",
                       )}
                       variant="error"
+                      noBorder
+                    />
+                  )}
+                  {/* Warning, not error: a manual Stop is a deliberate,
+                      benign action, not a failure -- matches this same
+                      screen's own catalogsStale Callout on the validation
+                      step, which uses the same orange "warning" variant for
+                      the same reason (nothing actually went wrong). */}
+                  {isStopped && (
+                    <Callout
+                      message={t("process.stoppedText")}
+                      variant="warning"
                       noBorder
                     />
                   )}
