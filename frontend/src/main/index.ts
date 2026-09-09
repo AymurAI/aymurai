@@ -5,6 +5,14 @@ import createWindow from "./createWindow";
 import { installExtensions } from "./extensions";
 import { excel, feedback, subprocess, taskbar } from "./utils";
 
+// Must run before Chromium initializes (i.e. before `app.whenReady()`), and
+// alongside `index.html`'s `lang="es-AR"` -- this is what makes Chromium's
+// own native form controls (the `<input type="date">` calendar popup: month
+// names, "Borrar"/"Hoy" button labels) render in Spanish instead of
+// defaulting to the OS/system locale, which isn't guaranteed to be es-AR on
+// every machine this app runs on.
+app.commandLine.appendSwitch("lang", "es-AR");
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
