@@ -11,7 +11,12 @@ import { excel, feedback, subprocess, taskbar } from "./utils";
 // names, "Borrar"/"Hoy" button labels) render in Spanish instead of
 // defaulting to the OS/system locale, which isn't guaranteed to be es-AR on
 // every machine this app runs on.
-app.commandLine.appendSwitch("lang", "es-AR");
+//
+// Must be a locale Electron actually ships a .pak for (see
+// `node_modules/electron/dist/locales/`) -- there is no `es-AR.pak`, only
+// `es.pak` and `es-419.pak`, so `--lang=es-AR` silently falls back to the
+// default (en-US) no matter how many times the app is restarted.
+app.commandLine.appendSwitch("lang", "es");
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
