@@ -61,6 +61,12 @@ const errorText = css({
  * `TextField` narrows `type` to text|number, but forwards the value straight
  * onto its `<input>` -- matches `holder-correct-dialog.tsx`'s identical cast
  * for the same reason (a native date input, not a custom picker).
+ *
+ * Known, accepted limitation: the native calendar popup always opens
+ * anchored to the input's own left edge, never the calendar-icon button on
+ * the right -- confirmed there is no CSS/HTML control over this (including
+ * a `direction: rtl` attempt, which didn't even move the icon). Fixing it
+ * would mean replacing the native input with a fully custom date picker.
  */
 const DATE_TYPE = "date" as "text";
 
