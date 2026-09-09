@@ -1,6 +1,6 @@
 import { Button, Callout, Card, CheckCircle, Spinner } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
@@ -54,6 +54,7 @@ export default function RecommendationProcess() {
 
   const extraction = useDataExtraction(file?.data);
   const hasNotified = useRef(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const isReady = extraction.status === "ready";
   const isError = extraction.status === "error";
@@ -69,6 +70,13 @@ export default function RecommendationProcess() {
       taskbar.notify();
     }
   }, [isReady]);
+
+  // Homologa con el banner dismissable de Anonimizador/Resumen
+  // (`routes/$feature/process.tsx`, `summary-process.tsx`): se vuelve a
+  // mostrar si el estado cambia (p. ej. tras un Reintentar).
+  useEffect(() => {
+    setIsDismissed(false);
+  }, [extraction.status]);
 
   const handleNext = () => {
     navigate({ to: "/$feature/validation", params: { feature } });
@@ -136,7 +144,15 @@ export default function RecommendationProcess() {
 
               {(isError || isStopped) && (
                 <Stack gap="3" direction="column" alignItems="flex-start">
-                  {isError && (
+                  {/* Same `Callout` + `variant="error"` + dismissable `X`
+                      used by the Anonimizador/Resumen process screens for
+                      both a real error and a manual Stop (`routes/$feature/
+                      process.tsx`, `summary-process.tsx`) -- despite the
+                      name, that variant renders in the same burnt-orange
+                      tone as this screen's own `catalogsStale` warning, so
+                      it already reads as a non-destructive notice, not a
+                      hard failure. */}
+                  {isError && !isDismissed && (
                     <Callout
                       message={t(
                         extraction.isScannedPdf
@@ -145,18 +161,15 @@ export default function RecommendationProcess() {
                       )}
                       variant="error"
                       noBorder
+                      onDismiss={() => setIsDismissed(true)}
                     />
                   )}
-                  {/* Warning, not error: a manual Stop is a deliberate,
-                      benign action, not a failure -- matches this same
-                      screen's own catalogsStale Callout on the validation
-                      step, which uses the same orange "warning" variant for
-                      the same reason (nothing actually went wrong). */}
-                  {isStopped && (
+                  {isStopped && !isDismissed && (
                     <Callout
                       message={t("process.stoppedText")}
-                      variant="warning"
+                      variant="error"
                       noBorder
+                      onDismiss={() => setIsDismissed(true)}
                     />
                   )}
                   {/* A scanned PDF is terminal: it will not succeed on a

@@ -173,13 +173,13 @@ describe("RecommendationProcess", () => {
     expect(screen.getByText("process.errorText")).toBeInTheDocument();
   });
 
-  it("Reintentar is offered and works after a manual Stop, with a warning banner, not an error one", () => {
+  it("Reintentar is offered and works after a manual Stop, with its own banner, not the error copy", () => {
     setStatus({ status: "stopped" });
     render(<RecommendationProcess />);
 
-    // Stop is not an error: it must not use the error copy/banner, but it
-    // does get its own (warning-styled) message, unlike the other flows'
-    // silent Stop.
+    // Stop is not an error: it must not use the error copy, but it does get
+    // its own message (in the same banner style as the error one, matching
+    // Anonimizador/Resumen), unlike the other flows' silent Stop.
     expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
     expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
 
@@ -189,6 +189,24 @@ describe("RecommendationProcess", () => {
     retry.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "process.retry" }));
     expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses the stopped banner via its close button, matching the other process screens", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    expect(screen.queryByText("process.stoppedText")).not.toBeInTheDocument();
+  });
+
+  it("dismisses the error banner via its close button", () => {
+    setStatus({ status: "error", isScannedPdf: false });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.errorText")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
   });
 
   it("never shows Reintentar for the scanned-PDF terminal error", () => {
