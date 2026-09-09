@@ -49,17 +49,18 @@ const recommendations = {
     sectionTitle: "2. Extracción de datos",
     processingTitle: "AymurAI está extrayendo los datos de los archivos.",
     processingSubtitle: "Este proceso puede tardar algunos minutos.",
-    extracting: "Extrayendo datos… {{elapsed}}",
+    storedInference: "Se recuperó una extracción previa de este documento.",
     errorText: "Ocurrió un error al extraer los datos del documento.",
     noTextError:
       "No se pudo extraer texto del documento. Puede tratarse de un PDF escaneado o de imágenes. Volvé atrás y cargá un archivo con texto seleccionable.",
     retry: "Reintentar",
+    stop: "Detener",
+    completedAria: "Extracción completada",
     next: "Siguiente",
   },
   validation: {
     sectionTitle: "3. Validación de datos",
     originalDocumentLabel: "Documento original",
-    storedInference: "Se recuperó una extracción previa de este documento.",
     alreadyValidated:
       "Este documento ya fue validado. Podés modificar los datos antes de continuar.",
     catalogsStale:

@@ -1,22 +1,28 @@
-import { Button, Callout, Card } from "@aymurai/ui";
+import { Button, Callout, Card, CheckCircle, Spinner } from "@aymurai/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { FileProcessing } from "@/components";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
 import BackButton from "@/components/ui/back-button";
-import { formatTime } from "@/components/voice-to-text/format-time";
 import RequireFile from "@/features/RequireFile";
 import { useFiles } from "@/hooks";
 import { useDataExtraction } from "@/hooks/useDataExtraction";
-import type { PredictStatus } from "@/hooks/usePredict";
 import { SectionTitle } from "@/layout/section-title";
 import taskbar from "@/services/taskbar";
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
+
+const spinnerSlot = css({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: "0",
+  w: "12",
+  h: "12",
+});
 
 /**
  * Recomendaciones' processing step: a single-file variant of the generic
@@ -31,6 +37,12 @@ import { FeatureFlowEnum, featureNamespace } from "@/types/features";
  * (`components/recomendaciones/process.tsx`, branch
  * `feat/recomendaciones-defensoria`), rewired onto `useDataExtraction` and
  * the destination's `FeatureFlowEnum`.
+ *
+ * Status indicator matches `summary-process.tsx`'s pattern (a `Spinner`
+ * while running, a `CheckCircle` once ready) rather than the generic
+ * per-file `<FileProcessing>` progress bar: a single LLM call has no
+ * meaningful numeric progress to report, so a determinate-looking bar and
+ * an elapsed-seconds ticker both read as noise rather than signal.
  */
 export default function RecommendationProcess() {
   const feature = FeatureFlowEnum.Recommendations;
@@ -50,40 +62,6 @@ export default function RecommendationProcess() {
   // internally (distinct copy/visuals below), but the Reintentar affordance
   // has to treat it the same as "error" or the button would never appear.
   const isStopped = extraction.status === "stopped";
-
-  // A real local LLM extraction can take minutes with no numeric progress to
-  // report (see `progress` below). Without any moving signal, a healthy slow
-  // extraction is indistinguishable from a hang — this is purely an
-  // elapsed-time indicator, additive to `progress`/`combinedStatus`.
-  const isExtracting = extraction.status === "extracting";
-  const [elapsedMs, setElapsedMs] = useState(0);
-  useEffect(() => {
-    if (!isExtracting) {
-      setElapsedMs(0);
-      return;
-    }
-    const startedAt = Date.now();
-    setElapsedMs(0);
-    const interval = setInterval(() => {
-      setElapsedMs(Date.now() - startedAt);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isExtracting]);
-
-  // `useDataExtraction`'s own status already accounts for every stage
-  // (parsing/checking/extracting), so — unlike the generic screen — there is
-  // no separate per-stage table to fold in here.
-  const combinedStatus: PredictStatus = isStopped
-    ? "stopped"
-    : isError
-      ? "error"
-      : isReady
-        ? "completed"
-        : "processing";
-
-  // No per-paragraph ratio to weight here: it's a single LLM call, so we
-  // report an indeterminate 0.5 while it runs and 1 once it's done.
-  const progress = isReady ? 1 : 0.5;
 
   useEffect(() => {
     if (isReady && !hasNotified.current) {
@@ -111,32 +89,39 @@ export default function RecommendationProcess() {
           </HStack>
           <Card className={css({ alignItems: "stretch" })}>
             <Stack gap="6" direction="column">
-              <Stack direction="column" gap="1">
-                <styled.h2 textStyle="subtitle.md.default">
-                  {t("process.processingTitle")}
-                </styled.h2>
-                <styled.p textStyle="subtitle.sm.default" color="text.lighter">
-                  {t("process.processingSubtitle")}
-                </styled.p>
-                {isExtracting && (
-                  <styled.p
-                    textStyle="subtitle.sm.default"
-                    color="text.lighter"
-                  >
-                    {t("process.extracting", {
-                      elapsed: formatTime(elapsedMs),
-                    })}
+              <HStack justifyContent="space-between" alignItems="center">
+                <Stack direction="column" gap="1">
+                  <styled.h2 textStyle="subtitle.md.default">
+                    {t("process.processingTitle")}
+                  </styled.h2>
+                  <styled.p textStyle="subtitle.sm.default" color="text.lighter">
+                    {t("process.processingSubtitle")}
                   </styled.p>
-                )}
-              </Stack>
-              {file && (
-                <FileProcessing
-                  fileName={file.data.name}
-                  status={combinedStatus}
-                  progress={progress}
-                  onAbort={handleAbort}
+                </Stack>
+                <HStack gap="4" alignItems="center">
+                  {!isReady && !isError && !isStopped && (
+                    <Button variant="secondary" onClick={handleAbort}>
+                      {t("process.stop")}
+                    </Button>
+                  )}
+                  <div className={spinnerSlot}>
+                    {!isReady && !isError && !isStopped && <Spinner />}
+                    {isReady && (
+                      <CheckCircle aria-label={t("process.completedAria")} />
+                    )}
+                  </div>
+                </HStack>
+              </HStack>
+
+              {isReady && extraction.origin === "stored-inference" && (
+                <Callout
+                  message={t("process.storedInference")}
+                  variant="info"
+                  size="compact"
+                  noBorder
                 />
               )}
+
               {(isError || isStopped) && (
                 <Stack gap="3" direction="column" alignItems="flex-start">
                   {/* No Callout for a manual Stop: it's not an error, just

@@ -210,9 +210,11 @@ describe("RecommendationValidation", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("shows the stored-inference banner", () => {
+  it("does not show a banner for a plain stored-inference (never requested)", () => {
     renderValidation({ origin: "stored-inference" });
-    expect(screen.getByText("validation.storedInference")).toBeInTheDocument();
+    expect(
+      screen.queryByText("validation.storedInference"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the already-validated banner", () => {

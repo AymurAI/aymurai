@@ -49,20 +49,6 @@ vi.mock("@/features/RequireFile", () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-// `FileProcessing` reaches for `useQueryClient`/`useFileDispatch` for its
-// replace/stop affordances — irrelevant to this screen's own status/ticker
-// logic, and no `QueryClientProvider` is set up here (matching
-// `routes/$feature/process.test.tsx`'s same stub for the identical reason).
-vi.mock("@/components", () => ({
-  FileProcessing: ({
-    fileName,
-    status,
-  }: {
-    fileName: string;
-    status: string;
-  }) => <div data-testid={`file-status-${fileName}`}>{status}</div>,
-}));
-
 function setStatus(overrides: Partial<typeof mockExtraction> = {}) {
   mockExtraction = {
     status: "processing",
@@ -76,20 +62,55 @@ function setStatus(overrides: Partial<typeof mockExtraction> = {}) {
 }
 
 describe("RecommendationProcess", () => {
-  it("shows the elapsed-time ticker while the extraction is running, not before or after", () => {
+  it("shows a spinner while extracting, not a checkmark", () => {
     setStatus({ status: "extracting" });
     render(<RecommendationProcess />);
-    expect(screen.getByText(/process.extracting/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "process.stop" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("process.completedAria"),
+    ).not.toBeInTheDocument();
   });
 
-  it("does not show the ticker while only parsing/checking, or once ready", () => {
-    setStatus({ status: "checking" });
-    const { rerender } = render(<RecommendationProcess />);
-    expect(screen.queryByText(/process.extracting/)).not.toBeInTheDocument();
-
+  it("shows the checkmark and hides Detener once ready", () => {
     setStatus({ status: "ready" });
-    rerender(<RecommendationProcess />);
-    expect(screen.queryByText(/process.extracting/)).not.toBeInTheDocument();
+    render(<RecommendationProcess />);
+    expect(screen.getByLabelText("process.completedAria")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.stop" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Detener calls abort", () => {
+    setStatus({ status: "checking" });
+    render(<RecommendationProcess />);
+    fireEvent.click(screen.getByRole("button", { name: "process.stop" }));
+    expect(abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the stored-inference callout only once ready from a cached extraction", () => {
+    setStatus({ status: "ready", origin: "stored-inference" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.getByText("process.storedInference"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the stored-inference callout for a fresh extraction", () => {
+    setStatus({ status: "ready", origin: "inference" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show the stored-inference callout before the extraction is ready", () => {
+    setStatus({ status: "checking", origin: "stored-inference" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
   });
 
   it("disables 'Siguiente' until the extraction is ready", () => {
