@@ -26,7 +26,6 @@ export interface UseDataExtractionResult {
   error: string | null;
   /** Terminal, no retry offered — see `RecommendationState.isScannedPdf`. */
   isScannedPdf: boolean;
-  retry: () => void;
   abort: () => void;
 }
 
@@ -92,17 +91,24 @@ export function useDataExtraction(
     // screen unmounting -- but this hook's own refs are fresh on every
     // remount. Navigating away (e.g. to validation) and back to processing
     // for the SAME document therefore used to blindly re-dispatch
-    // `startParsing`, which resets the shared state back to `initialState`
+    // `startParsing`, which reset the shared state back to `initialState`
     // (wiping `prediction`/`origin` too) even when it already held "ready".
-    // The one legitimate way state can be "idle" again for a genuinely new
-    // document is the provider itself remounting on re-entering the feature
-    // route tree fresh -- so only dispatch (and latch the ref) when it's
-    // actually idle; otherwise leave the ref unset so a later genuine reset
-    // can still dispatch normally.
-    if (state.status !== "idle") return;
+    //
+    // A remount must still restart the pipeline in two cases, though: a
+    // genuinely different document (`sourceFileName` no longer matches --
+    // otherwise a second file would silently keep showing the first one's
+    // stale "ready" prediction, notifying the taskbar bell immediately for
+    // work that was never actually done on it), and the same document
+    // recovering from "error"/"stopped" (there is no separate Reintentar
+    // affordance any more -- going back to Selección de archivo and
+    // continuing again, which remounts this hook, is the only way back in,
+    // matching Anonimizador/Resumen).
+    const isNewDocument = state.sourceFileName !== file.name;
+    const isRecoverable = state.status === "error" || state.status === "stopped";
+    if (state.status !== "idle" && !isNewDocument && !isRecoverable) return;
     startedParsingFor.current = file.name;
     dispatch(startParsing(file.name));
-  }, [file, dispatch, state.status]);
+  }, [file, dispatch, state.status, state.sourceFileName]);
 
   useEffect(() => {
     if (manualStop.current) return;
@@ -135,9 +141,16 @@ export function useDataExtraction(
       return;
     }
     if (startedCheckingFor.current === parseQuery.data.document_id) return;
+    // `parseQuery`'s cached success survives a remount even when the shared
+    // context has already moved past "parsing" (checking/extracting/ready/
+    // error/stopped) -- without this, every remount of an already-resolved
+    // document re-dispatched `startChecking`, silently rewinding `status`
+    // from "ready" back to "checking" (a visible spinner flicker) before the
+    // envelope effect below raced it back to "ready".
+    if (state.status !== "parsing") return;
     startedCheckingFor.current = parseQuery.data.document_id;
     dispatch(startChecking(parseQuery.data.document_id));
-  }, [parseQuery.isSuccess, parseQuery.data, dispatch]);
+  }, [parseQuery.isSuccess, parseQuery.data, dispatch, state.status]);
 
   const envelopeQuery = useQuery({
     ...documentExtractionEnvelope(documentId ?? ""),
@@ -162,6 +175,17 @@ export function useDataExtraction(
   useEffect(() => {
     if (manualStop.current) return;
     if (!envelopeQuery.isSuccess || documentId === undefined) return;
+    // Same shape as the `startChecking` guard above: `envelopeQuery`'s
+    // cached success also survives a remount of an already-resolved (or
+    // already-extracting) document. Without this, every remount re-ran this
+    // whole branch — including, for a document that needed a fresh
+    // inference, unconditionally dispatching `startExtracting` (flickering
+    // the checkmark back to a spinner) and then genuinely calling
+    // `mutation.mutate` again, spending a second, non-deterministic LLM call
+    // nobody asked for, since the result isn't persisted server-side until
+    // the person validates it (so the envelope keeps reporting "nothing
+    // stored" on every lookup).
+    if (state.status !== "checking") return;
     const { prediction, validation } = envelopeQuery.data;
 
     if (validation != null) {
@@ -208,6 +232,7 @@ export function useDataExtraction(
     paragraphs,
     dispatch,
     mutation.mutate,
+    state.status,
   ]);
 
   useEffect(() => {
@@ -252,43 +277,6 @@ export function useDataExtraction(
     );
   }, [mutation.isError, mutation.error, dispatch]);
 
-  const retry = () => {
-    // Defense in depth: a scanned PDF is terminal (mirrors the historical
-    // hook's "nothing to retry without a documentId" guard) — the UI already
-    // hides the Reintentar affordance in this case, but this must refuse too
-    // in case a caller invokes it directly.
-    if (!file || state.isScannedPdf) return;
-    manualStop.current = false;
-
-    // Whichever stage hasn't succeeded yet is the one that needs re-running
-    // -- it either failed outright, or it's the one Stop aborted mid-flight.
-    // Checking `isSuccess` rather than `isError` is what makes a stopped
-    // stage retriable too: `queryClient.cancelQueries` on a query with no
-    // prior data (see `abort` below) does NOT flip that query into an error
-    // state, so gating on `isError` alone would leave `retry` a no-op after
-    // Stop. This mirrors the historical hook's identical criterion
-    // (`!query.isSuccess` -> refetch that stage, else re-run the mutation).
-    if (!parseQuery.isSuccess) {
-      dispatch(startParsing(file.name));
-      parseQuery.refetch();
-      return;
-    }
-    if (documentId === undefined) return;
-    if (!envelopeQuery.isSuccess) {
-      dispatch(startChecking(documentId));
-      envelopeQuery.refetch();
-      return;
-    }
-    dispatch(startExtracting());
-    const controller = new AbortController();
-    abortRef.current = controller;
-    mutation.mutate({
-      documentId,
-      paragraphs: paragraphs ?? [],
-      signal: controller.signal,
-    });
-  };
-
   const abort = () => {
     manualStop.current = true;
     abortRef.current?.abort();
@@ -306,7 +294,6 @@ export function useDataExtraction(
     origin: state.origin,
     error: state.error,
     isScannedPdf: state.isScannedPdf,
-    retry,
     abort,
   };
 }
