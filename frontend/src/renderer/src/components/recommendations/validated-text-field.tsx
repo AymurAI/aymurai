@@ -86,15 +86,12 @@ const suggestionButton = css({
  * `@aymurai/ui`'s `TextField`), rebuilt locally so it can wrap a long value
  * instead of overflowing and can actually be clicked.
  *
- * Shown whenever a suggestion exists, regardless of whether it currently
- * equals `value` -- unlike the legacy component (whose input starts empty,
- * so an equal suggestion never arises), this flow seeds `value` from the
- * same prediction as `suggestion`, so they're equal on first render for
- * every untouched field. Hiding the mark in that case would mean it never
- * appears until the person edits away from it and back, which is exactly
- * the "suggestions disappeared" regression this replaces. Clicking always
- * (re)accepts the suggestion into `value` -- a no-op when they already
- * match, a real revert when the person had typed over it.
+ * Shown only while `value` is still empty -- matching the legacy
+ * component's own gating exactly. `useRecommendationForm` now seeds these
+ * fields blank (`blankTextFields`) rather than pre-filled with the same
+ * text as `suggestion`, so this is meaningful: the model's guess appears
+ * ONLY here until the person clicks it (accepting it into `value`, which
+ * then hides the mark) or types their own answer (which hides it too).
  */
 export function ValidatedTextField({
   label,
@@ -103,7 +100,7 @@ export function ValidatedTextField({
   onChange,
 }: ValidatedTextFieldProps) {
   const id = useId();
-  const hasSuggestion = !!suggestion;
+  const hasSuggestion = !value && !!suggestion;
 
   return (
     <Stack className={container}>

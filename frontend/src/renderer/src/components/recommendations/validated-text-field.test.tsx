@@ -15,11 +15,11 @@ describe("ValidatedTextField", () => {
     expect(screen.getByLabelText("Nombre")).toHaveValue("Juan");
   });
 
-  it("still renders the suggestion when it matches the current value", () => {
-    // This flow seeds `value` from the same prediction as `suggestion`, so
-    // they're equal on first render for every untouched field -- hiding the
-    // mark in that case would mean it never appears until the person edits
-    // away and back, which is the "suggestions disappeared" bug this guards.
+  it("does not render the suggestion once the field already has a value", () => {
+    // `useRecommendationForm` seeds these fields blank precisely so the
+    // model's guess appears ONLY as the suggestion mark, never duplicated
+    // as the field's own value too -- once a value exists (typed, or the
+    // suggestion already accepted), the mark has nothing left to offer.
     render(
       <ValidatedTextField
         label="Nombre"
@@ -28,7 +28,23 @@ describe("ValidatedTextField", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Juan" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Juan" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the suggestion while the field is still empty", () => {
+    render(
+      <ValidatedTextField
+        label="Nombre"
+        value=""
+        suggestion="Juan Pérez"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Juan Pérez" }),
+    ).toBeInTheDocument();
   });
 
   it("does not render a suggestion slot when there is none", () => {

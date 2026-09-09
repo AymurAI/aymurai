@@ -352,10 +352,12 @@ describe("RecommendationForm", () => {
       />,
     );
 
-    // Fires once on mount with the seeded values.
+    // Fires once on mount with the seeded values -- `recommendation_number`
+    // starts blank (the model's guess only lives in the suggestion mark
+    // until accepted or overridden, see `blankTextFields`).
     expect(onValuesChange).toHaveBeenCalledTimes(1);
     expect(onValuesChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ recommendation_number: "123/2026" }),
+      expect.objectContaining({ recommendation_number: null }),
     );
 
     fireEvent.change(screen.getByLabelText("validation.recommendationNumber"), {
@@ -398,6 +400,12 @@ describe("RecommendationForm", () => {
             validation={null}
             onValuesChange={setPayload}
           />
+          {/* `topic` isn't one of `blankTextFields`' blanked fields, so
+              unlike `recommendation_number` it reliably distinguishes "the
+              mount effect fired" (a real value) from "it hasn't yet"
+              (`payload` still null) -- `recommendation_number` starts
+              blank either way, which is exactly what's being changed here. */}
+          <div data-testid="reported-topic">{payload?.topic}</div>
           <div data-testid="reported-number">
             {payload?.recommendation_number}
           </div>
@@ -408,10 +416,9 @@ describe("RecommendationForm", () => {
     renderWithClient(<Wrapper />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("reported-number")).toHaveTextContent(
-        "123/2026",
-      ),
+      expect(screen.getByTestId("reported-topic")).toHaveTextContent("Salud"),
     );
+    expect(screen.getByTestId("reported-number")).toHaveTextContent("");
     // Steady state is 2: Wrapper's own mount render, plus exactly one more
     // from the mount effect's `setPayload` call. A non-memoized `toPayload`
     // would keep climbing well past this on its own, with no edit at all.

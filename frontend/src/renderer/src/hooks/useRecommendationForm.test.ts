@@ -270,6 +270,32 @@ describe("useRecommendationForm", () => {
     expect(result.current.suggestions.topic).toBe(originalTopic);
   });
 
+  it("starts recommendation_number and each recipient's name/position blank, with the prediction only in suggestions", () => {
+    // These are exactly the fields `ValidatedTextField` shows a clickable
+    // suggestion mark for -- pre-filling `values` with the same text as
+    // `suggestions` would show the model's guess twice (once as the field's
+    // "confirmed" value, once as the suggestion overlay) and make the mark
+    // permanently inert, since it's already equal to the value on every
+    // first render. Every other field keeps pre-filling from the
+    // prediction (no duplicate-suggestion overlay to worry about for those).
+    const { result } = renderHook(() => useRecommendationForm(aPrediction(), null));
+
+    expect(result.current.values.recommendation_number).toBeNull();
+    expect(result.current.values.recipients[0].name).toBeNull();
+    expect(result.current.values.recipients[0].position).toBeNull();
+
+    expect(result.current.suggestions.recommendation_number).toBe("123/2026");
+    expect(result.current.suggestions.recipients[0].name).toBe("Ana Pérez");
+    expect(result.current.suggestions.recipients[0].position).toBe(
+      "Directora",
+    );
+
+    // Unaffected: no duplicate suggestion overlay renders next to these.
+    expect(result.current.values.topic).toBe("Salud");
+    expect(result.current.values.recipients[0].macro_sector).toBe("GCBA");
+    expect(result.current.values.recipients[0].is_primary).toBe(true);
+  });
+
   it("keeps an out-of-catalog topic instead of discarding it", () => {
     // Never silently drop what the model returned: keep it, offer it as an extra
     // option, and flag it inline.

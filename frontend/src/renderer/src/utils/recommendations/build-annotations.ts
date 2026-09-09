@@ -1,7 +1,39 @@
 import type { ExtractedValueAnnotation } from "@/components/file-annotator/types";
-import type { DataExtractionPrediction } from "@/types/dataExtraction";
+import type {
+  DataExtractionPrediction,
+  RecommendationValidationInput,
+} from "@/types/dataExtraction";
 import type { Paragraph } from "@/types/file";
 import { locateValue } from "./locate-value";
+
+/** Matches `fieldsToLocate`'s `recipient:{index}:{name|position}` naming. */
+const RECIPIENT_FIELD = /^recipient:(\d+):(name|position)$/;
+
+/**
+ * `recommendation_number` and each recipient's `name`/`position` are the
+ * only fields with a clickable suggestion mark next to them
+ * (`ValidatedTextField`) -- while a field's value is still blank (the
+ * suggestion showing, per `useRecommendationForm`'s `blankTextFields`), its
+ * source-document highlight is worth keeping since it's still an open
+ * question the person hasn't resolved. Once they've accepted the
+ * suggestion or typed their own answer, the highlight has served its
+ * purpose and would otherwise keep marking already-settled text as if it
+ * still needed attention. Every other highlightable field
+ * (`recommendation_date`) never carried a suggestion overlay to begin with,
+ * so it always stays highlighted, as before.
+ */
+function isPending(
+  field: string,
+  payload: RecommendationValidationInput | null,
+): boolean {
+  if (!payload) return true;
+  if (field === "recommendation_number") return !payload.recommendation_number;
+  const match = RECIPIENT_FIELD.exec(field);
+  if (!match) return true;
+  const recipient = payload.recipients[Number(match[1])];
+  const key = match[2] as "name" | "position";
+  return !recipient?.[key];
+}
 
 /**
  * Fields eligible for highlighting, in emission order. `topic`, `subtopic`,
@@ -77,10 +109,12 @@ function dedupeOverlaps(
 export function buildAnnotations(
   prediction: DataExtractionPrediction,
   paragraphs: Paragraph[],
+  payload: RecommendationValidationInput | null = null,
 ): Map<string, ExtractedValueAnnotation[]> {
   const byParagraph = new Map<string, ExtractedValueAnnotation[]>();
 
   for (const { field, value } of fieldsToLocate(prediction)) {
+    if (!isPending(field, payload)) continue;
     const ranges = locateValue(value, paragraphs);
     for (const range of ranges) {
       const annotation: ExtractedValueAnnotation = {

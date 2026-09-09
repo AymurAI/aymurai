@@ -105,12 +105,21 @@ export default function RecommendationValidation() {
   // here -- reintroducing id-stable pairing is out of scope for this fix
   // wave -- just corrected so this no longer misattributes the regression to
   // the historical port.
+  // Re-derived on every edit so a highlight disappears once its suggestion
+  // is accepted or overridden -- see `buildAnnotations`' `isPending`. This
+  // does mean `buildAnnotations`' full-document `locateValue` search reruns
+  // on every keystroke rather than once; acceptable at the size of a single
+  // recommendation document, revisit if that ever shows up as real jank.
   const annotations = useMemo(
     () =>
       recommendation.prediction
-        ? buildAnnotations(recommendation.prediction, file?.paragraphs ?? [])
+        ? buildAnnotations(
+            recommendation.prediction,
+            file?.paragraphs ?? [],
+            payload,
+          )
         : new Map(),
-    [recommendation.prediction, file?.paragraphs],
+    [recommendation.prediction, file?.paragraphs, payload],
   );
 
   const handleReExtract = () => {

@@ -118,6 +118,34 @@ function valuesFromPrediction(
   };
 }
 
+/**
+ * `recommendation_number` and each recipient's `name`/`position` are the
+ * fields shown with a clickable suggestion mark (`ValidatedTextField`) --
+ * they start blank so that mark is the ONLY place the model's guess
+ * appears, matching the legacy Set de Datos flow's own `uncontrolled-input`
+ * (`suggestion` only shown while its value is empty). Pre-filling `value`
+ * with the same text as `suggestion` (the previous behaviour) meant the
+ * exact same string was visible twice -- once as the "real" value, once as
+ * the suggestion overlay -- and since they always matched on first render,
+ * the suggestion could never be meaningfully accepted or dismissed.
+ * Every other field (topic/subtopic/macro_sector/is_primary/dates/
+ * publishable_content) keeps pre-filling from the prediction: none of them
+ * render a duplicate suggestion overlay next to their value.
+ */
+function blankTextFields(
+  values: RecommendationFormValues,
+): RecommendationFormValues {
+  return {
+    ...values,
+    recommendation_number: null,
+    recipients: values.recipients.map((recipient) => ({
+      ...recipient,
+      name: null,
+      position: null,
+    })),
+  };
+}
+
 interface Initial {
   values: RecommendationFormValues;
   suggestions: RecommendationFormValues;
@@ -130,10 +158,10 @@ function buildInitial(
   const suggestionValues = valuesFromPrediction(prediction);
 
   if (validation === null) {
-    // Same object for both on purpose: every edit clones-and-replaces
-    // `values` (never mutates in place), so `suggestions` keeps pointing at
-    // this original, untouched value even though it started out shared.
-    return { values: suggestionValues, suggestions: suggestionValues };
+    return {
+      values: blankTextFields(suggestionValues),
+      suggestions: suggestionValues,
+    };
   }
 
   const values: RecommendationFormValues = {

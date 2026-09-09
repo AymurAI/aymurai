@@ -174,10 +174,15 @@ describe("RecommendationValidation -- re-extraction remounts the form", () => {
       </QueryClientProvider>,
     );
 
-    const numberField = await screen.findByLabelText(
-      "validation.recommendationNumber",
-    );
-    expect(numberField).toHaveValue("123/2026");
+    // `recommendation_number` starts blank either way (`blankTextFields`),
+    // so the field's own value can no longer distinguish "old prediction"
+    // from "new prediction" the way it used to -- the suggestion mark is
+    // where the prediction's raw value actually surfaces now, so that's
+    // the signal a stale `initialRef` would get caught by.
+    await screen.findByLabelText("validation.recommendationNumber");
+    expect(
+      screen.getByRole("button", { name: "123/2026" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "validation.reExtract" }),
@@ -185,8 +190,11 @@ describe("RecommendationValidation -- re-extraction remounts the form", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByLabelText("validation.recommendationNumber"),
-      ).toHaveValue("999/2026"),
+        screen.getByRole("button", { name: "999/2026" }),
+      ).toBeInTheDocument(),
     );
+    expect(
+      screen.queryByRole("button", { name: "123/2026" }),
+    ).not.toBeInTheDocument();
   });
 });
