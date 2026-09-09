@@ -172,14 +172,6 @@ export default function RecommendationProcess() {
                       onDismiss={() => setIsDismissed(true)}
                     />
                   )}
-                  {/* A scanned PDF is terminal: it will not succeed on a
-                      second attempt, and Reintentar would just waste the
-                      person's time. */}
-                  {!extraction.isScannedPdf && (
-                    <Button variant="secondary" onClick={extraction.retry}>
-                      {t("process.retry")}
-                    </Button>
-                  )}
                 </Stack>
               )}
             </Stack>

@@ -13,14 +13,12 @@ vi.mock("@/hooks", () => ({
   useFileDispatch: () => vi.fn(),
 }));
 
-const retry = vi.fn();
 const abort = vi.fn();
 let mockExtraction: {
   status: string;
   origin: string | null;
   error: string | null;
   isScannedPdf: boolean;
-  retry: typeof retry;
   abort: typeof abort;
 };
 vi.mock("@/hooks/useDataExtraction", () => ({
@@ -55,7 +53,6 @@ function setStatus(overrides: Partial<typeof mockExtraction> = {}) {
     origin: null,
     error: null,
     isScannedPdf: false,
-    retry,
     abort,
     ...overrides,
   };
@@ -163,32 +160,29 @@ describe("RecommendationProcess", () => {
     ).not.toBeDisabled();
   });
 
-  it("Reintentar re-triggers the extraction on a plain error", () => {
+  it("offers no Reintentar button after a plain error — only Volver, matching Anonimizador/Resumen", () => {
     setStatus({ status: "error", isScannedPdf: false });
     render(<RecommendationProcess />);
 
-    fireEvent.click(screen.getByRole("button", { name: "process.retry" }));
-
-    expect(retry).toHaveBeenCalledTimes(1);
     expect(screen.getByText("process.errorText")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.retry" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("Reintentar is offered and works after a manual Stop, with its own banner, not the error copy", () => {
+  it("offers no Reintentar button after a manual Stop, with its own banner, not the error copy", () => {
     setStatus({ status: "stopped" });
     render(<RecommendationProcess />);
 
     // Stop is not an error: it must not use the error copy, but it does get
     // its own message (in the same banner style as the error one, matching
-    // Anonimizador/Resumen), unlike the other flows' silent Stop.
+    // Anonimizador/Resumen). Recovery is only via BackButton + Continuar,
+    // same as those two flows -- there is no Reintentar affordance here.
     expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
     expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
-
-    // `retry` is a shared module-level mock across this file's tests (not
-    // cleared between them) -- reset it here so this assertion is about
-    // THIS click, not however many other tests happened to run first.
-    retry.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "process.retry" }));
-    expect(retry).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "process.retry" }),
+    ).not.toBeInTheDocument();
   });
 
   it("dismisses the stopped banner via its close button, matching the other process screens", () => {
@@ -209,7 +203,7 @@ describe("RecommendationProcess", () => {
     expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
   });
 
-  it("never shows Reintentar for the scanned-PDF terminal error", () => {
+  it("never shows a Reintentar button for the scanned-PDF terminal error either", () => {
     setStatus({ status: "error", isScannedPdf: true });
     render(<RecommendationProcess />);
 
