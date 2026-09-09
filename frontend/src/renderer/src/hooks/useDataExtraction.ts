@@ -69,6 +69,15 @@ export function useDataExtraction(
   // double-invoke would reset the shared context back to "parsing" a second
   // time even after later stages had already advanced past it.
   const startedParsingFor = useRef<string | null>(null);
+  // Same guard for `startChecking`, one stage later. Without it, any
+  // background refetch of `parseQuery` that returns a referentially-new
+  // `data` (structural sharing only preserves identity for deeply-equal
+  // results) re-runs this effect and re-dispatches `startChecking` --
+  // silently rewinding `status` from "ready" back to "checking" after the
+  // pipeline had already finished, with no further trigger to move it
+  // forward again (the envelope/extraction effects below only ever fire
+  // once per resolved document via their own `startedFor` guard).
+  const startedCheckingFor = useRef<string | null>(null);
 
   const parseQuery = useQuery({
     ...fileParser(targetFile),
@@ -78,9 +87,22 @@ export function useDataExtraction(
   useEffect(() => {
     if (!file || manualStop.current) return;
     if (startedParsingFor.current === file.name) return;
+    // `RecommendationProvider` is mounted once for the whole `/$feature/*`
+    // route tree (`routes/$feature/route.tsx`), so its state survives this
+    // screen unmounting -- but this hook's own refs are fresh on every
+    // remount. Navigating away (e.g. to validation) and back to processing
+    // for the SAME document therefore used to blindly re-dispatch
+    // `startParsing`, which resets the shared state back to `initialState`
+    // (wiping `prediction`/`origin` too) even when it already held "ready".
+    // The one legitimate way state can be "idle" again for a genuinely new
+    // document is the provider itself remounting on re-entering the feature
+    // route tree fresh -- so only dispatch (and latch the ref) when it's
+    // actually idle; otherwise leave the ref unset so a later genuine reset
+    // can still dispatch normally.
+    if (state.status !== "idle") return;
     startedParsingFor.current = file.name;
     dispatch(startParsing(file.name));
-  }, [file, dispatch]);
+  }, [file, dispatch, state.status]);
 
   useEffect(() => {
     if (manualStop.current) return;
@@ -112,6 +134,8 @@ export function useDataExtraction(
       );
       return;
     }
+    if (startedCheckingFor.current === parseQuery.data.document_id) return;
+    startedCheckingFor.current = parseQuery.data.document_id;
     dispatch(startChecking(parseQuery.data.document_id));
   }, [parseQuery.isSuccess, parseQuery.data, dispatch]);
 
