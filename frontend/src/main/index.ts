@@ -6,16 +6,25 @@ import { installExtensions } from "./extensions";
 import { excel, feedback, subprocess, taskbar } from "./utils";
 
 // Must run before Chromium initializes (i.e. before `app.whenReady()`), and
-// alongside `index.html`'s `lang="es-AR"` -- this is what makes Chromium's
-// own native form controls (the `<input type="date">` calendar popup: month
-// names, "Borrar"/"Hoy" button labels) render in Spanish instead of
-// defaulting to the OS/system locale, which isn't guaranteed to be es-AR on
-// every machine this app runs on.
+// alongside `index.html`'s `lang="es-AR"` -- together these get the native
+// `<input type="date">` calendar popup's month/day names into Spanish
+// (ICU-driven, keyed off the page's `lang`).
 //
 // Must be a locale Electron actually ships a .pak for (see
 // `node_modules/electron/dist/locales/`) -- there is no `es-AR.pak`, only
 // `es.pak` and `es-419.pak`, so `--lang=es-AR` silently falls back to the
 // default (en-US) no matter how many times the app is restarted.
+//
+// Known limitation, accepted as-is: the popup's own "Hoy"/"Borrar" button
+// labels stay in English regardless. Those come from Chromium's native
+// resource bundle, whose locale is resolved during Electron's native
+// startup -- earlier than any JS in this file runs, `appendSwitch` included
+// -- so this switch can't reach it. Long-standing, still-unfixed upstream
+// bug: https://github.com/electron/electron/issues/17995 (open since 2019,
+// reproduced as recently as Electron 38.1.0). The one workaround reported
+// there (`app.relaunch` with `--lang` baked into a fresh process's argv) is
+// unreliable per the thread's own later comments and would add a visible
+// relaunch on every startup -- not worth it for two button labels.
 app.commandLine.appendSwitch("lang", "es");
 
 // This method will be called when Electron has finished
