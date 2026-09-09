@@ -147,4 +147,21 @@ describe("FeaturesMenu — recommendations replaces Set de Datos", () => {
     });
     expect(screen.queryByText("recommendations:title")).toBeNull();
   });
+
+  it("keeps Set de Datos in the first grid slot whichever feature it routes to", () => {
+    for (const flag of ["false", "true"]) {
+      vi.stubEnv("VITE_DEFENSORIA_ENABLED", flag);
+      const { unmount } = render(<FeaturesMenu />);
+      const trigger = screen.getByRole("button", { name: "Ir al inicio" });
+      fireEvent.click(trigger);
+
+      const [firstItem] = screen
+        .getAllByRole("button")
+        .filter((button) => button !== trigger);
+      expect(firstItem).toHaveTextContent("dataset:title");
+
+      unmount();
+      vi.unstubAllEnvs();
+    }
+  });
 });

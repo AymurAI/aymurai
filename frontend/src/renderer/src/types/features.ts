@@ -1,9 +1,9 @@
 export enum FeatureFlowEnum {
   Dataset = "DATA_SET",
+  Recommendations = "RECOMMENDATIONS",
   Anonymizer = "ANONYMIZER",
   VoiceToText = "VOICE_TO_TEXT",
   Summarizer = "SUMMARIZER",
-  Recommendations = "RECOMMENDATIONS",
 }
 
 /**
