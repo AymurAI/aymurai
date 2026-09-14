@@ -17,8 +17,12 @@ const group = css({
   p: "0",
 });
 
+// Matches `@aymurai/ui`'s `TextField`/`Select`/`Textarea` field-label
+// convention (`label.sm.default`) -- this used `subtitle.sm.default`, a
+// visibly larger/bolder style than every other field label in the same
+// form (`personal_data`, `is_primary`).
 const legend = css({
-  textStyle: "subtitle.sm.default",
+  textStyle: "label.sm.default",
   color: "text.lighter",
   mb: "2",
 });

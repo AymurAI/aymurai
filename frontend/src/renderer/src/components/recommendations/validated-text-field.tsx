@@ -13,8 +13,11 @@ export interface ValidatedTextFieldProps {
 
 const container = css({ gap: "1", width: "full" });
 
+// Matches `@aymurai/ui`'s `TextField`/`Select`/`Textarea` field-label
+// convention (`label.sm.default`) -- this component's own `input` text
+// below stays `label.md.default`, same split those components use.
 const labelStyle = css({
-  textStyle: "label.md.default",
+  textStyle: "label.sm.default",
   color: "text.lighter",
 });
 

@@ -20,8 +20,10 @@ export interface ValidatedDateFieldProps
 
 const container = css({ gap: "1", width: "full" });
 
+// See `validated-text-field.tsx`'s identical comment: matches
+// `@aymurai/ui`'s field-label convention (`label.sm.default`).
 const labelStyle = css({
-  textStyle: "label.md.default",
+  textStyle: "label.sm.default",
   color: "text.lighter",
 });
 
@@ -57,6 +59,20 @@ const input = css({
   minW: "0",
   bg: "[transparent]",
   color: "text.default",
+});
+
+// An empty native `<input type="date">` always renders its own
+// "mm/dd/yyyy"-shaped placeholder segments -- unlike a text input, there is
+// no `placeholder` prop that can turn it off. While the violet suggestion
+// is showing, that placeholder just competes with it for attention, so this
+// hides it (via the WebKit/Blink-only `::-webkit-datetime-edit`
+// pseudo-element, confirmed empirically since there is no standard API for
+// this) whenever the field isn't focused -- focusing it un-hides the
+// segments again so the person can actually see what they're typing.
+const inputHidePlaceholder = css({
+  "&:not(:focus)::-webkit-datetime-edit": {
+    color: "[transparent]",
+  },
 });
 
 const suggestionSlot = css({
@@ -122,7 +138,7 @@ export function ValidatedDateField({
           ref={ref}
           id={id}
           type="date"
-          className={input}
+          className={cx(input, hasSuggestion && inputHidePlaceholder)}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
