@@ -68,6 +68,11 @@ describe("buildAnnotations", () => {
   });
 
   describe("payload-aware highlighting", () => {
+    // The highlight is a "why does this field say what it says" reference,
+    // not a to-do marker -- it must never disappear just because the person
+    // confirmed or edited the field. See the code comment on
+    // `fieldsToLocate` for the full rationale.
+
     it("keeps a field highlighted while its value is still blank (suggestion pending)", () => {
       const map = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: null,
@@ -97,7 +102,7 @@ describe("buildAnnotations", () => {
       ]);
     });
 
-    it("drops a field's highlight once its value is set (suggestion accepted or overridden)", () => {
+    it("keeps a field highlighted after its suggestion is accepted unchanged", () => {
       const map = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: null,
         recommendation_date_text: null,
@@ -109,7 +114,7 @@ describe("buildAnnotations", () => {
         recipients: [
           {
             name: "Ana Pérez",
-            position: null,
+            position: "Directora General",
             is_primary: true,
             macro_sector: null,
             unit_id: null,
@@ -117,19 +122,49 @@ describe("buildAnnotations", () => {
           },
         ],
       });
-      // date and name accepted -> no longer highlighted; position still
-      // blank -> stays.
-      expect(map.get("d:0")).toBeUndefined();
+      expect(map.get("d:0")?.map((a) => a.field)).toEqual([
+        "recommendation_date",
+      ]);
       expect(map.get("d:1")?.map((a) => a.field)).toEqual([
+        "recipient:0:name",
         "recipient:0:position",
       ]);
     });
 
-    it("keeps recommendation_date highlighted while it is still blank, matching the other suggestion fields", () => {
+    it("tracks the payload's own edited value, not the model's original suggestion, once the person types something different", () => {
+      const customParagraphs: Paragraph[] = [
+        { id: "d:0", document_id: "d", value: "Expediente 999/2026 iniciado." },
+      ];
+      const prediction: DataExtractionPrediction = {
+        ...basePrediction,
+        recommendation_number: "123/2026", // not present in customParagraphs
+        recommendation_date: "",
+        recipients: [],
+      };
+      const map = buildAnnotations(prediction, customParagraphs, {
+        recommendation_number: "999/2026", // the person's own edit
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [],
+      });
+      expect(map.get("d:0")?.map((a) => a.field)).toEqual([
+        "recommendation_number",
+      ]);
+    });
+
+    it("always searches recommendation_date's raw detected prose, never the payload's chosen date", () => {
+      // `recommendation_date_text` is never itself edited (conserved
+      // verbatim, PLAN.md §D.3), so there is no "the person's own text" to
+      // prefer here -- unlike the other three fields, this one ignores the
+      // payload entirely for its search text.
       const map = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: "123/2026",
         recommendation_date_text: "30 de mayo de 2022",
-        recommendation_date: null,
+        recommendation_date: "2022-05-30",
         topic: "AMBIENTE y CAMBIO CLIMÁTICO",
         subtopic: "Inundaciones",
         personal_data: true,
@@ -150,10 +185,30 @@ describe("buildAnnotations", () => {
       ]);
     });
 
-    it("with no payload (null), behaves exactly as before -- everything highlighted", () => {
-      const withPayload = buildAnnotations(basePrediction, paragraphs, null);
-      const withoutPayload = buildAnnotations(basePrediction, paragraphs);
-      expect([...withPayload.entries()]).toEqual([...withoutPayload.entries()]);
+    it("with no payload (null), matches the all-blank-payload case -- everything falls back to the prediction", () => {
+      const withNullPayload = buildAnnotations(basePrediction, paragraphs, null);
+      const withBlankPayload = buildAnnotations(basePrediction, paragraphs, {
+        recommendation_number: null,
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [
+          {
+            name: null,
+            position: null,
+            is_primary: true,
+            macro_sector: null,
+            unit_id: null,
+            sector_id: null,
+          },
+        ],
+      });
+      expect([...withNullPayload.entries()]).toEqual([
+        ...withBlankPayload.entries(),
+      ]);
     });
   });
 

@@ -80,11 +80,16 @@ export default function RecommendationValidation() {
   const saveMutation = useMutation(validateRecommendation());
   const reExtractMutation = useMutation(extractDocument());
 
-  // Built once from the model's inference, not from the person's live
-  // edits -- `buildAnnotations` (Task 8) takes the `DataExtractionPrediction`
-  // itself, so highlighting does not track in-progress edits (matching the
-  // historical screen's own choice to highlight from the saved/inferred
-  // values, not a live diff).
+  // The highlight is a "why does this field say what it says" reference,
+  // not a to-do marker: it never disappears once a field is confirmed, and
+  // for the three free-text fields (`recommendation_number`, a recipient's
+  // `name`/`position`) it tracks whatever the person currently has on
+  // screen -- `payload`'s live value once they've typed or accepted one,
+  // falling back to the model's own suggestion while the field is still
+  // blank. `recommendation_date` is the one exception: always searched via
+  // the raw detected prose, regardless of `payload`, since that prose is
+  // never itself edited (PLAN.md §D.3 conserves it verbatim). See
+  // `buildAnnotations`' `fieldsToLocate` for the full rationale.
   //
   // `buildAnnotations` (`utils/recommendations/build-annotations.ts`) pairs
   // each recipient to its highlight by array index
@@ -105,11 +110,12 @@ export default function RecommendationValidation() {
   // here -- reintroducing id-stable pairing is out of scope for this fix
   // wave -- just corrected so this no longer misattributes the regression to
   // the historical port.
-  // Re-derived on every edit so a highlight disappears once its suggestion
-  // is accepted or overridden -- see `buildAnnotations`' `isPending`. This
-  // does mean `buildAnnotations`' full-document `locateValue` search reruns
-  // on every keystroke rather than once; acceptable at the size of a single
-  // recommendation document, revisit if that ever shows up as real jank.
+  // Re-derived on every edit so the highlight can track the person's own
+  // typed value instead of staying stuck on the model's original
+  // suggestion. This does mean `buildAnnotations`' full-document
+  // `locateValue` search reruns on every keystroke rather than once;
+  // acceptable at the size of a single recommendation document, revisit if
+  // that ever shows up as real jank.
   const annotations = useMemo(
     () =>
       recommendation.prediction

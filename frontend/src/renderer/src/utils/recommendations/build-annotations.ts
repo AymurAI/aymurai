@@ -6,47 +6,36 @@ import type {
 import type { Paragraph } from "@/types/file";
 import { locateValue } from "./locate-value";
 
-/** Matches `fieldsToLocate`'s `recipient:{index}:{name|position}` naming. */
-const RECIPIENT_FIELD = /^recipient:(\d+):(name|position)$/;
-
-/**
- * `recommendation_number`, `recommendation_date`, and each recipient's
- * `name`/`position` are the fields with a clickable suggestion mark next to
- * them (`ValidatedTextField`/`ValidatedDateField`) -- while a field's value
- * is still blank (the suggestion showing, per `useRecommendationForm`'s
- * `blankTextFields`), its source-document highlight is worth keeping since
- * it's still an open question the person hasn't resolved. Once they've
- * accepted the suggestion, picked a different date, or typed their own
- * answer, the highlight has served its purpose and would otherwise keep
- * marking already-settled text as if it still needed attention.
- */
-function isPending(
-  field: string,
-  payload: RecommendationValidationInput | null,
-): boolean {
-  if (!payload) return true;
-  if (field === "recommendation_number") return !payload.recommendation_number;
-  if (field === "recommendation_date") return !payload.recommendation_date;
-  const match = RECIPIENT_FIELD.exec(field);
-  if (!match) return true;
-  const recipient = payload.recipients[Number(match[1])];
-  const key = match[2] as "name" | "position";
-  return !recipient?.[key];
-}
-
 /**
  * Fields eligible for highlighting, in emission order. `topic`, `subtopic`,
  * a recipient's sector and `personal_data`/`publishable_content` are
  * classifications/LLM syntheses rather than quotations from the source
  * document, so they are intentionally excluded (see plan §5.3).
+ *
+ * The highlight is a "why does this field say what it says" reference, not
+ * a to-do marker -- it stays on regardless of whether the person has
+ * confirmed the suggestion, and for the three free-text fields
+ * (`recommendation_number`, a recipient's `name`/`position`) it tracks
+ * whatever they currently have on screen: `payload`'s live value if they've
+ * typed or accepted one, falling back to the model's own suggestion while
+ * the field is still blank. `recommendation_date` is the one exception --
+ * always searched via `prediction.recommendation_date` (the raw prose,
+ * never itself edited: PLAN.md §D.3 conserves it verbatim), since there is
+ * no "the person's own text" to prefer for a field whose editable
+ * counterpart is a parsed ISO date, not prose that could appear in the
+ * document.
  */
 function fieldsToLocate(
   prediction: DataExtractionPrediction,
+  payload: RecommendationValidationInput | null,
 ): { field: string; value: string }[] {
   const fields: { field: string; value: string }[] = [
     {
       field: "recommendation_number",
-      value: prediction.recommendation_number ?? "",
+      value:
+        payload?.recommendation_number ??
+        prediction.recommendation_number ??
+        "",
     },
     {
       field: "recommendation_date",
@@ -55,13 +44,14 @@ function fieldsToLocate(
   ];
 
   prediction.recipients.forEach((recipient, index) => {
+    const payloadRecipient = payload?.recipients[index];
     fields.push({
       field: `recipient:${index}:name`,
-      value: recipient.name ?? "",
+      value: payloadRecipient?.name ?? recipient.name ?? "",
     });
     fields.push({
       field: `recipient:${index}:position`,
-      value: recipient.position ?? "",
+      value: payloadRecipient?.position ?? recipient.position ?? "",
     });
   });
 
@@ -112,8 +102,7 @@ export function buildAnnotations(
 ): Map<string, ExtractedValueAnnotation[]> {
   const byParagraph = new Map<string, ExtractedValueAnnotation[]>();
 
-  for (const { field, value } of fieldsToLocate(prediction)) {
-    if (!isPending(field, payload)) continue;
+  for (const { field, value } of fieldsToLocate(prediction, payload)) {
     const ranges = locateValue(value, paragraphs);
     for (const range of ranges) {
       const annotation: ExtractedValueAnnotation = {
