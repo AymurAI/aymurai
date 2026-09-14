@@ -119,18 +119,25 @@ function valuesFromPrediction(
 }
 
 /**
- * `recommendation_number` and each recipient's `name`/`position` are the
- * fields shown with a clickable suggestion mark (`ValidatedTextField`) --
- * they start blank so that mark is the ONLY place the model's guess
- * appears, matching the legacy Set de Datos flow's own `uncontrolled-input`
- * (`suggestion` only shown while its value is empty). Pre-filling `value`
- * with the same text as `suggestion` (the previous behaviour) meant the
- * exact same string was visible twice -- once as the "real" value, once as
- * the suggestion overlay -- and since they always matched on first render,
- * the suggestion could never be meaningfully accepted or dismissed.
- * Every other field (topic/subtopic/macro_sector/is_primary/dates/
- * publishable_content) keeps pre-filling from the prediction: none of them
- * render a duplicate suggestion overlay next to their value.
+ * `recommendation_number`, `recommendation_date`, and each recipient's
+ * `name`/`position` are the fields shown with a clickable suggestion mark
+ * (`ValidatedTextField`/`ValidatedDateField`) -- they start blank so that
+ * mark is the ONLY place the model's guess appears, matching the legacy Set
+ * de Datos flow's own `uncontrolled-input` (`suggestion` only shown while
+ * its value is empty). Pre-filling `value` with the same text as
+ * `suggestion` (the previous behaviour) meant the exact same string was
+ * visible twice -- once as the "real" value, once as the suggestion overlay
+ * -- and since they always matched on first render, the suggestion could
+ * never be meaningfully accepted or dismissed.
+ *
+ * `recommendation_date_text` (the raw prose the model returned, e.g. "22 de
+ * noviembre") is left alone: it is never itself editable, only ever shown
+ * as hover context next to the date field, so there is no suggestion mark
+ * for it to duplicate.
+ *
+ * Every other field (topic/subtopic/macro_sector/is_primary/
+ * publishable_content) also keeps pre-filling from the prediction: none of
+ * them render a suggestion overlay next to their value.
  */
 function blankTextFields(
   values: RecommendationFormValues,
@@ -138,6 +145,7 @@ function blankTextFields(
   return {
     ...values,
     recommendation_number: null,
+    recommendation_date: null,
     recipients: values.recipients.map((recipient) => ({
       ...recipient,
       name: null,

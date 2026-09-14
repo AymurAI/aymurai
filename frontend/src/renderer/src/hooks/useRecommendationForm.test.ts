@@ -278,7 +278,9 @@ describe("useRecommendationForm", () => {
     // permanently inert, since it's already equal to the value on every
     // first render. Every other field keeps pre-filling from the
     // prediction (no duplicate-suggestion overlay to worry about for those).
-    const { result } = renderHook(() => useRecommendationForm(aPrediction(), null));
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
 
     expect(result.current.values.recommendation_number).toBeNull();
     expect(result.current.values.recipients[0].name).toBeNull();
@@ -286,14 +288,33 @@ describe("useRecommendationForm", () => {
 
     expect(result.current.suggestions.recommendation_number).toBe("123/2026");
     expect(result.current.suggestions.recipients[0].name).toBe("Ana Pérez");
-    expect(result.current.suggestions.recipients[0].position).toBe(
-      "Directora",
-    );
+    expect(result.current.suggestions.recipients[0].position).toBe("Directora");
 
     // Unaffected: no duplicate suggestion overlay renders next to these.
     expect(result.current.values.topic).toBe("Salud");
     expect(result.current.values.recipients[0].macro_sector).toBe("GCBA");
     expect(result.current.values.recipients[0].is_primary).toBe(true);
+  });
+
+  it("starts recommendation_date blank too, with the parsed date only in suggestions", () => {
+    // `aPrediction()`'s own "22 de noviembre" has no year, so
+    // `parseSpanishProseDate` never matches it -- use a prose string it
+    // actually parses to make this meaningful.
+    const { result } = renderHook(() =>
+      useRecommendationForm(
+        aPredictionWith({ recommendation_date: "22 de noviembre de 2026" }),
+        null,
+      ),
+    );
+
+    expect(result.current.values.recommendation_date).toBeNull();
+    expect(result.current.suggestions.recommendation_date).toBe("2026-11-22");
+
+    // The raw prose is never itself a suggestion mark (nothing to
+    // duplicate) -- it stays pre-filled as hover context next to the field.
+    expect(result.current.values.recommendation_date_text).toBe(
+      "22 de noviembre de 2026",
+    );
   });
 
   it("keeps an out-of-catalog topic instead of discarding it", () => {

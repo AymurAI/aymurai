@@ -10,17 +10,15 @@ import { locateValue } from "./locate-value";
 const RECIPIENT_FIELD = /^recipient:(\d+):(name|position)$/;
 
 /**
- * `recommendation_number` and each recipient's `name`/`position` are the
- * only fields with a clickable suggestion mark next to them
- * (`ValidatedTextField`) -- while a field's value is still blank (the
- * suggestion showing, per `useRecommendationForm`'s `blankTextFields`), its
- * source-document highlight is worth keeping since it's still an open
- * question the person hasn't resolved. Once they've accepted the
- * suggestion or typed their own answer, the highlight has served its
- * purpose and would otherwise keep marking already-settled text as if it
- * still needed attention. Every other highlightable field
- * (`recommendation_date`) never carried a suggestion overlay to begin with,
- * so it always stays highlighted, as before.
+ * `recommendation_number`, `recommendation_date`, and each recipient's
+ * `name`/`position` are the fields with a clickable suggestion mark next to
+ * them (`ValidatedTextField`/`ValidatedDateField`) -- while a field's value
+ * is still blank (the suggestion showing, per `useRecommendationForm`'s
+ * `blankTextFields`), its source-document highlight is worth keeping since
+ * it's still an open question the person hasn't resolved. Once they've
+ * accepted the suggestion, picked a different date, or typed their own
+ * answer, the highlight has served its purpose and would otherwise keep
+ * marking already-settled text as if it still needed attention.
  */
 function isPending(
   field: string,
@@ -28,6 +26,7 @@ function isPending(
 ): boolean {
   if (!payload) return true;
   if (field === "recommendation_number") return !payload.recommendation_number;
+  if (field === "recommendation_date") return !payload.recommendation_date;
   const match = RECIPIENT_FIELD.exec(field);
   if (!match) return true;
   const recipient = payload.recipients[Number(match[1])];

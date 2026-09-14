@@ -88,6 +88,9 @@ describe("buildAnnotations", () => {
           },
         ],
       });
+      expect(map.get("d:0")?.map((a) => a.field)).toEqual([
+        "recommendation_date",
+      ]);
       expect(map.get("d:1")?.map((a) => a.field)).toEqual([
         "recipient:0:name",
         "recipient:0:position",
@@ -98,7 +101,7 @@ describe("buildAnnotations", () => {
       const map = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: null,
         recommendation_date_text: null,
-        recommendation_date: null,
+        recommendation_date: "2022-05-30",
         topic: null,
         subtopic: null,
         personal_data: null,
@@ -114,17 +117,19 @@ describe("buildAnnotations", () => {
           },
         ],
       });
-      // name accepted -> no longer highlighted; position still blank -> stays.
+      // date and name accepted -> no longer highlighted; position still
+      // blank -> stays.
+      expect(map.get("d:0")).toBeUndefined();
       expect(map.get("d:1")?.map((a) => a.field)).toEqual([
         "recipient:0:position",
       ]);
     });
 
-    it("never gates recommendation_date on the payload -- it never carried a suggestion overlay", () => {
+    it("keeps recommendation_date highlighted while it is still blank, matching the other suggestion fields", () => {
       const map = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: "123/2026",
         recommendation_date_text: "30 de mayo de 2022",
-        recommendation_date: "2022-05-30",
+        recommendation_date: null,
         topic: "AMBIENTE y CAMBIO CLIMÁTICO",
         subtopic: "Inundaciones",
         personal_data: true,

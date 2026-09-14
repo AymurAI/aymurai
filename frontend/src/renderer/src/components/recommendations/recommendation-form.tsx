@@ -1,7 +1,6 @@
 import {
   Radio,
   Select,
-  TextField,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -22,6 +21,7 @@ import type {
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { RecipientFields } from "./recipient-fields";
+import { ValidatedDateField } from "./validated-date-field";
 import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecommendationFormProps {
@@ -56,19 +56,6 @@ const errorText = css({
   textStyle: "label.sm.default",
   color: "system.error",
 });
-
-/**
- * `TextField` narrows `type` to text|number, but forwards the value straight
- * onto its `<input>` -- matches `holder-correct-dialog.tsx`'s identical cast
- * for the same reason (a native date input, not a custom picker).
- *
- * Known, accepted limitation: the native calendar popup always opens
- * anchored to the input's own left edge, never the calendar-icon button on
- * the right -- confirmed there is no CSS/HTML control over this (including
- * a `direction: rtl` attempt, which didn't even move the icon). Fixing it
- * would mean replacing the native input with a fully custom date picker.
- */
-const DATE_TYPE = "date" as "text";
 
 /** `value` the model returned isn't among `options`' non-flagged entries —
  *  i.e. it's the out-of-catalog extra `useRecommendationForm` appended. */
@@ -184,13 +171,11 @@ export default function RecommendationForm({
 
       {(() => {
         const dateField = (
-          <TextField
+          <ValidatedDateField
             label={t("validation.recommendationDate")}
-            type={DATE_TYPE}
             value={values.recommendation_date ?? ""}
-            onChange={(event) =>
-              setValue("recommendation_date", event.target.value || null)
-            }
+            suggestion={suggestions.recommendation_date}
+            onChange={(value) => setValue("recommendation_date", value || null)}
           />
         );
         // The raw prose the model returned is never re-edited from here --
