@@ -43,26 +43,17 @@ function fieldsToLocate(
     },
   ];
 
-  // A manually-added recipient (`addRecipient`, `useRecommendationForm.ts`)
-  // is appended to `values.recipients` with no counterpart in
-  // `prediction.recipients` at all -- iterate to the longer of the two so
-  // its name/position, sourced entirely from `payload`, still get located.
-  const recipientCount = Math.max(
-    prediction.recipients.length,
-    payload?.recipients.length ?? 0,
-  );
-  for (let index = 0; index < recipientCount; index++) {
-    const recipient = prediction.recipients[index];
+  prediction.recipients.forEach((recipient, index) => {
     const payloadRecipient = payload?.recipients[index];
     fields.push({
       field: `recipient:${index}:name`,
-      value: payloadRecipient?.name ?? recipient?.name ?? "",
+      value: payloadRecipient?.name ?? recipient.name ?? "",
     });
     fields.push({
       field: `recipient:${index}:position`,
-      value: payloadRecipient?.position ?? recipient?.position ?? "",
+      value: payloadRecipient?.position ?? recipient.position ?? "",
     });
-  }
+  });
 
   return fields.filter(({ value }) => value.trim().length > 0);
 }
