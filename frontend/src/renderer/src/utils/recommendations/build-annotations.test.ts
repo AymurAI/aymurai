@@ -185,6 +185,54 @@ describe("buildAnnotations", () => {
       ]);
     });
 
+    it("highlights a manually-added recipient's name/position too, even though it has no counterpart in the prediction", () => {
+      // `addRecipient` (`useRecommendationForm.ts`) appends a blank
+      // recipient at the end of `values.recipients`, with no matching entry
+      // in `prediction.recipients` at all (`source_index: null`). There is
+      // nothing to fall back to for this one -- the payload IS the only
+      // source of truth.
+      const customParagraphs: Paragraph[] = [
+        {
+          id: "d:2",
+          document_id: "d",
+          value: "Con copia a Juan Gómez, Subsecretario.",
+        },
+      ];
+      const map = buildAnnotations(basePrediction, customParagraphs, {
+        recommendation_number: null,
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [
+          // Index 0 mirrors basePrediction's own recipient (blank payload).
+          {
+            name: null,
+            position: null,
+            is_primary: true,
+            macro_sector: null,
+            unit_id: null,
+            sector_id: null,
+          },
+          // Index 1 exists only in the payload -- manually added.
+          {
+            name: "Juan Gómez",
+            position: "Subsecretario",
+            is_primary: false,
+            macro_sector: null,
+            unit_id: null,
+            sector_id: null,
+          },
+        ],
+      });
+      expect(map.get("d:2")?.map((a) => a.field)).toEqual([
+        "recipient:1:name",
+        "recipient:1:position",
+      ]);
+    });
+
     it("with no payload (null), matches the all-blank-payload case -- everything falls back to the prediction", () => {
       const withNullPayload = buildAnnotations(basePrediction, paragraphs, null);
       const withBlankPayload = buildAnnotations(basePrediction, paragraphs, {
