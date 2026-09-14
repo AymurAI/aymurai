@@ -17,11 +17,10 @@ import type {
 } from "@/types/dataExtraction";
 import RecommendationForm from "./recommendation-form";
 
-// A selected recipient with non-empty `sector_candidates` mounts
-// `<RecipientUnitSelect>`'s `Select`, whose option `description` (Task 12)
-// wraps each option in a Radix Tooltip -- it throws without a
-// `TooltipProvider` ancestor even before the dropdown opens, the same
-// wrapping `app.tsx` does for real, matching `recipient-unit-select.test.tsx`/
+// `topic`/`subtopic`/`macro_sector` each mount `@aymurai/ui`'s `Select`,
+// whose option `description` wraps each option in a Radix Tooltip -- it
+// throws without a `TooltipProvider` ancestor even before the dropdown
+// opens, the same wrapping `app.tsx` does for real, matching
 // `recipient-fields.test.tsx`'s identical need.
 
 vi.mock("react-i18next", () => ({
@@ -30,8 +29,8 @@ vi.mock("react-i18next", () => ({
 
 // Radix Tooltip's positioning measures the trigger's size via
 // ResizeObserver, which jsdom doesn't implement -- stubbed the same way
-// `turn-side-panel.test.tsx`/`recipient-unit-select.test.tsx` already do for
-// the identical underlying reason.
+// `turn-side-panel.test.tsx` already does for the identical underlying
+// reason.
 vi.stubGlobal(
   "ResizeObserver",
   class ResizeObserver {
@@ -186,10 +185,9 @@ describe("RecommendationForm — unified date field", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByLabelText("validation.recommendationDate"),
-      { target: { value: "2024-07-10" } },
-    );
+    fireEvent.change(screen.getByLabelText("validation.recommendationDate"), {
+      target: { value: "2024-07-10" },
+    });
 
     expect(onValuesChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ recommendation_date: "2024-07-10" }),
@@ -293,14 +291,11 @@ describe("RecommendationForm", () => {
     ).not.toBeChecked();
   });
 
-  // Task 12 built `<RecipientUnitSelect>`/`<RecipientFields>` but, per its
-  // own file list, never wired them into this form -- this fix round closes
-  // that gap. These two mirror `recipient-fields.test.tsx`'s identical
-  // "shows the selector with candidates / hides it without" tests, but here
-  // confirming the *integration*: that `RecommendationForm` actually
-  // threads the selected recipient's `sector_candidates` down, rather than
-  // re-testing `RecipientUnitSelect`'s own null-on-empty logic again.
-  it("shows the organigram unit selector when the selected recipient has sector_candidates", () => {
+  // These mirror `recipient-fields.test.tsx`'s identical GCBA-gating tests,
+  // but here confirming the *integration*: that `RecommendationForm` actually
+  // threads the selected recipient's `macro_sector`/`sector_candidates` down,
+  // rather than re-testing `RecipientUnitCombobox`'s own logic again.
+  it("shows the organigram unit combobox for a GCBA recipient, with or without candidates", () => {
     renderWithClient(
       <RecommendationForm
         prediction={aPrediction({
@@ -323,14 +318,33 @@ describe("RecommendationForm", () => {
       />,
     );
 
-    // Baseline (no candidates) is 3 comboboxes: macro_sector, topic,
-    // subtopic -- see the next test. One more here is the unit selector.
+    // 4 comboboxes: macro_sector, topic, subtopic, plus the unit combobox
+    // (always present for a GCBA recipient -- see the empty-candidates
+    // fixture default in `aPrediction`, exercised by the next test).
     expect(screen.getAllByRole("combobox")).toHaveLength(4);
   });
 
-  it("does not show the organigram unit selector when the selected recipient has no candidates", () => {
+  it("does not show the organigram unit combobox for a non-GCBA recipient", () => {
     renderWithClient(
-      <RecommendationForm prediction={aPrediction()} validation={null} />,
+      <RecommendationForm
+        prediction={aPrediction({
+          recipients: [
+            {
+              name: "Ana Pérez",
+              position: "Directora",
+              is_primary: true,
+              macro_sector: "Organismos Nacionales",
+              unit_id: null,
+              unit_name: null,
+              sector_id: null,
+              sector_name: null,
+              match_method: null,
+              sector_candidates: [],
+            },
+          ],
+        })}
+        validation={null}
+      />,
     );
 
     expect(screen.getAllByRole("combobox")).toHaveLength(3);

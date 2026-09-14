@@ -3,12 +3,13 @@ import { useTranslation } from "react-i18next";
 import RadioGroup from "@/components/radio/radio-group";
 import { css } from "@/styled/css";
 import { Stack } from "@/styled/jsx";
+import { GCBA_MACRO_SECTOR_CODE } from "@/types/catalogs";
 import type {
   FormOption,
   OrganigramCandidate,
   RecipientFormValues,
 } from "@/types/dataExtraction";
-import { RecipientUnitSelect } from "./recipient-unit-select";
+import { RecipientUnitCombobox } from "./recipient-unit-combobox";
 import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecipientFieldsProps {
@@ -53,9 +54,8 @@ function toSelectOptions(options: FormOption[]) {
 }
 
 /**
- * Editable fields for a single recipient: `name`, `position`, the
- * organigram unit (below `position`, added on top of the historical port),
- * `is_primary` and `macro_sector`.
+ * Editable fields for a single recipient, in display order: `macro_sector`,
+ * `name`, `position`, the organigram unit, then `is_primary`.
  *
  * Ported from the historical desktop-app's `DestinatarioFields`
  * (`destinatario-fields.tsx`, branch `feat/recomendaciones-defensoria`,
@@ -63,8 +63,11 @@ function toSelectOptions(options: FormOption[]) {
  * `OrganigramPicker`s wired to `name`/`position` after the product owner
  * found they added no value: each wrote plain text back into a free-text
  * field, with no way to keep `unit_id`/`sector_id` consistent (ADR-0009).
- * `<RecipientUnitSelect>` replaces that removed affordance with a single
- * reference-emitting selector instead of reintroducing it.
+ * `<RecipientUnitCombobox>` replaces that removed affordance with a single
+ * reference-emitting combobox instead of reintroducing it -- rendered only
+ * for a GCBA recipient (the only sector the organigram cross-check covers),
+ * hidden rather than cleared otherwise so a prior pick survives an
+ * accidental sector toggle.
  *
  * `sectores.ts`'s hardcoded `SECTOR_OPTIONS` is replaced by
  * `macroSectorOptions` (from `useRecommendationForm`, backed by
@@ -93,48 +96,6 @@ export function RecipientFields({
 
   return (
     <Stack gap="4">
-      <ValidatedTextField
-        label={t("validation.name")}
-        value={value.name ?? ""}
-        suggestion={suggestion?.name}
-        onChange={(name) => onChange({ name })}
-      />
-
-      <ValidatedTextField
-        label={t("validation.position")}
-        value={value.position ?? ""}
-        suggestion={suggestion?.position}
-        onChange={(position) => onChange({ position })}
-      />
-
-      <RecipientUnitSelect
-        label={t("validation.unit")}
-        candidates={candidates}
-        unitId={value.unit_id}
-        sectorId={value.sector_id}
-        onChange={(picked) =>
-          onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
-        }
-      />
-
-      <RadioGroup
-        label={t("validation.isPrimary")}
-        name={`is-primary-${index}`}
-      >
-        <Radio
-          checked={value.is_primary === true}
-          onChange={() => onChange({ is_primary: true })}
-        >
-          {t("validation.isPrimaryYes")}
-        </Radio>
-        <Radio
-          checked={value.is_primary === false}
-          onChange={() => onChange({ is_primary: false })}
-        >
-          {t("validation.isPrimaryNo")}
-        </Radio>
-      </RadioGroup>
-
       <Stack gap="1">
         <Select
           label={t("validation.macroSector")}
@@ -154,6 +115,58 @@ export function RecipientFields({
           <p className={errorText}>{t("validation.macroSectorOutOfCatalog")}</p>
         )}
       </Stack>
+
+      <ValidatedTextField
+        label={t("validation.name")}
+        value={value.name ?? ""}
+        suggestion={suggestion?.name}
+        onChange={(name) => onChange({ name })}
+      />
+
+      <ValidatedTextField
+        label={t("validation.position")}
+        value={value.position ?? ""}
+        suggestion={suggestion?.position}
+        onChange={(position) => onChange({ position })}
+      />
+
+      {value.macro_sector === GCBA_MACRO_SECTOR_CODE && (
+        <RecipientUnitCombobox
+          label={t("validation.unit")}
+          candidates={candidates}
+          unitId={value.unit_id}
+          sectorId={value.sector_id}
+          suggestion={
+            suggestion?.unit_id
+              ? {
+                  unit_id: suggestion.unit_id,
+                  sector_id: suggestion.sector_id,
+                }
+              : undefined
+          }
+          onChange={(picked) =>
+            onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
+          }
+        />
+      )}
+
+      <RadioGroup
+        label={t("validation.isPrimary")}
+        name={`is-primary-${index}`}
+      >
+        <Radio
+          checked={value.is_primary === true}
+          onChange={() => onChange({ is_primary: true })}
+        >
+          {t("validation.isPrimaryYes")}
+        </Radio>
+        <Radio
+          checked={value.is_primary === false}
+          onChange={() => onChange({ is_primary: false })}
+        >
+          {t("validation.isPrimaryNo")}
+        </Radio>
+      </RadioGroup>
     </Stack>
   );
 }

@@ -195,6 +195,34 @@ export default function RecommendationForm({
         );
       })()}
 
+      <Stack gap="1">
+        <Select
+          label={t("validation.topic")}
+          options={toSelectOptions(topicOptions)}
+          value={values.topic ?? undefined}
+          suggestion={suggestions.topic ? { id: suggestions.topic } : undefined}
+          onChange={(option) => setValue("topic", option.id)}
+        />
+        {topicOutOfCatalog && (
+          <p className={errorText}>{t("validation.topicOutOfCatalog")}</p>
+        )}
+      </Stack>
+
+      <Stack gap="1">
+        <Select
+          label={t("validation.subtopic")}
+          options={toSelectOptions(subtopicOptions)}
+          value={values.subtopic ?? undefined}
+          suggestion={
+            suggestions.subtopic ? { id: suggestions.subtopic } : undefined
+          }
+          onChange={(option) => setValue("subtopic", option.id)}
+        />
+        {subtopicOutOfCatalog && (
+          <p className={errorText}>{t("validation.subtopicOutOfCatalog")}</p>
+        )}
+      </Stack>
+
       <Stack gap="4">
         <DecisionTabs
           selected={selectedIndex}
@@ -222,34 +250,6 @@ export default function RecommendationForm({
             macroSectorOptions={macroSectorOptions}
             onChange={(patch) => setRecipient(selectedIndex, patch)}
           />
-        )}
-      </Stack>
-
-      <Stack gap="1">
-        <Select
-          label={t("validation.topic")}
-          options={toSelectOptions(topicOptions)}
-          value={values.topic ?? undefined}
-          suggestion={suggestions.topic ? { id: suggestions.topic } : undefined}
-          onChange={(option) => setValue("topic", option.id)}
-        />
-        {topicOutOfCatalog && (
-          <p className={errorText}>{t("validation.topicOutOfCatalog")}</p>
-        )}
-      </Stack>
-
-      <Stack gap="1">
-        <Select
-          label={t("validation.subtopic")}
-          options={toSelectOptions(subtopicOptions)}
-          value={values.subtopic ?? undefined}
-          suggestion={
-            suggestions.subtopic ? { id: suggestions.subtopic } : undefined
-          }
-          onChange={(option) => setValue("subtopic", option.id)}
-        />
-        {subtopicOutOfCatalog && (
-          <p className={errorText}>{t("validation.subtopicOutOfCatalog")}</p>
         )}
       </Stack>
 

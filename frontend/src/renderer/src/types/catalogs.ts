@@ -19,6 +19,9 @@ export interface Subtopic {
   updated_at: string | null;
 }
 
+/** The one `MacroSector.code` that triggers the organigram cross-check, server-side and here. */
+export const GCBA_MACRO_SECTOR_CODE = "GCBA";
+
 /**
  * The 4 fixed macro sectors (GCBA / Organismos Nacionales / Obra Social -
  * Prepaga / Empresa) — unlike topic/subtopic, `code` is never nullable: it

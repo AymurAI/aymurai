@@ -296,6 +296,26 @@ describe("useRecommendationForm", () => {
     expect(result.current.values.recipients[0].is_primary).toBe(true);
   });
 
+  it("starts each recipient's unit_id/sector_id blank too, with the prediction only in suggestions", () => {
+    // `RecipientUnitCombobox` shows the same kind of clickable suggestion
+    // mark as `ValidatedTextField` -- same reasoning as name/position above.
+    const { result } = renderHook(() =>
+      useRecommendationForm(
+        aPredictionWithRecipient({
+          macro_sector: "GCBA",
+          unit_id: "leaf-42",
+          sector_id: "sector-7",
+        }),
+        null,
+      ),
+    );
+
+    expect(result.current.values.recipients[0].unit_id).toBeNull();
+    expect(result.current.values.recipients[0].sector_id).toBeNull();
+    expect(result.current.suggestions.recipients[0].unit_id).toBe("leaf-42");
+    expect(result.current.suggestions.recipients[0].sector_id).toBe("sector-7");
+  });
+
   it("starts recommendation_date blank too, with the parsed date only in suggestions", () => {
     // `aPrediction()`'s own "22 de noviembre" has no year, so
     // `parseSpanishProseDate` never matches it -- use a prose string it

@@ -35,14 +35,14 @@ vi.mock("@/services/aymurai/organigram", () => ({
   }),
 }));
 
-// `<RecipientUnitSelect>`'s options carry a `description` (@aymurai/ui's
-// `Select`), which wraps each option in a Radix Tooltip -- it throws without
-// a `TooltipProvider` ancestor even before the dropdown opens. The app root
-// (`app.tsx`) supplies one globally; tests need their own, matching
-// `recipient-unit-select.test.tsx`/`how-it-works.test.tsx`. `RecipientFields`
-// renders `<RecipientUnitSelect>`, which now calls `useQuery`/`useMutation`
-// unconditionally (the full-corpus search + create-unit affordance), so
-// every render here also needs a `QueryClientProvider` ancestor.
+// `macro_sector`'s own `Select` (@aymurai/ui) wraps its option descriptions
+// in a Radix Tooltip, which throws without a `TooltipProvider` ancestor even
+// before the dropdown opens. The app root (`app.tsx`) supplies one globally;
+// tests need their own, matching `how-it-works.test.tsx`. `RecipientFields`
+// also renders `<RecipientUnitCombobox>` for a GCBA recipient, which calls
+// `useQuery`/`useMutation` unconditionally (the full-corpus search +
+// create-unit affordance), so every render here also needs a
+// `QueryClientProvider` ancestor.
 function withProviders(queryClient: QueryClient, ui: ReactElement) {
   return (
     <QueryClientProvider client={queryClient}>
@@ -98,7 +98,7 @@ function aRecipient(
 }
 
 describe("RecipientFields", () => {
-  it("shows the unit selector for a GCBA recipient with candidates", () => {
+  it("shows the unit combobox for a GCBA recipient with candidates", () => {
     renderWithProvider(
       <RecipientFields
         index={0}
@@ -109,14 +109,14 @@ describe("RecipientFields", () => {
       />,
     );
 
-    // Two comboboxes: the unit selector plus macro_sector's own `Select`
+    // Two comboboxes: the unit combobox plus macro_sector's own `Select`
     // (`Select` has no accessible name -- Task 11's report already flagged
     // it has no `aria-labelledby`/`for` linking its visual label -- so this
     // asserts by count rather than by name).
     expect(screen.getAllByRole("combobox")).toHaveLength(2);
   });
 
-  it("does not show the unit selector for a recipient with no candidates", () => {
+  it("still shows the unit combobox for a GCBA recipient with no candidates", () => {
     renderWithProvider(
       <RecipientFields
         index={0}
@@ -127,10 +127,45 @@ describe("RecipientFields", () => {
       />,
     );
 
+    // Unlike the historical `RecipientUnitSelect` (gated on candidates.length
+    // > 0), the merged combobox always renders for a GCBA recipient -- an
+    // empty ranked list just falls back to its search-to-find prompt.
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+  });
+
+  it("hides the unit combobox entirely for a non-GCBA recipient", () => {
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ macro_sector: "Organismos Nacionales" })}
+        candidates={[]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
     // The macro_sector `Select` is still its own combobox -- only the unit
-    // selector is conditionally absent here, so this asserts there is
+    // combobox is conditionally absent here, so this asserts there is
     // exactly one combobox left (macro_sector), not zero.
     expect(screen.getAllByRole("combobox")).toHaveLength(1);
+  });
+
+  it("threads the suggested unit through to the unit combobox", () => {
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: null, sector_id: null })}
+        suggestion={aRecipient({
+          unit_id: CANDIDATES[0].unit_id,
+          sector_id: CANDIDATES[0].sector_id,
+        })}
+        candidates={CANDIDATES}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(CANDIDATES[0].unit_name)).toBeInTheDocument();
   });
 
   it("marking two recipients as primary leaves both marked", () => {

@@ -120,15 +120,18 @@ function valuesFromPrediction(
 
 /**
  * `recommendation_number`, `recommendation_date`, and each recipient's
- * `name`/`position` are the fields shown with a clickable suggestion mark
- * (`ValidatedTextField`/`ValidatedDateField`) -- they start blank so that
- * mark is the ONLY place the model's guess appears, matching the legacy Set
- * de Datos flow's own `uncontrolled-input` (`suggestion` only shown while
- * its value is empty). Pre-filling `value` with the same text as
- * `suggestion` (the previous behaviour) meant the exact same string was
- * visible twice -- once as the "real" value, once as the suggestion overlay
- * -- and since they always matched on first render, the suggestion could
- * never be meaningfully accepted or dismissed.
+ * `name`/`position`/`unit_id`+`sector_id` are the fields shown with a
+ * clickable suggestion mark (`ValidatedTextField`/`ValidatedDateField`/
+ * `RecipientUnitCombobox`) -- they start blank so that mark is the ONLY
+ * place the model's guess appears, matching the legacy Set de Datos flow's
+ * own `uncontrolled-input` (`suggestion` only shown while its value is
+ * empty). Pre-filling `value` with the same text as `suggestion` (the
+ * previous behaviour) meant the exact same string was visible twice -- once
+ * as the "real" value, once as the suggestion overlay -- and since they
+ * always matched on first render, the suggestion could never be
+ * meaningfully accepted or dismissed. `unit_id`/`sector_id` always travel
+ * together (never blank just one) since the backend only ever resolves them
+ * as a pair.
  *
  * `recommendation_date_text` (the raw prose the model returned, e.g. "22 de
  * noviembre") is left alone: it is never itself editable, only ever shown
@@ -150,6 +153,8 @@ function blankTextFields(
       ...recipient,
       name: null,
       position: null,
+      unit_id: null,
+      sector_id: null,
     })),
   };
 }
