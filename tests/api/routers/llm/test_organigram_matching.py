@@ -396,6 +396,36 @@ def test_sector_candidates_carry_the_sector_id(session, dgtal_tree):
         assert candidate.sector_id is not None
         sector = session.get(OrganigramUnit, candidate.sector_id)
         assert sector is not None
+
+
+def test_sector_candidates_carry_a_source_unit_that_pairs_validly(session, dgtal_tree):
+    """A candidate must also name the specific unit whose match produced it,
+    so the client can submit `unit_id=source_unit_id` alongside this
+    candidate's own `sector_id` and have `_reconcile_recipients` accept the
+    pair -- picking a sector from this list must never require the client to
+    separately hunt for a matching `unit_id`."""
+    from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_sector
+
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position=(
+            "Directora General Obras en Vías Peatonales, dependiente del "
+            "Ministerio de Salud"
+        ),
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    assert match.sector_candidates, "expected at least one ranked candidate"
+    for candidate in match.sector_candidates:
+        assert candidate.source_unit_id is not None
+        source_unit = session.get(OrganigramUnit, candidate.source_unit_id)
+        assert source_unit is not None
+        assert source_unit.name == candidate.source_unit_name
+        sector = resolve_sector(source_unit, session)
+        assert sector.id == candidate.sector_id
         assert sector.is_sector is True
         assert sector.name == candidate.sector_name
 

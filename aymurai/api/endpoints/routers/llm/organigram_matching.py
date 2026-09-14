@@ -154,6 +154,13 @@ class OrganigramCandidate(BaseModel):
     sector_name: str | None = None
     ruta_organigrama: str
     score: float
+    # The specific unit whose match against the cargo text produced this
+    # sector (the best-scoring one, if several collapsed into it) -- submit
+    # both together in `validate` (`unit_id=source_unit_id`,
+    # `sector_id=this candidate's sector_id`) and the consistency check is
+    # guaranteed to pass, since that's exactly how this pair was derived.
+    source_unit_id: uuid.UUID | None = None
+    source_unit_name: str | None = None
 
 
 class RecipientMatch(BaseModel):
@@ -596,16 +603,16 @@ def _sector_candidates_from_units(
     Returns:
         list[OrganigramCandidate]: Ranked, deduplicated sector candidates.
     """
-    best_by_sector: dict[uuid.UUID, tuple[OrganigramUnit, float]] = {}
+    best_by_sector: dict[uuid.UUID, tuple[OrganigramUnit, OrganigramUnit, float]] = {}
     for unit, score in ranked:
         sector = resolve_sector(unit, session)
         if sector is None:
             continue
         current = best_by_sector.get(sector.id)
-        if current is None or score > current[1]:
-            best_by_sector[sector.id] = (sector, score)
+        if current is None or score > current[2]:
+            best_by_sector[sector.id] = (sector, unit, score)
 
-    ordered = sorted(best_by_sector.values(), key=lambda pair: -pair[1])[:top_k]
+    ordered = sorted(best_by_sector.values(), key=lambda triple: -triple[2])[:top_k]
     return [
         OrganigramCandidate(
             unit_id=sector.id,
@@ -614,6 +621,8 @@ def _sector_candidates_from_units(
             sector_name=sector.name,
             ruta_organigrama=ruta_organigrama(sector, session),
             score=score,
+            source_unit_id=source_unit.id,
+            source_unit_name=source_unit.name,
         )
-        for sector, score in ordered
+        for sector, source_unit, score in ordered
     ]

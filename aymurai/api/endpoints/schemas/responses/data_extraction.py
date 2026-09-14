@@ -17,6 +17,14 @@ class OrganigramCandidateResponse(BaseModel):
     sector_name: str | None = None
     ruta_organigrama: str
     score: float
+    # The specific unit whose match against the cargo text produced this
+    # sector (the best-scoring one, if several collapsed into it) -- submit
+    # both together in `validate` (`unit_id=source_unit_id`, `sector_id`
+    # from this same candidate) and the consistency check in
+    # `_reconcile_recipients` is guaranteed to pass, since that pairing is
+    # exactly how the candidate was derived.
+    source_unit_id: uuid.UUID | None = None
+    source_unit_name: str | None = None
 
 
 class RecipientResponse(BaseModel):
