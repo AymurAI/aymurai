@@ -104,7 +104,8 @@ export function useDataExtraction(
     // continuing again, which remounts this hook, is the only way back in,
     // matching Anonimizador/Resumen).
     const isNewDocument = state.sourceFileName !== file.name;
-    const isRecoverable = state.status === "error" || state.status === "stopped";
+    const isRecoverable =
+      state.status === "error" || state.status === "stopped";
     if (state.status !== "idle" && !isNewDocument && !isRecoverable) return;
     startedParsingFor.current = file.name;
     dispatch(startParsing(file.name));

@@ -234,7 +234,11 @@ describe("buildAnnotations", () => {
     });
 
     it("with no payload (null), matches the all-blank-payload case -- everything falls back to the prediction", () => {
-      const withNullPayload = buildAnnotations(basePrediction, paragraphs, null);
+      const withNullPayload = buildAnnotations(
+        basePrediction,
+        paragraphs,
+        null,
+      );
       const withBlankPayload = buildAnnotations(basePrediction, paragraphs, {
         recommendation_number: null,
         recommendation_date_text: null,

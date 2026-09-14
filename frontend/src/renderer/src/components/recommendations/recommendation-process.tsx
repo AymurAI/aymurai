@@ -108,7 +108,10 @@ export default function RecommendationProcess() {
                           ? t("process.errorTitle")
                           : t("process.processingTitle")}
                   </styled.h2>
-                  <styled.p textStyle="subtitle.sm.default" color="text.lighter">
+                  <styled.p
+                    textStyle="subtitle.sm.default"
+                    color="text.lighter"
+                  >
                     {isReady
                       ? t("process.finishedSubtitle")
                       : isStopped

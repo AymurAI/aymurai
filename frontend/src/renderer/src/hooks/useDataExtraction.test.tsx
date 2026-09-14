@@ -1,8 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as RecommendationContext from "@/context/Recommendation";
-import RecommendationProvider from "@/context/Recommendation";
+import RecommendationProvider, * as RecommendationContext from "@/context/Recommendation";
 import api from "@/services/api";
 import type {
   DataExtractionPrediction,
@@ -230,7 +229,9 @@ describe("useDataExtraction", () => {
     function tree(mounted: boolean) {
       return (
         <QueryClientProvider client={queryClient}>
-          <RecommendationProvider>{mounted && <Consumer />}</RecommendationProvider>
+          <RecommendationProvider>
+            {mounted && <Consumer />}
+          </RecommendationProvider>
         </QueryClientProvider>
       );
     }
@@ -414,7 +415,9 @@ describe("useDataExtraction", () => {
     function tree(mounted: boolean) {
       return (
         <QueryClientProvider client={queryClient}>
-          <RecommendationProvider>{mounted && <Consumer />}</RecommendationProvider>
+          <RecommendationProvider>
+            {mounted && <Consumer />}
+          </RecommendationProvider>
         </QueryClientProvider>
       );
     }
@@ -475,7 +478,9 @@ describe("useDataExtraction", () => {
     function tree(mounted: boolean) {
       return (
         <QueryClientProvider client={queryClient}>
-          <RecommendationProvider>{mounted && <Consumer />}</RecommendationProvider>
+          <RecommendationProvider>
+            {mounted && <Consumer />}
+          </RecommendationProvider>
         </QueryClientProvider>
       );
     }
@@ -519,7 +524,9 @@ describe("useDataExtraction", () => {
     function tree(mounted: boolean) {
       return (
         <QueryClientProvider client={queryClient}>
-          <RecommendationProvider>{mounted && <Consumer />}</RecommendationProvider>
+          <RecommendationProvider>
+            {mounted && <Consumer />}
+          </RecommendationProvider>
         </QueryClientProvider>
       );
     }

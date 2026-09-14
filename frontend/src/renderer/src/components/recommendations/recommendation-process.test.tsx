@@ -125,9 +125,7 @@ describe("RecommendationProcess", () => {
   it("shows the stored-inference callout only once ready from a cached extraction", () => {
     setStatus({ status: "ready", origin: "stored-inference" });
     render(<RecommendationProcess />);
-    expect(
-      screen.getByText("process.storedInference"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("process.storedInference")).toBeInTheDocument();
   });
 
   it("does not show the stored-inference callout for a fresh extraction", () => {
@@ -190,7 +188,9 @@ describe("RecommendationProcess", () => {
     render(<RecommendationProcess />);
 
     expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
     expect(screen.queryByText("process.stoppedText")).not.toBeInTheDocument();
   });
 
@@ -199,7 +199,9 @@ describe("RecommendationProcess", () => {
     render(<RecommendationProcess />);
 
     expect(screen.getByText("process.errorText")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
     expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
   });
 
