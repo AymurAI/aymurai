@@ -36,6 +36,7 @@ import json
 import mimetypes
 import sqlite3
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -331,24 +332,47 @@ def read_extractions(conn: sqlite3.Connection, run_id: int) -> dict[str, dict]:
 
 
 def es_no_definido(valor: str | None) -> bool:
-    return isinstance(valor, str) and valor.strip().lower() == NO_DEFINIDO
+    """True for the literal "no definido" marker, but also for a genuinely
+    empty cell (None or blank) -- both mean "not decided yet", never a sector
+    to compare against."""
+    if valor is None:
+        return True
+    if not isinstance(valor, str):
+        return False
+    return valor.strip().lower() in (NO_DEFINIDO, "")
 
 
 def macro_sector(sector_ground_truth: str) -> str:
     return sector_ground_truth if sector_ground_truth in SECTORES_NO_GCBA else "GCBA"
 
 
-def _unit_labels(conn: sqlite3.Connection) -> dict[str, set[str]]:
-    """sector_id (str) -> {name.lower(), acronym.lower() if any} for GT matching."""
-    labels: dict[str, set[str]] = {}
+def _normalize_uuid(value: str) -> str:
+    """Canonical dashed-lowercase form, whether `value` came dashed (the
+    API's JSON, via pydantic) or dashless (sqlite's stored
+    `organigram_unit.id`) -- without this, every lookup by id silently
+    misses across that boundary."""
+    return str(uuid.UUID(value))
+
+
+def _unit_labels(
+    conn: sqlite3.Connection,
+) -> tuple[dict[str, set[str]], dict[str, str]]:
+    """Returns (sector_id -> {name.lower(), acronym.lower() if any}, and
+    label.lower() -> canonical name) so a ground truth acronym (e.g. "AGC")
+    and a candidate's full name land on the same label for the confusion
+    matrix, instead of being counted as two different classes."""
+    by_id: dict[str, set[str]] = {}
+    canonical: dict[str, str] = {}
     for unit_id, name, acronym in conn.execute(
         "SELECT id, name, acronym FROM organigram_unit"
     ).fetchall():
         values = {name.strip().lower()}
+        canonical[name.strip().lower()] = name
         if acronym:
             values.add(acronym.strip().lower())
-        labels[unit_id] = values
-    return labels
+            canonical[acronym.strip().lower()] = name
+        by_id[_normalize_uuid(unit_id)] = values
+    return by_id, canonical
 
 
 def _gt_matches_candidate(
@@ -357,7 +381,53 @@ def _gt_matches_candidate(
     if sector_id is None:
         return False
     needle = gt_label.strip().lower()
-    return needle in unit_labels.get(sector_id, set())
+    return needle in unit_labels.get(_normalize_uuid(sector_id), set())
+
+
+def _canonical_label(label: str | None, canonical: dict[str, str]) -> str | None:
+    if label is None:
+        return None
+    return canonical.get(label.strip().lower(), label)
+
+
+def _metrics_by_class(pairs: list[tuple[str, str | None]]) -> list[dict]:
+    """Precision/recall/F1/soporte por clase, calculado a mano (sin sklearn),
+    igual que en la notebook original."""
+    clases = sorted({esperado for esperado, _ in pairs})
+    rows = []
+    for clase in clases:
+        tp = sum(1 for e, o in pairs if e == clase and o == clase)
+        fp = sum(1 for e, o in pairs if e != clase and o == clase)
+        fn = sum(1 for e, o in pairs if e == clase and o != clase)
+        soporte = sum(1 for e, _ in pairs if e == clase)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if precision == precision and recall == recall and (precision + recall) > 0
+            else float("nan")
+        )
+        rows.append(
+            {
+                "clase": clase,
+                "soporte": soporte,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+            }
+        )
+    return sorted(rows, key=lambda r: -r["soporte"])
+
+
+def _confusion_matrix(
+    pairs: list[tuple[str, str | None]],
+) -> dict[tuple[str, str], int]:
+    from collections import defaultdict
+
+    matrix: dict[tuple[str, str], int] = defaultdict(int)
+    for esperado, obtenido in pairs:
+        matrix[(esperado, obtenido or "None")] += 1
+    return dict(matrix)
 
 
 @dataclass
@@ -370,14 +440,18 @@ class Metrics:
     macro_evaluados: int
     macro_correcto_pct: float
     macro_confusion: dict[tuple[str, str], int]
+    macro_metrics_por_clase: list[dict]
     fino_evaluados: int
     fino_top1_pct: float
     fino_top3_pct: float
     fino_top5_pct: float
+    fino_confusion: dict[tuple[str, str], int]
+    fino_metrics_por_clase: list[dict]
 
 
 def compute_metrics(
     unit_labels: dict[str, set[str]],
+    canonical_labels: dict[str, str],
     gt_rows: list[GroundTruthRow],
     extractions: dict[str, dict | None],
 ) -> Metrics:
@@ -391,9 +465,8 @@ def compute_metrics(
     conteo_discrepancias = []
     conteo_correctos = 0
     conteo_evaluados = 0
-    macro_correctos = 0
-    macro_evaluados = 0
-    macro_confusion: dict[tuple[str, str], int] = defaultdict(int)
+    macro_pairs: list[tuple[str, str | None]] = []
+    fino_pairs: list[tuple[str, str | None]] = []
     fino_hits = {1: 0, 3: 0, 5: 0}
     fino_evaluados = 0
 
@@ -424,10 +497,7 @@ def compute_metrics(
                 if idx < len(destinatarios)
                 else None
             )
-            macro_evaluados += 1
-            macro_confusion[(macro_esperado, macro_obtenido or "None")] += 1
-            if macro_obtenido == macro_esperado:
-                macro_correctos += 1
+            macro_pairs.append((macro_esperado, macro_obtenido))
 
             if macro_esperado != "GCBA" or idx >= len(destinatarios):
                 continue
@@ -442,8 +512,18 @@ def compute_metrics(
                 ):
                     fino_hits[k] += 1
 
+            gt_canonico = _canonical_label(fila.sector_ground_truth, canonical_labels)
+            top1_canonico = (
+                _canonical_label(candidatos[0].get("sector_name"), canonical_labels)
+                if candidatos
+                else None
+            )
+            fino_pairs.append((gt_canonico, top1_canonico))
+
     def pct(n: int, total: int) -> float:
         return (n / total * 100) if total else float("nan")
+
+    macro_correctos = sum(1 for e, o in macro_pairs if e == o)
 
     return Metrics(
         n_documentos=len(por_resolucion),
@@ -451,14 +531,51 @@ def compute_metrics(
         n_errores=n_errores,
         conteo_correcto_pct=pct(conteo_correctos, conteo_evaluados),
         conteo_discrepancias=conteo_discrepancias,
-        macro_evaluados=macro_evaluados,
-        macro_correcto_pct=pct(macro_correctos, macro_evaluados),
-        macro_confusion=dict(macro_confusion),
+        macro_evaluados=len(macro_pairs),
+        macro_correcto_pct=pct(macro_correctos, len(macro_pairs)),
+        macro_confusion=_confusion_matrix(macro_pairs),
+        macro_metrics_por_clase=_metrics_by_class(macro_pairs),
         fino_evaluados=fino_evaluados,
         fino_top1_pct=pct(fino_hits[1], fino_evaluados),
         fino_top3_pct=pct(fino_hits[3], fino_evaluados),
         fino_top5_pct=pct(fino_hits[5], fino_evaluados),
+        fino_confusion=_confusion_matrix(fino_pairs),
+        fino_metrics_por_clase=_metrics_by_class(fino_pairs),
     )
+
+
+def _render_metrics_table(rows: list[dict]) -> list[str]:
+    if not rows:
+        return ["_(sin clases para evaluar)_"]
+
+    lines = ["**Precision / Recall / F1 por clase:**", ""]
+    lines.append("| Clase | Soporte | Precision | Recall | F1 |")
+    lines.append("|---|---|---|---|---|")
+    for row in rows:
+
+        def fmt(v: float) -> str:
+            return f"{v:.1%}" if v == v else "—"  # v == v is False for NaN
+
+        lines.append(
+            f"| {row['clase']} | {row['soporte']} | {fmt(row['precision'])} | "
+            f"{fmt(row['recall'])} | {fmt(row['f1'])} |"
+        )
+
+    f1_validos = [r["f1"] for r in rows if r["f1"] == r["f1"]]
+    if f1_validos:
+        f1_macro = sum(f1_validos) / len(f1_validos)
+        soporte_total = sum(r["soporte"] for r in rows if r["f1"] == r["f1"])
+        f1_ponderado = (
+            sum(r["f1"] * r["soporte"] for r in rows if r["f1"] == r["f1"])
+            / soporte_total
+            if soporte_total
+            else float("nan")
+        )
+        lines.append("")
+        lines.append(
+            f"F1 macro: {f1_macro:.1%} — F1 ponderado por soporte: {f1_ponderado:.1%}"
+        )
+    return lines
 
 
 # -- Report -----------------------------------------------------------------
@@ -517,10 +634,14 @@ def render_report(
     lines.append(f"- Destinatarios evaluados: {metrics.macro_evaluados}")
     lines.append(f"- Accuracy: {metrics.macro_correcto_pct:.1f}%")
     lines.append("")
+    lines.append("**Matriz de confusión** (esperado → obtenido):")
+    lines.append("")
     lines.append("| Esperado → Obtenido | Conteo |")
     lines.append("|---|---|")
     for (esperado, obtenido), n in sorted(metrics.macro_confusion.items()):
         lines.append(f"| {esperado} → {obtenido} | {n} |")
+    lines.append("")
+    lines.extend(_render_metrics_table(metrics.macro_metrics_por_clase))
     lines.append("")
 
     lines.append("## Sector fino (sólo destinatarios GCBA)")
@@ -529,6 +650,19 @@ def render_report(
     lines.append(f"- Top-1: {metrics.fino_top1_pct:.1f}%")
     lines.append(f"- Top-3: {metrics.fino_top3_pct:.1f}%")
     lines.append(f"- Top-5: {metrics.fino_top5_pct:.1f}%")
+    lines.append("")
+    lines.append(
+        "**Matriz de confusión (top-1)** — sólo pares donde esperado y/u obtenido "
+        "difieren se listan abajo de la diagonal implícita; ver la tabla de "
+        "precision/recall/F1 para el detalle por clase:"
+    )
+    lines.append("")
+    lines.append("| Esperado → Obtenido | Conteo |")
+    lines.append("|---|---|")
+    for (esperado, obtenido), n in sorted(metrics.fino_confusion.items()):
+        lines.append(f"| {esperado} → {obtenido} | {n} |")
+    lines.append("")
+    lines.extend(_render_metrics_table(metrics.fino_metrics_por_clase))
     lines.append("")
 
     lines.append("## Historial de corridas")
@@ -609,10 +743,10 @@ def run(
     extractions = read_extractions(conn, run_id)
 
     app_conn = sqlite3.connect(organigram_db)
-    unit_labels = _unit_labels(app_conn)
+    unit_labels, canonical_labels = _unit_labels(app_conn)
     app_conn.close()
 
-    metrics = compute_metrics(unit_labels, gt_rows, extractions)
+    metrics = compute_metrics(unit_labels, canonical_labels, gt_rows, extractions)
     report = render_report(conn, run_id, reused, model, gt_version_id, metrics)
 
     out_path = REPORTS_DIR / f"run-{run_id}.md"
