@@ -157,6 +157,102 @@ describe("buildAnnotations", () => {
       ]);
     });
 
+    // Clearing a field writes "", not null, and the suggestion mark comes
+    // back the moment it is empty. The highlight has to come back with it:
+    // the two are the same offer, and a reference that disappears while the
+    // mark is still on screen just reads as a glitch.
+    it("falls back to the suggestion when the person erases a field", () => {
+      const map = buildAnnotations(basePrediction, paragraphs, {
+        recommendation_number: null,
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [
+          {
+            name: "", // erased, so the mark is showing again
+            position: "Directora General",
+            is_primary: true,
+            macro_sector: null,
+            unit_id: null,
+            sector_id: null,
+          },
+        ],
+      });
+
+      expect(map.get("d:1")?.map((a) => a.field)).toContain("recipient:0:name");
+    });
+
+    it("treats a whitespace-only field as erased too", () => {
+      const map = buildAnnotations(basePrediction, paragraphs, {
+        recommendation_number: null,
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [
+          {
+            name: "   ",
+            position: "Directora General",
+            is_primary: true,
+            macro_sector: null,
+            unit_id: null,
+            sector_id: null,
+          },
+        ],
+      });
+
+      expect(map.get("d:1")?.map((a) => a.field)).toContain("recipient:0:name");
+    });
+
+    // The typed value still wins whenever there is one -- the fallback must
+    // not swallow a real edit.
+    it("locates a typed value that appears inside surrounding punctuation", () => {
+      const quoted: Paragraph[] = [
+        {
+          id: "d:0",
+          document_id: "d",
+          value:
+            'Sostener la independencia de los refugios "Mariquita Sánchez" y "Tita Merello" -',
+        },
+      ];
+      const map = buildAnnotations(
+        { ...basePrediction, recipients: [] },
+        quoted,
+        {
+          recommendation_number: null,
+          recommendation_date_text: null,
+          recommendation_date: null,
+          topic: null,
+          subtopic: null,
+          personal_data: null,
+          publishable_content: "",
+          recipients: [
+            {
+              name: "Tita Merello", // typed without the quotes around it
+              position: null,
+              is_primary: true,
+              macro_sector: null,
+              unit_id: null,
+              sector_id: null,
+            },
+          ],
+        },
+      );
+
+      const located = map
+        .get("d:0")
+        ?.find((a) => a.field === "recipient:0:name");
+      expect(located).toBeDefined();
+      expect(quoted[0].value.slice(located?.start, located?.end)).toBe(
+        "Tita Merello",
+      );
+    });
+
     it("always searches recommendation_date's raw detected prose, never the payload's chosen date", () => {
       // `recommendation_date_text` is never itself edited (conserved
       // verbatim, PLAN.md §D.3), so there is no "the person's own text" to

@@ -25,6 +25,24 @@ import { locateValue } from "./locate-value";
  * counterpart is a parsed ISO date, not prose that could appear in the
  * document.
  */
+/**
+ * What the field currently shows: the person's own value once they have typed
+ * or accepted one, and the model's suggestion while it is still blank.
+ *
+ * A blank check, not `??`: clearing a field writes `""`, not `null`, and an
+ * empty string is not nullish. With `??` the highlight vanished the moment
+ * someone erased a field -- even though the suggestion mark came back right
+ * next to it, since that mark keys off the same emptiness. The reference and
+ * the mark have to agree about what the field is offering.
+ */
+function shownValue(
+  typed: string | null | undefined,
+  suggested: string | null | undefined,
+): string {
+  if (typed?.trim()) return typed;
+  return suggested ?? "";
+}
+
 function fieldsToLocate(
   prediction: DataExtractionPrediction,
   payload: RecommendationValidationInput | null,
@@ -32,10 +50,10 @@ function fieldsToLocate(
   const fields: { field: string; value: string }[] = [
     {
       field: "recommendation_number",
-      value:
-        payload?.recommendation_number ??
-        prediction.recommendation_number ??
-        "",
+      value: shownValue(
+        payload?.recommendation_number,
+        prediction.recommendation_number,
+      ),
     },
     {
       field: "recommendation_date",
@@ -56,11 +74,11 @@ function fieldsToLocate(
     const payloadRecipient = payload?.recipients[index];
     fields.push({
       field: `recipient:${index}:name`,
-      value: payloadRecipient?.name ?? recipient?.name ?? "",
+      value: shownValue(payloadRecipient?.name, recipient?.name),
     });
     fields.push({
       field: `recipient:${index}:position`,
-      value: payloadRecipient?.position ?? recipient?.position ?? "",
+      value: shownValue(payloadRecipient?.position, recipient?.position),
     });
   }
 
