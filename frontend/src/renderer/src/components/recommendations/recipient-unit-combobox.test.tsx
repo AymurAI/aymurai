@@ -86,6 +86,18 @@ const FULL_CORPUS = [
     created_at: "2026-01-01T00:00:00Z",
     updated_at: null,
   },
+  {
+    id: "u10",
+    parent_id: null,
+    name: "Ministerio de Desarrollo Humano y Hábitat",
+    acronym: null,
+    short_name: null,
+    is_sector: true,
+    active: true,
+    order: 2,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: null,
+  },
 ];
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -321,6 +333,44 @@ describe("RecipientUnitCombobox", () => {
     ).toBeInTheDocument();
     // The ranked candidates are replaced, not merged, once searching.
     expect(screen.queryByText(CANDIDATES[0].unit_name)).not.toBeInTheDocument();
+  });
+
+  it("finds an accented unit when the person types without accents", async () => {
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    openCombobox();
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "habitat" },
+    });
+
+    expect(
+      await screen.findByText("Ministerio de Desarrollo Humano y Hábitat"),
+    ).toBeInTheDocument();
+  });
+
+  it("still finds it when the person does type the accents", async () => {
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={CANDIDATES}
+        unitId={null}
+        sectorId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    openCombobox();
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "Hábitat" },
+    });
+
+    expect(
+      await screen.findByText("Ministerio de Desarrollo Humano y Hábitat"),
+    ).toBeInTheDocument();
   });
 
   it("picking a full-corpus match emits its id with a null sector_id", async () => {

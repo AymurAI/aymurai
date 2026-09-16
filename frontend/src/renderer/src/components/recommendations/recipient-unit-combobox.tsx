@@ -122,6 +122,19 @@ const suggestionButton = css({
   font: "inherit",
 });
 
+// The library's popover surface sets no height cap and no overflow (its 400px
+// cap belongs to `Select`'s own viewport, not to `Popover`), so a long list
+// just grew past the viewport with no way to reach the rows below the fold.
+// Radix publishes the room it actually has as a CSS var on the content
+// element; capping the scroller to it means the panel fits whether it opens
+// upward or downward, and scrolls internally instead of overflowing.
+// `rounded` matches the surface so rows can't poke past its corners.
+const resultList = css({
+  maxHeight: "[var(--radix-popover-content-available-height)]",
+  overflowY: "auto",
+  rounded: "lg",
+});
+
 const resultButton = css({
   display: "flex",
   flexDirection: "column",
@@ -147,12 +160,25 @@ const statusText = css({
   p: "2",
 });
 
+/** Mirrors the backend's `normalize_text` (`aymurai/text/matching.py`): NFKD,
+ *  drop combining marks, lowercase. Typing "habitat" has to find "Hábitat" --
+ *  people search without accents, and the backend's own cargo matching already
+ *  normalizes both sides this way, so the client-side search would otherwise
+ *  be strictly stricter than the ranking that produced the candidates. */
+function normalizeForSearch(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
 function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
-  const q = needle.toLowerCase();
+  const q = normalizeForSearch(needle);
   return (
-    unit.name.toLowerCase().includes(q) ||
-    (unit.acronym ?? "").toLowerCase().includes(q) ||
-    (unit.short_name ?? "").toLowerCase().includes(q)
+    normalizeForSearch(unit.name).includes(q) ||
+    normalizeForSearch(unit.acronym).includes(q) ||
+    normalizeForSearch(unit.short_name).includes(q)
   );
 }
 
@@ -369,6 +395,11 @@ export function RecipientUnitCombobox({
         </PopoverAnchor>
         <PopoverContent
           align="start"
+          // Radix only computes `--radix-popover-content-available-height`
+          // (used by `resultList` below) when it is free to flip/shrink, and
+          // `collisionPadding` keeps the panel off the viewport edge so the
+          // last row is never flush against it.
+          collisionPadding={16}
           onOpenAutoFocus={(event) => event.preventDefault()}
           // `PopoverAnchor` (unlike `PopoverTrigger`) isn't exempted from
           // Radix's own outside-interaction dismissal -- opening on the
@@ -383,7 +414,7 @@ export function RecipientUnitCombobox({
             }
           }}
         >
-          <Stack gap="1">
+          <Stack gap="1" className={resultList}>
             {!isSearching &&
               candidates.map((candidate) => (
                 <styled.button
