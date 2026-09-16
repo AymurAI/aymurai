@@ -269,6 +269,88 @@ describe("RecipientFields", () => {
     ).not.toBeInTheDocument();
   });
 
+  // The QA finding: with a sector validated, the unit field was still
+  // offering units of other ministries that merely looked similar.
+  it("offers only the sector's own units once a sector is set", async () => {
+    corpus = TREE;
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: "direccion", sector_id: "ministerio" })}
+        candidates={CANDIDATES}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("validation.unit")).toHaveValue(
+        "Dirección General de Vivienda",
+      ),
+    );
+
+    fireEvent.focus(screen.getByLabelText("validation.unit"));
+
+    expect(
+      await screen.findByText("Ministerio de Desarrollo Humano y Hábitat"),
+    ).toBeVisible();
+    // Belongs to the other ministry, so it is not on offer at all.
+    expect(
+      screen.queryByText("Ministerio de Justicia"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the backend's similarity order among the sector's ranked units", async () => {
+    corpus = TREE;
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: "direccion", sector_id: "ministerio" })}
+        candidates={CANDIDATES}
+        // Deliberately the weaker match first: the order must come from the
+        // scores the backend computed, not from the array or the tree.
+        unitCandidates={[
+          {
+            unit_id: "ministerio",
+            unit_name: "Ministerio de Desarrollo Humano y Hábitat",
+            sector_id: "ministerio",
+            sector_name: "Ministerio de Desarrollo Humano y Hábitat",
+            ruta_organigrama: "Ministerio de Desarrollo Humano y Hábitat",
+            score: 91.0,
+          },
+          {
+            unit_id: "direccion",
+            unit_name: "Dirección General de Vivienda",
+            sector_id: "ministerio",
+            sector_name: "Ministerio de Desarrollo Humano y Hábitat",
+            ruta_organigrama:
+              "Ministerio de Desarrollo Humano y Hábitat > Dirección General de Vivienda",
+            score: 44.0,
+          },
+        ]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("validation.unit")).toHaveValue(
+        "Dirección General de Vivienda",
+      ),
+    );
+
+    fireEvent.focus(screen.getByLabelText("validation.unit"));
+
+    const rows = await screen.findAllByRole("button");
+    const names = rows.map((row) => row.textContent ?? "");
+    const ministerio = names.findIndex((n) =>
+      n.startsWith("Ministerio de Desarrollo Humano y Hábitat"),
+    );
+    const direccion = names.findIndex((n) =>
+      n.startsWith("Dirección General de Vivienda"),
+    );
+    expect(ministerio).toBeGreaterThanOrEqual(0);
+    expect(direccion).toBeGreaterThan(ministerio);
+  });
+
   it("narrows the unit picker to the pinned sector while the pair disagrees", async () => {
     corpus = TREE;
     renderWithProvider(

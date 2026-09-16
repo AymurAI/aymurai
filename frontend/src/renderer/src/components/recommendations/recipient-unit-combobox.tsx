@@ -2,7 +2,10 @@ import { Callout } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { createUnit, listUnits } from "@/services/aymurai/organigram";
-import type { OrganigramCandidate } from "@/types/dataExtraction";
+import type {
+  OrganigramCandidate,
+  OrganigramUnitCandidate,
+} from "@/types/dataExtraction";
 import type { OrganigramUnit } from "@/types/organigram";
 import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
 import {
@@ -40,9 +43,12 @@ export interface RecipientUnitComboboxProps {
    *  when there is nothing to suggest at all (a hand-added recipient, or
    *  nothing cleared the threshold). */
   suggestion?: { unit_id: string | null; sector_id: string | null };
-  /** When set, the person validated this sector by hand and the unit does not
-   *  belong to it: both the ranked rows and the search narrow to that
-   *  sector's units until the pair agrees again. */
+  /** The cargo's ranked units, uncollapsed. Only used while a sector narrows
+   *  the field: filtering these to it keeps the backend's own similarity
+   *  order, which cannot be reproduced here (hybrid embeddings + fuzzy). */
+  unitCandidates?: OrganigramUnitCandidate[];
+  /** When set, the field works inside that sector: both the ranked rows and
+   *  the search narrow to its units. */
   restrictToSectorId?: string | null;
   onChange: (value: RecipientUnitComboboxValue) => void;
   label?: string;
@@ -97,6 +103,50 @@ function candidateUnitRows(
   });
 }
 
+/**
+ * The rows offered once a sector narrows the field: its units, with the ones
+ * the cargo actually ranked first and in the backend's order.
+ *
+ * That order is the only part of this the backend can produce -- it scores
+ * the cargo against every unit with embeddings plus fuzzy matching. Filtering
+ * by sector is pure tree work and belongs here; re-deriving the similarity
+ * would put a second, different notion of "closest" next to the first.
+ * Whatever the ranking did not reach follows in the corpus' own order, so
+ * every unit of the sector stays reachable without typing.
+ */
+function sectorRows(
+  unitsOfSector: OrganigramUnit[],
+  unitCandidates: OrganigramUnitCandidate[] | undefined,
+  sectorId: string | null,
+  corpus: OrganigramUnit[] | undefined,
+): UnitRow[] {
+  const ranked = (unitCandidates ?? []).filter(
+    (candidate) => candidate.sector_id === sectorId,
+  );
+  const rankedIds = new Set(ranked.map((candidate) => candidate.unit_id));
+  const toRow = (unit: OrganigramUnit, score: number): UnitRow => ({
+    id: unit.id,
+    name: unit.name,
+    path: unitPath(unit.id, corpus ?? []),
+    sector_id: sectorId,
+    score,
+  });
+
+  const byId = new Map(unitsOfSector.map((unit) => [unit.id, unit]));
+  const rankedRows = ranked
+    .map((candidate) => {
+      const unit = byId.get(candidate.unit_id);
+      return unit ? toRow(unit, candidate.score) : null;
+    })
+    .filter((row): row is UnitRow => row !== null);
+
+  const rest = unitsOfSector
+    .filter((unit) => !rankedIds.has(unit.id))
+    .map((unit) => toRow(unit, 0));
+
+  return [...rankedRows, ...rest];
+}
+
 /** Display name for a unit id. `RecipientFormValues` carries only ids (see
  *  `useRecommendationForm`'s `recipientFromPrediction`), so the name comes
  *  from the ranked rows when it is one of them, and from the fetched corpus
@@ -122,6 +172,7 @@ export function RecipientUnitCombobox({
   candidates,
   unitId,
   suggestion,
+  unitCandidates,
   restrictToSectorId,
   onChange,
   label,
@@ -137,17 +188,13 @@ export function RecipientUnitCombobox({
     : null;
 
   const rankedRows = candidateUnitRows(candidates, corpus);
-  // While a sector is pinned, the cargo's candidates are the wrong offer --
-  // they are exactly the units that do NOT belong to it. Offer that sector's
-  // own units instead.
+  // While a sector narrows the field, the cargo's sector candidates are the
+  // wrong offer -- they are one unit per OTHER sector. What belongs here are
+  // this sector's own units, and the ones the cargo ranked come first, in the
+  // backend's order; the rest of the sector follows in tree order so nothing
+  // is unreachable without typing.
   const rows: UnitRow[] = restricted
-    ? restricted.map((unit) => ({
-        id: unit.id,
-        name: unit.name,
-        path: unitPath(unit.id, corpus ?? []),
-        sector_id: restrictToSectorId ?? null,
-        score: 0,
-      }))
+    ? sectorRows(restricted, unitCandidates, restrictToSectorId ?? null, corpus)
     : rankedRows;
 
   const selectedLabel = unitLabel(unitId, rankedRows, corpus);

@@ -76,6 +76,7 @@ function samplePrediction(documentId: string): DataExtractionPrediction {
         sector_id: "ivc",
         sector_name: SECTOR_NAMES.ivc,
         match_method: "cargo",
+        unit_candidates: [],
         sector_candidates: [
           {
             unit_id: "ivc",
@@ -113,6 +114,40 @@ function samplePrediction(documentId: string): DataExtractionPrediction {
         sector_id: "avig",
         sector_name: SECTOR_NAMES.avig,
         match_method: "cargo",
+        // The ranking uncollapsed: three units of the same sector, which is
+        // what the unit field offers (in this order) once that sector is
+        // validated. `sector_candidates` below keeps only the best of them.
+        unit_candidates: [
+          {
+            unit_id: "dgpolea",
+            unit_name: UNIT_NAMES.dgpolea,
+            sector_id: "avig",
+            sector_name: SECTOR_NAMES.avig,
+            ruta_organigrama:
+              "Jefe de Gobierno > Vicejefatura de Gobierno > Subsecretaría de Ambiente > Dirección General Política y Estrategia Ambiental",
+            score: 88.4,
+          },
+          {
+            unit_id: "dgacra",
+            unit_name:
+              "Dirección General Áreas de Conservación y Restauración Ambiental",
+            sector_id: "avig",
+            sector_name: SECTOR_NAMES.avig,
+            ruta_organigrama:
+              "Jefe de Gobierno > Vicejefatura de Gobierno > Subsecretaría de Ambiente > Dirección General Áreas de Conservación y Restauración Ambiental",
+            score: 63.2,
+          },
+          {
+            unit_id: "dgdsec",
+            unit_name:
+              "Dirección General Desarrollo Sostenible y Economía Circular",
+            sector_id: "avig",
+            sector_name: SECTOR_NAMES.avig,
+            ruta_organigrama:
+              "Jefe de Gobierno > Vicejefatura de Gobierno > Subsecretaría de Ambiente > Dirección General Desarrollo Sostenible y Economía Circular",
+            score: 55.1,
+          },
+        ],
         sector_candidates: [
           {
             unit_id: "avig",
@@ -149,6 +184,7 @@ function samplePrediction(documentId: string): DataExtractionPrediction {
         sector_id: null,
         sector_name: null,
         match_method: null,
+        unit_candidates: [],
         sector_candidates: [],
       },
     ],

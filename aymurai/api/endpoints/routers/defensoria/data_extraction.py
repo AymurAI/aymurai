@@ -35,6 +35,7 @@ from aymurai.api.endpoints.schemas.responses.data_extraction import (
     DataExtractionResponse,
     DocumentExtractionEnvelopeResponse,
     OrganigramCandidateResponse,
+    OrganigramUnitCandidateResponse,
     RecipientDetailResponse,
     RecipientResponse,
     RecommendationDetailResponse,
@@ -101,6 +102,10 @@ def _recipient_response(raw: dict, session: Session) -> RecipientResponse:
         sector_candidates=[
             OrganigramCandidateResponse(**c.model_dump())
             for c in match.sector_candidates
+        ],
+        unit_candidates=[
+            OrganigramUnitCandidateResponse(**c.model_dump())
+            for c in match.unit_candidates
         ],
     )
 

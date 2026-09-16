@@ -71,10 +71,11 @@ function buildPredictionFixture(): DataExtractionPrediction {
         sector_id: null,
         sector_name: null,
         match_method: null,
-        // Empty on purpose: `RecipientUnitCombobox` only renders for a GCBA
+        // Both empty on purpose: the organigram fields only render for a GCBA
         // recipient (this one's `macro_sector` is "Salud"), and candidates
         // never come from a network call anyway -- they're embedded in the
-        // prediction itself (Task 6's OrganigramCandidate[]).
+        // prediction itself.
+        unit_candidates: [],
         sector_candidates: [],
       },
     ],

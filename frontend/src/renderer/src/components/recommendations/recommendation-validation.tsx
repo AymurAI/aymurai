@@ -280,12 +280,6 @@ export default function RecommendationValidation() {
             {t("validation.sectionTitle")}
           </SectionTitle>
 
-          {recommendation.origin === "validation" && (
-            <Callout
-              message={t("validation.alreadyValidated")}
-              variant="success"
-            />
-          )}
           {recommendation.catalogsStale && (
             <Stack gap="3" direction="column" alignItems="flex-start">
               <Callout

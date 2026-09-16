@@ -17,6 +17,16 @@ export const organigramCandidateSchema = z.object({
   source_unit_name: z.string().nullable(),
 });
 
+/** Mirrors `OrganigramUnitCandidateResponse`. */
+export const organigramUnitCandidateSchema = z.object({
+  unit_id: z.string(),
+  unit_name: z.string(),
+  sector_id: z.string().nullable(),
+  sector_name: z.string().nullable(),
+  ruta_organigrama: z.string(),
+  score: z.number(),
+});
+
 /** Mirrors `RecipientResponse`. */
 export const recipientPredictionSchema = z.object({
   name: z.string().nullable(),
@@ -29,6 +39,7 @@ export const recipientPredictionSchema = z.object({
   sector_name: z.string().nullable(),
   match_method: z.enum(["cargo", "name"]).nullable(),
   sector_candidates: z.array(organigramCandidateSchema),
+  unit_candidates: z.array(organigramUnitCandidateSchema).default([]),
 });
 
 /** Mirrors `DataExtractionConfigResponse`. */

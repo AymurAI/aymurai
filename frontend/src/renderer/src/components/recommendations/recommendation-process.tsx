@@ -136,10 +136,22 @@ export default function RecommendationProcess() {
                 </HStack>
               </HStack>
 
+              {/* The two things that can come back already stored, announced
+                  where the recovery actually happens rather than a screen
+                  later: an inference nobody has confirmed yet, and a full
+                  validation somebody already signed off on. */}
               {isReady && extraction.origin === "stored-inference" && (
                 <Callout
                   message={t("process.storedInference")}
                   variant="info"
+                  size="compact"
+                  noBorder
+                />
+              )}
+              {isReady && extraction.origin === "validation" && (
+                <Callout
+                  message={t("process.alreadyValidated")}
+                  variant="success"
                   size="compact"
                   noBorder
                 />

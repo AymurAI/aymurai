@@ -57,6 +57,8 @@ const recommendations = {
     stoppedSubtitle: "Vuelve atrás para reiniciar el procesamiento.",
     stoppedText: "El procesamiento del documento fue detenido manualmente.",
     storedInference: "Se recuperó una extracción previa de este documento.",
+    alreadyValidated:
+      "Este documento ya fue validado. Podés modificar los datos antes de continuar.",
     errorText: "Ocurrió un error al extraer los datos del documento.",
     noTextError:
       "No se pudo extraer texto del documento. Puede tratarse de un PDF escaneado o de imágenes. Vuelve atrás y carga un archivo con texto seleccionable.",
@@ -67,8 +69,6 @@ const recommendations = {
   validation: {
     sectionTitle: "3. Validación de datos",
     originalDocumentLabel: "Documento original",
-    alreadyValidated:
-      "Este documento ya fue validado. Podés modificar los datos antes de continuar.",
     catalogsStale:
       "La taxonomía de temas o sectores cambió desde que se generó esta extracción. Podés volver a extraer los datos con la información actualizada.",
     reExtract: "Volver a extraer",

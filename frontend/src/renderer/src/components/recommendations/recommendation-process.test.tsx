@@ -128,6 +128,24 @@ describe("RecommendationProcess", () => {
     expect(screen.getByText("process.storedInference")).toBeInTheDocument();
   });
 
+  it("announces a recovered validation, not just a recovered inference", () => {
+    setStatus({ status: "ready", origin: "validation" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.alreadyValidated")).toBeInTheDocument();
+    // The two recoveries are different states and must not both fire.
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not announce a validation before the extraction is ready", () => {
+    setStatus({ status: "checking", origin: "validation" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.alreadyValidated"),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not show the stored-inference callout for a fresh extraction", () => {
     setStatus({ status: "ready", origin: "inference" });
     render(<RecommendationProcess />);

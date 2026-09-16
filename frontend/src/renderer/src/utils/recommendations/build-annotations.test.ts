@@ -27,6 +27,7 @@ const basePrediction: DataExtractionPrediction = {
       sector_id: null,
       sector_name: "GCBA",
       match_method: null,
+      unit_candidates: [],
       sector_candidates: [],
     },
   ],

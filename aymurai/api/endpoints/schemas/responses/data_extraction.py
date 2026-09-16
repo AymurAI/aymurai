@@ -27,6 +27,26 @@ class OrganigramCandidateResponse(BaseModel):
     source_unit_name: str | None = None
 
 
+class OrganigramUnitCandidateResponse(BaseModel):
+    """
+    One ranked *unit* match, before the collapse to sectors that produces
+    `OrganigramCandidateResponse`. Every field means what it says: `unit_id`
+    is the unit, `sector_id` the sector containing it, `ruta_organigrama` the
+    unit's own path. Posting `unit_id` with this row's `sector_id` always
+    passes the consistency check, since the sector is `resolve_sector` of
+    that same unit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    unit_id: uuid.UUID
+    unit_name: str
+    sector_id: uuid.UUID | None = None
+    sector_name: str | None = None
+    ruta_organigrama: str
+    score: float
+
+
 class RecipientResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -46,6 +66,12 @@ class RecipientResponse(BaseModel):
     # threshold, for a human to pick from in `validate` when the
     # auto-resolved unit (or the lack of one) is wrong.
     sector_candidates: list[OrganigramCandidateResponse] = Field(default_factory=list)
+    # The same ranking uncollapsed, and wider: once a human validates a
+    # sector, the form narrows the unit field to that sector's units and
+    # orders them by how well each matches the cargo. Only this side can
+    # produce that order (hybrid embeddings + fuzzy), and collapsing to one
+    # row per sector throws away everything such a filter needs.
+    unit_candidates: list[OrganigramUnitCandidateResponse] = Field(default_factory=list)
 
 
 class DataExtractionConfigResponse(BaseModel):

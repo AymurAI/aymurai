@@ -156,6 +156,7 @@ function aRecipientPrediction(
     sector_id: null,
     sector_name: null,
     match_method: null,
+    unit_candidates: [],
     sector_candidates: [],
     ...partial,
   };

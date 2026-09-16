@@ -343,9 +343,13 @@ describe("RecommendationValidation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the already-validated banner", () => {
+  // The notice now lives on the processing screen, where the recovery
+  // actually happens -- see `recommendation-process.test.tsx`.
+  it("does not repeat the already-validated notice in the form", () => {
     renderValidation({ origin: "validation", validation: aValidation() });
-    expect(screen.getByText("validation.alreadyValidated")).toBeInTheDocument();
+    expect(
+      screen.queryByText("validation.alreadyValidated"),
+    ).not.toBeInTheDocument();
   });
 
   it("offers to re-extract when the taxonomy changed", async () => {

@@ -9,6 +9,7 @@ import { GCBA_MACRO_SECTOR_CODE } from "@/types/catalogs";
 import type {
   FormOption,
   OrganigramCandidate,
+  OrganigramUnitCandidate,
   RecipientFormValues,
 } from "@/types/dataExtraction";
 import { hasSectorMismatch } from "@/utils/recommendations/recipient-sector-consistency";
@@ -30,6 +31,9 @@ export interface RecipientFieldsProps {
    *  (unit, sector) pairs by construction. Empty for a non-GCBA recipient,
    *  by design (server never ranks organigram units outside GCBA). */
   candidates: OrganigramCandidate[];
+  /** The cargo's ranked units, uncollapsed -- used to order the unit field
+   *  once a sector narrows it. */
+  unitCandidates?: OrganigramUnitCandidate[];
   /** Active macro sectors + any out-of-catalog value, from
    *  `useRecommendationForm`. */
   macroSectorOptions: FormOption[];
@@ -88,6 +92,7 @@ export function RecipientFields({
   value,
   suggestion,
   candidates,
+  unitCandidates,
   macroSectorOptions,
   onChange,
 }: RecipientFieldsProps) {
@@ -152,9 +157,12 @@ export function RecipientFields({
                   }
                 : undefined
             }
-            // Only while the pair disagrees: the person pinned a sector by
-            // hand and has to land on a unit that belongs to it.
-            restrictToSectorId={sectorMismatch ? value.sector_id : null}
+            unitCandidates={unitCandidates}
+            // The sector leads: once there is one, the unit is chosen inside
+            // it. That keeps every pair consistent by construction, and makes
+            // the mismatch state reachable only by editing the sector after
+            // the unit -- which is exactly when the warning below fires.
+            restrictToSectorId={value.sector_id}
             onChange={(picked) =>
               onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
             }

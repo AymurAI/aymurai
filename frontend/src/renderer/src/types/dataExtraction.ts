@@ -20,6 +20,25 @@ export interface OrganigramCandidate {
   source_unit_name: string | null;
 }
 
+/**
+ * One ranked UNIT match, before the collapse to sectors that produces
+ * `OrganigramCandidate`. Here every field means what it says: `unit_id` is
+ * the unit, `sector_id` the sector containing it, `ruta_organigrama` the
+ * unit's own path.
+ *
+ * Wider than `sector_candidates` on purpose: filtering these to one
+ * validated sector is what lets the unit field offer that sector's units in
+ * the backend's own similarity order, which is not reproducible here.
+ */
+export interface OrganigramUnitCandidate {
+  unit_id: string;
+  unit_name: string;
+  sector_id: string | null;
+  sector_name: string | null;
+  ruta_organigrama: string;
+  score: number;
+}
+
 export interface RecipientPrediction {
   name: string | null;
   position: string | null;
@@ -33,6 +52,8 @@ export interface RecipientPrediction {
   match_method: "cargo" | "name" | null;
   /** Ranked alternatives regardless of whether `unit_id` cleared the match threshold. */
   sector_candidates: OrganigramCandidate[];
+  /** The same ranking uncollapsed and wider -- see `OrganigramUnitCandidate`. */
+  unit_candidates: OrganigramUnitCandidate[];
 }
 
 export interface DataExtractionConfig {

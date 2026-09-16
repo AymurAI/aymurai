@@ -155,10 +155,13 @@ export default function RecommendationForm({
   // recipient -- absent from `values`/`suggestions` (`RecipientFormValues`
   // has no candidates field), so this reads `prediction` directly, paired by
   // `source_index` per the hook's own pairing rule (never array position).
-  const selectedRecipientCandidates = selectedRecipient
-    ? (prediction.recipients[selectedRecipient.source_index ?? -1]
-        ?.sector_candidates ?? [])
-    : [];
+  const selectedRecipientPrediction = selectedRecipient
+    ? prediction.recipients[selectedRecipient.source_index ?? -1]
+    : undefined;
+  const selectedRecipientCandidates =
+    selectedRecipientPrediction?.sector_candidates ?? [];
+  const selectedRecipientUnitCandidates =
+    selectedRecipientPrediction?.unit_candidates ?? [];
 
   return (
     <Stack gap="8">
@@ -247,6 +250,7 @@ export default function RecommendationForm({
             value={selectedRecipient}
             suggestion={suggestedRecipient}
             candidates={selectedRecipientCandidates}
+            unitCandidates={selectedRecipientUnitCandidates}
             macroSectorOptions={macroSectorOptions}
             onChange={(patch) => setRecipient(selectedIndex, patch)}
           />
