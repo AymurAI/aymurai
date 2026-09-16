@@ -1,9 +1,8 @@
-import { Callout, Radio, Select } from "@aymurai/ui";
+import { Callout, Radio } from "@aymurai/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import RadioGroup from "@/components/radio/radio-group";
 import { listUnits } from "@/services/aymurai/organigram";
-import { css } from "@/styled/css";
 import { Stack } from "@/styled/jsx";
 import { GCBA_MACRO_SECTOR_CODE } from "@/types/catalogs";
 import type {
@@ -15,6 +14,7 @@ import type {
 import { hasSectorMismatch } from "@/utils/recommendations/recipient-sector-consistency";
 import { RecipientSectorCombobox } from "./recipient-sector-combobox";
 import { RecipientUnitCombobox } from "./recipient-unit-combobox";
+import { ValidatedSelectField } from "./validated-select-field";
 import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecipientFieldsProps {
@@ -38,27 +38,6 @@ export interface RecipientFieldsProps {
    *  `useRecommendationForm`. */
   macroSectorOptions: FormOption[];
   onChange: (patch: Partial<RecipientFormValues>) => void;
-}
-
-const errorText = css({
-  textStyle: "label.sm.default",
-  color: "system.error",
-});
-
-/** `value` the model returned isn't among `options`' non-flagged entries --
- *  i.e. it's the out-of-catalog extra `useRecommendationForm` appended.
- *  Duplicated from `recommendation-form.tsx` (same tiny helper, not worth a
- *  shared module for five lines -- CES-63 bans catch-all `utils`/`helpers`
- *  modules, and this repo has nowhere else obvious to home it yet). */
-function isOutOfCatalog(options: FormOption[], value: string | null): boolean {
-  if (!value) return false;
-  return options.some(
-    (option) => option.value === value && option.outOfCatalog,
-  );
-}
-
-function toSelectOptions(options: FormOption[]) {
-  return options.map((option) => ({ id: option.value, text: option.label }));
 }
 
 /**
@@ -99,35 +78,27 @@ export function RecipientFields({
   const { t } = useTranslation("recommendations");
   const unitsQuery = useQuery(listUnits());
 
-  const macroSectorOutOfCatalog = isOutOfCatalog(
-    macroSectorOptions,
-    value.macro_sector,
-  );
-
-  const isGcba = value.macro_sector === GCBA_MACRO_SECTOR_CODE;
+  // What the Ámbito field currently OFFERS, not what has been validated:
+  // like every other field here it starts blank with the model's guess on a
+  // clickable mark, and gating the organigram fields on the validated value
+  // alone would hide them until that one mark was clicked -- an ordering
+  // this form doesn't impose anywhere else. Validating a non-GCBA ámbito
+  // takes over immediately and hides them (the prior pick survives hidden,
+  // per the note above, rather than being cleared).
+  const isGcba =
+    (value.macro_sector ?? suggestion?.macro_sector) === GCBA_MACRO_SECTOR_CODE;
   const sectorMismatch = hasSectorMismatch(value, unitsQuery.data);
 
   return (
     <Stack gap="4">
-      <Stack gap="1">
-        <Select
-          label={t("validation.macroSector")}
-          options={toSelectOptions(macroSectorOptions)}
-          value={value.macro_sector ?? undefined}
-          suggestion={
-            suggestion?.macro_sector
-              ? { id: suggestion.macro_sector }
-              : undefined
-          }
-          onChange={(option) => onChange({ macro_sector: option.id })}
-        />
-        {/* `Select` (@aymurai/ui) has no `error` prop, unlike `TextField` --
-            render the out-of-catalog notice as its own text instead of
-            silently discarding the model's value. */}
-        {macroSectorOutOfCatalog && (
-          <p className={errorText}>{t("validation.macroSectorOutOfCatalog")}</p>
-        )}
-      </Stack>
+      <ValidatedSelectField
+        label={t("validation.macroSector")}
+        options={macroSectorOptions}
+        value={value.macro_sector}
+        suggestion={suggestion?.macro_sector}
+        outOfCatalogMessage={t("validation.macroSectorOutOfCatalog")}
+        onChange={(macro_sector) => onChange({ macro_sector })}
+      />
 
       <ValidatedTextField
         label={t("validation.name")}

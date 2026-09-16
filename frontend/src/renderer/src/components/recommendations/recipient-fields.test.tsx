@@ -439,4 +439,50 @@ describe("RecipientFields", () => {
       expect(radio).toBeChecked();
     }
   });
+  it("offers the macro sector as a clickable suggestion while it is still blank", () => {
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ macro_sector: null })}
+        suggestion={aRecipient({ macro_sector: "GCBA" })}
+        candidates={[]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "GCBA" })).toBeInTheDocument();
+  });
+
+  it("shows the organigram fields while the macro sector is only suggested", () => {
+    // Gating them on the VALIDATED ámbito would hide them until that one
+    // mark was clicked -- an ordering the form imposes nowhere else.
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ macro_sector: null })}
+        suggestion={aRecipient({ macro_sector: "GCBA" })}
+        candidates={CANDIDATES}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
+  });
+
+  it("hides them again once a non-GCBA macro sector is validated over a GCBA suggestion", () => {
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ macro_sector: "Organismos Nacionales" })}
+        suggestion={aRecipient({ macro_sector: "GCBA" })}
+        candidates={CANDIDATES}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+  });
 });

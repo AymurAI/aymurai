@@ -277,8 +277,7 @@ describe("useRecommendationForm", () => {
     // `suggestions` would show the model's guess twice (once as the field's
     // "confirmed" value, once as the suggestion overlay) and make the mark
     // permanently inert, since it's already equal to the value on every
-    // first render. Every other field keeps pre-filling from the
-    // prediction (no duplicate-suggestion overlay to worry about for those).
+    // first render.
     const { result } = renderHook(() =>
       useRecommendationForm(aPrediction(), null),
     );
@@ -291,10 +290,61 @@ describe("useRecommendationForm", () => {
     expect(result.current.suggestions.recipients[0].name).toBe("Ana Pérez");
     expect(result.current.suggestions.recipients[0].position).toBe("Directora");
 
-    // Unaffected: no duplicate suggestion overlay renders next to these.
-    expect(result.current.values.topic).toBe("Salud");
-    expect(result.current.values.recipients[0].macro_sector).toBe("GCBA");
+    // Unaffected: no suggestion mark renders next to either of these, so
+    // there is nothing for a pre-filled value to duplicate.
     expect(result.current.values.recipients[0].is_primary).toBe(true);
+    expect(result.current.values.publishable_content).toBe(
+      "Contenido publicable.",
+    );
+  });
+
+  it("starts topic/subtopic/macro_sector blank too, with the prediction only in suggestions", () => {
+    // `@aymurai/ui`'s `Select` renders its suggestion mark only when it has
+    // no value, so pre-filling these three made the mark unreachable and
+    // left the fields looking settled rather than pending validation.
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    expect(result.current.values.topic).toBeNull();
+    expect(result.current.values.subtopic).toBeNull();
+    expect(result.current.values.recipients[0].macro_sector).toBeNull();
+
+    expect(result.current.suggestions.topic).toBe("Salud");
+    expect(result.current.suggestions.subtopic).toBe("Acceso a medicamentos");
+    expect(result.current.suggestions.recipients[0].macro_sector).toBe("GCBA");
+  });
+
+  it("offers the suggested subtopic while the topic is still pending", () => {
+    // The subtopic list follows the suggested topic until a topic is
+    // actually validated -- otherwise the subtopic's own mark would have
+    // nothing to resolve against, and Subtema could only be suggested after
+    // Tema had been clicked.
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    expect(result.current.values.topic).toBeNull();
+    expect(result.current.subtopicOptions).toContainEqual(
+      expect.objectContaining({
+        value: "Acceso a medicamentos",
+        outOfCatalog: false,
+      }),
+    );
+  });
+
+  it("drops the suggested subtopic once a different topic is validated", () => {
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    act(() => result.current.setValue("topic", "Ambiente"));
+
+    // Not an off-catalog value to preserve -- just one that belongs to
+    // another topic, so it must not stay selectable here.
+    expect(result.current.subtopicOptions).not.toContainEqual(
+      expect.objectContaining({ value: "Acceso a medicamentos" }),
+    );
   });
 
   it("starts each recipient's unit_id/sector_id blank too, with the prediction only in suggestions", () => {
@@ -348,7 +398,11 @@ describe("useRecommendationForm", () => {
       ),
     );
 
-    expect(result.current.values.topic).toBe("Tema inexistente");
+    // The model's answer now lives in the suggestion, not the value -- but
+    // it still has to be an option, or the `Select` could neither show its
+    // mark nor accept a click on it (both go through the same lookup).
+    expect(result.current.values.topic).toBeNull();
+    expect(result.current.suggestions.topic).toBe("Tema inexistente");
     expect(result.current.topicOptions).toContainEqual(
       expect.objectContaining({
         value: "Tema inexistente",
@@ -357,14 +411,19 @@ describe("useRecommendationForm", () => {
     );
   });
 
+  // Both cascade tests accept the suggested subtopic first: the field now
+  // starts blank (`blankValidatedFields`), and asserting the cascade against
+  // an already-null subtopic would pass no matter what the cascade did.
   it("clears the subtopic when changing topic invalidates it", () => {
     const { result } = renderHook(() => useTaxonomyPrediction());
+    act(() => result.current.setValue("subtopic", "Acceso a medicamentos"));
     act(() => result.current.setValue("topic", "Ambiente"));
     expect(result.current.values.subtopic).toBeNull();
   });
 
   it("keeps the subtopic when it is still valid under the new topic", () => {
     const { result } = renderHook(() => useSharedSubtopicPrediction());
+    act(() => result.current.setValue("subtopic", "Subtema compartido"));
     act(() =>
       result.current.setValue("topic", "Otro tema con el mismo subtema"),
     );
@@ -399,7 +458,8 @@ describe("useRecommendationForm", () => {
       ),
     );
 
-    expect(result.current.values.recipients[0].macro_sector).toBe(
+    expect(result.current.values.recipients[0].macro_sector).toBeNull();
+    expect(result.current.suggestions.recipients[0].macro_sector).toBe(
       "Sector inventado",
     );
     expect(result.current.macroSectorOptions).toContainEqual(

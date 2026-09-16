@@ -263,7 +263,22 @@ describe("RecommendationForm — is_primary is independent per recipient", () =>
 });
 
 describe("RecommendationForm", () => {
-  it("renders an out-of-catalog topic as the selected option, with its error inline", () => {
+  it("offers the catalog fields as clickable suggestions on mount", () => {
+    // Consistency across the whole form: every field the model answered
+    // presents that answer as a violet mark to accept, not as a value that
+    // already looks settled. (The subtopic's own fallback -- its list
+    // following the SUGGESTED topic until a topic is validated -- is
+    // exercised in `useRecommendationForm.test.ts`, which has a taxonomy
+    // with real subtopics; this file's catalog mock has none.)
+    renderWithClient(
+      <RecommendationForm prediction={aPrediction()} validation={null} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Salud" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "GCBA" })).toBeInTheDocument();
+  });
+
+  it("offers an out-of-catalog topic as a suggestion anyway, with its error inline", () => {
     renderWithClient(
       <RecommendationForm
         prediction={aPrediction({ topic: "Tema inexistente" })}
@@ -271,12 +286,15 @@ describe("RecommendationForm", () => {
       />,
     );
 
-    // §keep-and-flag: never silently dropped — shown as the selected value
-    // (`@aymurai/ui`'s `Select` renders the matching option's text inside the
-    // combobox; getting a hit here means the hook actually added it as an
-    // extra option, not just left `values.topic` untouched)...
-    expect(screen.getByText("Tema inexistente")).toBeInTheDocument();
-    // ...and flagged with the inline error message.
+    // §keep-and-flag: never silently dropped — offered on the suggestion
+    // mark like any other guess (the mark resolves the suggestion id against
+    // the option list, so a hit here means the hook actually added it as an
+    // extra option)...
+    expect(
+      screen.getByRole("button", { name: "Tema inexistente" }),
+    ).toBeInTheDocument();
+    // ...and flagged with the inline error message before it is accepted,
+    // not only after.
     expect(
       screen.getByText("validation.topicOutOfCatalog"),
     ).toBeInTheDocument();
@@ -424,12 +442,16 @@ describe("RecommendationForm", () => {
             validation={null}
             onValuesChange={setPayload}
           />
-          {/* `topic` isn't one of `blankTextFields`' blanked fields, so
-              unlike `recommendation_number` it reliably distinguishes "the
-              mount effect fired" (a real value) from "it hasn't yet"
-              (`payload` still null) -- `recommendation_number` starts
-              blank either way, which is exactly what's being changed here. */}
-          <div data-testid="reported-topic">{payload?.topic}</div>
+          {/* `publishable_content` isn't one of `blankValidatedFields`'
+              blanked fields, so unlike `recommendation_number` it reliably
+              distinguishes "the mount effect fired" (a real value) from "it
+              hasn't yet" (`payload` still null) -- `recommendation_number`
+              starts blank either way, which is exactly what's being changed
+              here. `topic` used to serve this role and no longer can: it is
+              blanked too now, so the suggestion mark on Tema can render. */}
+          <div data-testid="reported-content">
+            {payload?.publishable_content}
+          </div>
           <div data-testid="reported-number">
             {payload?.recommendation_number}
           </div>
@@ -440,7 +462,9 @@ describe("RecommendationForm", () => {
     renderWithClient(<Wrapper />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("reported-topic")).toHaveTextContent("Salud"),
+      expect(screen.getByTestId("reported-content")).toHaveTextContent(
+        "Contenido publicable",
+      ),
     );
     expect(screen.getByTestId("reported-number")).toHaveTextContent("");
     // Steady state is 2: Wrapper's own mount render, plus exactly one more

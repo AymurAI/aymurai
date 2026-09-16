@@ -1,10 +1,4 @@
-import {
-  Radio,
-  Select,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@aymurai/ui";
+import { Radio, Tooltip, TooltipContent, TooltipTrigger } from "@aymurai/ui";
 import { Trash } from "phosphor-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,12 +10,12 @@ import { css } from "@/styled/css";
 import { Stack, styled } from "@/styled/jsx";
 import type {
   DataExtractionPrediction,
-  FormOption,
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { RecipientFields } from "./recipient-fields";
 import { ValidatedDateField } from "./validated-date-field";
+import { ValidatedSelectField } from "./validated-select-field";
 import { ValidatedTextField } from "./validated-text-field";
 
 export interface RecommendationFormProps {
@@ -51,24 +45,6 @@ const removeRecipientButton = css({
   cursor: "pointer",
   _focusVisible: { outline: "[2px solid token(colors.text.default)]" },
 });
-
-const errorText = css({
-  textStyle: "label.sm.default",
-  color: "system.error",
-});
-
-/** `value` the model returned isn't among `options`' non-flagged entries —
- *  i.e. it's the out-of-catalog extra `useRecommendationForm` appended. */
-function isOutOfCatalog(options: FormOption[], value: string | null): boolean {
-  if (!value) return false;
-  return options.some(
-    (option) => option.value === value && option.outOfCatalog,
-  );
-}
-
-function toSelectOptions(options: FormOption[]) {
-  return options.map((option) => ({ id: option.value, text: option.label }));
-}
 
 /**
  * The Recomendaciones validation form: owns `useRecommendationForm` (the
@@ -148,9 +124,6 @@ export default function RecommendationForm({
     );
   };
 
-  const topicOutOfCatalog = isOutOfCatalog(topicOptions, values.topic);
-  const subtopicOutOfCatalog = isOutOfCatalog(subtopicOptions, values.subtopic);
-
   // `RecipientFields` needs the raw `sector_candidates` for the selected
   // recipient -- absent from `values`/`suggestions` (`RecipientFormValues`
   // has no candidates field), so this reads `prediction` directly, paired by
@@ -198,33 +171,23 @@ export default function RecommendationForm({
         );
       })()}
 
-      <Stack gap="1">
-        <Select
-          label={t("validation.topic")}
-          options={toSelectOptions(topicOptions)}
-          value={values.topic ?? undefined}
-          suggestion={suggestions.topic ? { id: suggestions.topic } : undefined}
-          onChange={(option) => setValue("topic", option.id)}
-        />
-        {topicOutOfCatalog && (
-          <p className={errorText}>{t("validation.topicOutOfCatalog")}</p>
-        )}
-      </Stack>
+      <ValidatedSelectField
+        label={t("validation.topic")}
+        options={topicOptions}
+        value={values.topic}
+        suggestion={suggestions.topic}
+        outOfCatalogMessage={t("validation.topicOutOfCatalog")}
+        onChange={(topic) => setValue("topic", topic)}
+      />
 
-      <Stack gap="1">
-        <Select
-          label={t("validation.subtopic")}
-          options={toSelectOptions(subtopicOptions)}
-          value={values.subtopic ?? undefined}
-          suggestion={
-            suggestions.subtopic ? { id: suggestions.subtopic } : undefined
-          }
-          onChange={(option) => setValue("subtopic", option.id)}
-        />
-        {subtopicOutOfCatalog && (
-          <p className={errorText}>{t("validation.subtopicOutOfCatalog")}</p>
-        )}
-      </Stack>
+      <ValidatedSelectField
+        label={t("validation.subtopic")}
+        options={subtopicOptions}
+        value={values.subtopic}
+        suggestion={suggestions.subtopic}
+        outOfCatalogMessage={t("validation.subtopicOutOfCatalog")}
+        onChange={(subtopic) => setValue("subtopic", subtopic)}
+      />
 
       <Stack gap="4">
         <DecisionTabs

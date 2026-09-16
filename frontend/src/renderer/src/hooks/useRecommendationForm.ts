@@ -119,40 +119,45 @@ function valuesFromPrediction(
 }
 
 /**
- * `recommendation_number`, `recommendation_date`, and each recipient's
- * `name`/`position`/`unit_id`+`sector_id` are the fields shown with a
- * clickable suggestion mark (`ValidatedTextField`/`ValidatedDateField`/
- * `RecipientUnitCombobox`) -- they start blank so that mark is the ONLY
- * place the model's guess appears, matching the legacy Set de Datos flow's
- * own `uncontrolled-input` (`suggestion` only shown while its value is
- * empty). Pre-filling `value` with the same text as `suggestion` (the
- * previous behaviour) meant the exact same string was visible twice -- once
- * as the "real" value, once as the suggestion overlay -- and since they
- * always matched on first render, the suggestion could never be
- * meaningfully accepted or dismissed. `unit_id`/`sector_id` always travel
- * together (never blank just one) since the backend only ever resolves them
- * as a pair.
+ * Every field rendered with a clickable suggestion mark starts blank, so
+ * that mark is the ONLY place the model's guess appears: the free-text
+ * fields (`recommendation_number`, each recipient's `name`/`position`), the
+ * date, the organigram `unit_id`+`sector_id` pair, and the three catalog
+ * fields (`topic`/`subtopic`/each recipient's `macro_sector`). This matches
+ * the legacy Set de Datos flow's own `uncontrolled-input`, whose
+ * `suggestion` only showed while its value was empty.
+ *
+ * Pre-filling `value` with the same text as `suggestion` (the previous
+ * behaviour) meant the exact same string was visible twice -- once as the
+ * "real" value, once as the suggestion overlay -- and since they always
+ * matched on first render, the suggestion could never be meaningfully
+ * accepted or dismissed. For the three catalog fields it meant more than
+ * that: `@aymurai/ui`'s `Select` renders its suggestion only when it has no
+ * value, so pre-filling made the mark unreachable and those fields looked
+ * settled rather than pending, which is the opposite of what validation is
+ * for. `unit_id`/`sector_id` always travel together (never blank just one)
+ * since the backend only ever resolves them as a pair.
  *
  * `recommendation_date_text` (the raw prose the model returned, e.g. "22 de
  * noviembre") is left alone: it is never itself editable, only ever shown
  * as hover context next to the date field, so there is no suggestion mark
- * for it to duplicate.
- *
- * Every other field (topic/subtopic/macro_sector/is_primary/
- * publishable_content) also keeps pre-filling from the prediction: none of
- * them render a suggestion overlay next to their value.
+ * for it to duplicate. `is_primary` and `publishable_content` keep
+ * pre-filling too: neither renders a suggestion overlay next to its value.
  */
-function blankTextFields(
+function blankValidatedFields(
   values: RecommendationFormValues,
 ): RecommendationFormValues {
   return {
     ...values,
     recommendation_number: null,
     recommendation_date: null,
+    topic: null,
+    subtopic: null,
     recipients: values.recipients.map((recipient) => ({
       ...recipient,
       name: null,
       position: null,
+      macro_sector: null,
       unit_id: null,
       sector_id: null,
     })),
@@ -172,7 +177,7 @@ function buildInitial(
 
   if (validation === null) {
     return {
-      values: blankTextFields(suggestionValues),
+      values: blankValidatedFields(suggestionValues),
       suggestions: suggestionValues,
     };
   }
@@ -285,22 +290,41 @@ export function useRecommendationForm(
     subtopicsByTopicId.set(topic.id, subtopicsQueries[index]?.data ?? []);
   });
 
-  const currentTopic = values.topic
-    ? topics.find((topic) => topic.name === values.topic)
+  // While the topic is still pending validation the subtopic list follows
+  // the SUGGESTED topic, not an empty one: the subtopic's own suggestion
+  // mark can only render if the value it names is among the options, so
+  // deriving the list from a blank `values.topic` would leave Subtema with
+  // nothing to suggest until Tema was validated -- an ordering the form
+  // doesn't otherwise impose. Validating a DIFFERENT topic takes over
+  // immediately (`values.topic` wins), and the suggested subtopic stops
+  // resolving, which is correct: it belongs to another topic.
+  const effectiveTopicName = values.topic ?? suggestions.topic;
+  const currentTopic = effectiveTopicName
+    ? topics.find((topic) => topic.name === effectiveTopicName)
     : undefined;
   const currentTopicSubtopics = currentTopic
     ? (subtopicsByTopicId.get(currentTopic.id) ?? [])
     : [];
   const macroSectors: MacroSector[] = macroSectorsQuery.data ?? [];
 
-  const topicOptions = buildOptions(topics, [values.topic]);
+  // Suggestions join the values in the keep-and-flag pass. A suggestion the
+  // live catalog no longer carries still has to appear as an option, or the
+  // `Select` can neither show its mark (it resolves the suggestion id
+  // against the options) nor accept a click on it (same lookup, to emit the
+  // change) -- the model's answer would vanish from the screen entirely,
+  // which is exactly what keep-and-flag exists to prevent.
+  const topicOptions = buildOptions(topics, [values.topic, suggestions.topic]);
   const subtopicOptions = buildOptions(currentTopicSubtopics, [
     values.subtopic,
+    // Only while the list is still the suggested topic's own: under a topic
+    // the person chose instead, the suggested subtopic is not an
+    // off-catalog value to preserve, just one that doesn't belong here.
+    effectiveTopicName === suggestions.topic ? suggestions.subtopic : null,
   ]);
-  const macroSectorOptions = buildOptions(
-    macroSectors,
-    values.recipients.map((recipient) => recipient.macro_sector),
-  );
+  const macroSectorOptions = buildOptions(macroSectors, [
+    ...values.recipients.map((recipient) => recipient.macro_sector),
+    ...suggestions.recipients.map((recipient) => recipient.macro_sector),
+  ]);
 
   function setValue(
     field: keyof RecommendationFormValues,
