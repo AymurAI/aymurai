@@ -97,6 +97,27 @@ function aValidation(
 // dedicated test suite already covers its internal behaviour). This screen
 // only needs (a) something rendering the `publishable_content` field so a
 // person can edit it, and (b) the same `onValuesChange` lifting contract the
+// Reassignable so the save-gate tests can hand the screen a recipient whose
+// validated sector contradicts its unit; every other test leaves it empty.
+let mockRecipients: RecommendationValidationInput["recipients"] = [];
+
+// `ministerio` [sector] > `direccion`; `otro` [sector] is somewhere else, so
+// pairing `direccion` with `otro` is exactly what the server 422s on.
+let mockUnits: unknown[] = [];
+/** Bumped when the corpus is actually fetched, so a test asserting that
+ *  nothing blocks can first wait for the fetch instead of racing it. */
+let mockUnitsFetches = 0;
+
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({
+    queryKey: ["organigram-units"],
+    queryFn: async () => {
+      mockUnitsFetches += 1;
+      return mockUnits;
+    },
+  }),
+}));
+
 // real form now exposes (see `recommendation-form.tsx`'s effect) -- fires
 // once on mount with the seeded payload, then again on every edit.
 vi.mock("./recommendation-form", () => ({
@@ -121,7 +142,7 @@ vi.mock("./recommendation-form", () => ({
         subtopic: prediction.subtopic,
         personal_data: prediction.personal_data,
         publishable_content: prediction.publishable_content,
-        recipients: [],
+        recipients: mockRecipients,
       }),
       [prediction],
     );
@@ -196,6 +217,111 @@ describe("RecommendationValidation", () => {
     mockValidate.mockResolvedValue(aValidation());
     mockExtract.mockReset();
     mockExtract.mockResolvedValue(aPrediction());
+    mockRecipients = [];
+    mockUnits = [];
+    mockUnitsFetches = 0;
+  });
+
+  const TREE = [
+    {
+      id: "ministerio",
+      parent_id: null,
+      name: "Ministerio de Desarrollo Humano y Hábitat",
+      acronym: null,
+      short_name: null,
+      is_sector: true,
+      active: true,
+      order: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+    {
+      id: "direccion",
+      parent_id: "ministerio",
+      name: "Dirección General de Vivienda",
+      acronym: null,
+      short_name: null,
+      is_sector: false,
+      active: true,
+      order: 2,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+    {
+      id: "otro",
+      parent_id: null,
+      name: "Ministerio de Justicia",
+      acronym: null,
+      short_name: null,
+      is_sector: true,
+      active: true,
+      order: 3,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+  ];
+
+  function aRecipientPayload(
+    overrides: Partial<
+      RecommendationValidationInput["recipients"][number]
+    > = {},
+  ): RecommendationValidationInput["recipients"][number] {
+    return {
+      source_index: 0,
+      name: "Ana Pérez",
+      position: "Directora",
+      is_primary: true,
+      macro_sector: "GCBA",
+      unit_id: "direccion",
+      sector_id: "ministerio",
+      ...overrides,
+    };
+  }
+
+  // The hard requirement from the QA round: a sector validated by hand that
+  // does not contain its unit must not be submittable. The server refuses it
+  // with a 422 (ADR-0009); the button never gets the chance.
+  it("blocks validating while a recipient's sector contradicts its unit", async () => {
+    mockUnits = TREE;
+    mockRecipients = [aRecipientPayload({ sector_id: "otro" })];
+    renderValidation();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "validation.validate" }),
+      ).toBeDisabled(),
+    );
+    expect(
+      screen.getByText(/validation.blockedBySectorMismatch/),
+    ).toBeInTheDocument();
+  });
+
+  it("allows validating once the pair agrees", async () => {
+    mockUnits = TREE;
+    mockRecipients = [aRecipientPayload()];
+    renderValidation();
+
+    // Wait for the corpus to actually land, so this is not just winning a
+    // race against the fetch that would make anything look enabled.
+    await waitFor(() => expect(mockUnitsFetches).toBeGreaterThan(0));
+    expect(
+      screen.getByRole("button", { name: "validation.validate" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByText(/validation.blockedBySectorMismatch/),
+    ).not.toBeInTheDocument();
+  });
+
+  // Nothing may be blocked on a guess: with no organigram loaded the rule
+  // cannot prove a mismatch, so the server stays the backstop.
+  it("does not block while the organigram has not loaded", async () => {
+    mockUnits = [];
+    mockRecipients = [aRecipientPayload({ sector_id: "otro" })];
+    renderValidation();
+
+    expect(
+      screen.getByRole("button", { name: "validation.validate" }),
+    ).toBeEnabled();
   });
 
   it("blocks navigation when saving fails", async () => {

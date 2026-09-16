@@ -1,19 +1,20 @@
-import {
-  Callout,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  Suggestion,
-} from "@aymurai/ui";
+import { Callout } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useState } from "react";
 import { createUnit, listUnits } from "@/services/aymurai/organigram";
-import { css, cx } from "@/styled/css";
-import { Stack, styled } from "@/styled/jsx";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
 import type { OrganigramUnit } from "@/types/organigram";
 import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
-import { resolveSector, unitPath } from "@/utils/organigram/resolve-sector";
+import {
+  resolveSector,
+  unitPath,
+  unitsInSector,
+} from "@/utils/organigram/resolve-sector";
+import {
+  OrganigramCombobox,
+  type OrganigramComboboxOption,
+  resultButton,
+} from "./organigram-combobox";
 
 export interface RecipientUnitComboboxValue {
   /** `null` clears the field -- emitted when the person types a search,
@@ -25,135 +26,27 @@ export interface RecipientUnitComboboxValue {
 }
 
 export interface RecipientUnitComboboxProps {
-  /** `sector_candidates` for one recipient -- each entry is already a
-   *  consistent (unit, sector) pair by construction, not the whole
-   *  organigram. Built server-side by `_sector_candidates_from_units`. Not
-   *  every row is sector-level (`unit_id = sector_id = <the sector's own
-   *  id>`) -- a strong leaf-unit match can rank alongside its own ancestor
-   *  sector as two distinct rows, so don't assume `sector_id` alone
-   *  disambiguates a row (see `resolveCandidate`'s doc). */
+  /** `sector_candidates` for one recipient. Each row IS a sector (ADR-0008),
+   *  so the unit this field is about travels in `source_unit_id` -- see
+   *  `candidateUnitRows`. */
   candidates: OrganigramCandidate[];
-  /** The recipient's current `unit_id`. Only ever matches a candidate here
-   *  when the person already picked one FROM this list (`onChange` below
-   *  always sets `unit_id`/`sector_id` to the same candidate id, by
-   *  construction) -- kept as a fallback for that case. */
+  /** The recipient's current `unit_id`. */
   unitId: string | null;
   /** The backend's auto-resolution for this recipient, frozen at first render
    *  (`suggestions.recipients[i]`). This is the suggestion: it consults the
    *  learned index and applies a score threshold, and its two ids are
    *  consistent with each other by construction. The ranked `candidates` are
-   *  alternatives, and only stand in when this came back empty. Shown as a
-   *  clickable violet mark, same as `ValidatedTextField`, until `unitId` is
-   *  set (accepting it, or picking anything else, both set it). `undefined`
+   *  alternatives, and only stand in when this came back empty. `undefined`
    *  when there is nothing to suggest at all (a hand-added recipient, or
    *  nothing cleared the threshold). */
   suggestion?: { unit_id: string | null; sector_id: string | null };
+  /** When set, the person validated this sector by hand and the unit does not
+   *  belong to it: both the ranked rows and the search narrow to that
+   *  sector's units until the pair agrees again. */
+  restrictToSectorId?: string | null;
   onChange: (value: RecipientUnitComboboxValue) => void;
   label?: string;
 }
-
-// Matches `@aymurai/ui`'s field-label convention (`label.sm.default`) --
-// see `validated-text-field.tsx`'s identical comment.
-const labelStyle = css({
-  textStyle: "label.sm.default",
-  color: "text.lighter",
-});
-
-// Mirrors `validated-text-field.tsx`'s `inputBox`/`input`/`suggestionSlot`
-// split -- same bordered row, same violet clickable mark, so this field
-// reads as the same kind of control as the others once a suggestion shows.
-const inputBox = css({
-  display: "flex",
-  flexDirection: "row",
-  alignItems: "center",
-  gap: "2",
-  p: "3",
-  minH: "12",
-  rounded: "sm",
-  border: "primary",
-  bg: "bg.secondary",
-  "&:focus-within": {
-    outline: "none",
-    border: "primary-alt",
-    boxShadow: "input-focus",
-  },
-});
-
-const inputBoxWithSuggestion = css({
-  border: "secondary",
-});
-
-const input = css({
-  textStyle: "label.md.default",
-  borderWidth: "0",
-  outline: "none",
-  flex: "[1]",
-  minW: "0",
-  bg: "[transparent]",
-  color: "text.default",
-  "&::placeholder": { color: "text.lighter" },
-});
-
-const suggestionSlot = css({
-  display: "flex",
-  alignItems: "center",
-  flexShrink: "0",
-  maxW: "[60%]",
-  borderLeftWidth: "1",
-  borderLeftStyle: "solid",
-  borderLeftColor: "brand.secondary",
-  pl: "2",
-});
-
-const suggestionButton = css({
-  display: "inline-block",
-  whiteSpace: "normal",
-  overflowWrap: "break-word",
-  textAlign: "left",
-  cursor: "pointer",
-  border: "[none]",
-  bg: "[transparent]",
-  p: "0",
-  font: "inherit",
-});
-
-// The library's popover surface sets no height cap and no overflow (its 400px
-// cap belongs to `Select`'s own viewport, not to `Popover`), so a long list
-// just grew past the viewport with no way to reach the rows below the fold.
-// Radix publishes the room it actually has as a CSS var on the content
-// element; capping the scroller to it means the panel fits whether it opens
-// upward or downward, and scrolls internally instead of overflowing.
-// `rounded` matches the surface so rows can't poke past its corners.
-const resultList = css({
-  maxHeight: "[var(--radix-popover-content-available-height)]",
-  overflowY: "auto",
-  rounded: "lg",
-});
-
-const resultButton = css({
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-start",
-  gap: "0.5",
-  width: "full",
-  textAlign: "left",
-  cursor: "pointer",
-  border: "[none]",
-  bg: "bg.secondary",
-  p: "2",
-  rounded: "sm",
-});
-
-const resultPath = css({
-  textStyle: "label.sm.default",
-  color: "text.lighter",
-});
-
-const statusText = css({
-  display: "block",
-  color: "text.lighter",
-  p: "2",
-});
 
 function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
   const q = normalizeForSearch(needle);
@@ -166,13 +59,10 @@ function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
 
 /** One ranked row of this picker: a real organigram UNIT, unlike the
  *  `OrganigramCandidate` it comes from (which is a sector). */
-interface UnitRow {
-  unit_id: string;
-  unit_name: string;
+interface UnitRow extends OrganigramComboboxOption {
   /** The sector the backend already paired with this unit -- posting the two
    *  together is the pairing its consistency check is guaranteed to accept. */
   sector_id: string | null;
-  path: string;
   score: number;
 }
 
@@ -196,11 +86,10 @@ function candidateUnitRows(
 ): UnitRow[] {
   return candidates.map((candidate) => {
     const unitId = candidate.source_unit_id ?? candidate.unit_id;
-    const unitName = candidate.source_unit_name ?? candidate.unit_name;
     const path = corpus ? unitPath(unitId, corpus) : "";
     return {
-      unit_id: unitId,
-      unit_name: unitName,
+      id: unitId,
+      name: candidate.source_unit_name ?? candidate.unit_name,
       sector_id: candidate.sector_id,
       path: path || candidate.ruta_organigrama,
       score: candidate.score,
@@ -218,45 +107,50 @@ function unitLabel(
   corpus: OrganigramUnit[] | undefined,
 ): string | null {
   if (!unitId) return null;
-  const row = rows.find((candidate) => candidate.unit_id === unitId);
-  if (row) return row.unit_name;
+  const row = rows.find((candidate) => candidate.id === unitId);
+  if (row) return row.name;
   return corpus?.find((unit) => unit.id === unitId)?.name ?? null;
 }
 
 /**
- * A single search-style input that merges what used to be three separate
- * affordances (the model's suggestion, a ranked `Select` of `candidates`,
- * and a free-text `Search` across the whole organigram) into one combobox:
- * closed with nothing chosen yet, it shows the suggested unit (if any) as a
- * clickable violet mark, same as `ValidatedTextField`; focusing it opens a
- * popover listing `candidates` -- no separate "Sugerido" tag in there, since
- * the suggestion is already the first (highest-scored) row and the mark
- * above already names it, so tagging it again in the list would be
- * redundant; typing switches that list to a full-corpus search, same as the
- * old `Search` half, including the create-unit affordance.
+ * The organigram unit a recipient's cargo points at. Ranked rows come from
+ * the candidates' `source_unit`; typing searches the whole organigram (or a
+ * single sector, when one was pinned by hand), and a miss offers to create
+ * the unit.
  */
 export function RecipientUnitCombobox({
   candidates,
   unitId,
   suggestion,
+  restrictToSectorId,
   onChange,
   label,
 }: RecipientUnitComboboxProps) {
-  const id = useId();
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState("");
-  // Distinguishes "never typed anything this time round" from "typed
-  // something, then erased it back to empty" -- both leave `query` at "",
-  // but only the second is a deliberate clear (see `closeWithoutPicking`).
-  const [queryTouched, setQueryTouched] = useState(false);
-  const [open, setOpen] = useState(false);
   const [createUnitFailed, setCreateUnitFailed] = useState(false);
   const queryClient = useQueryClient();
   const unitsQuery = useQuery(listUnits());
   const createUnitMutation = useMutation(createUnit());
 
-  const rows = candidateUnitRows(candidates, unitsQuery.data);
-  const selectedLabel = unitLabel(unitId, rows, unitsQuery.data);
+  const corpus = unitsQuery.data;
+  const restricted = restrictToSectorId
+    ? unitsInSector(restrictToSectorId, corpus ?? [])
+    : null;
+
+  const rankedRows = candidateUnitRows(candidates, corpus);
+  // While a sector is pinned, the cargo's candidates are the wrong offer --
+  // they are exactly the units that do NOT belong to it. Offer that sector's
+  // own units instead.
+  const rows: UnitRow[] = restricted
+    ? restricted.map((unit) => ({
+        id: unit.id,
+        name: unit.name,
+        path: unitPath(unit.id, corpus ?? []),
+        sector_id: restrictToSectorId ?? null,
+        score: 0,
+      }))
+    : rankedRows;
+
+  const selectedLabel = unitLabel(unitId, rankedRows, corpus);
 
   // The suggestion is the backend's own auto-resolution, not the top of the
   // ranked list. That resolution is the system's committed answer -- it
@@ -266,202 +160,84 @@ export function RecipientUnitCombobox({
   // poorly it scored. The two answer different questions, so the committed
   // one wins and the ranking stays what it is, a list of alternatives.
   //
-  // Only when the auto-resolve came back empty (nothing cleared the
-  // threshold) does the best-scoring row stand in as a starting point.
-  const topRow = rows.reduce<UnitRow | undefined>(
+  // Only when the auto-resolve came back empty does the best-scoring row
+  // stand in as a starting point.
+  const topRow = rankedRows.reduce<UnitRow | undefined>(
     (best, row) => (!best || row.score > best.score ? row : best),
     undefined,
   );
-  const suggestedUnitId = suggestion?.unit_id ?? topRow?.unit_id ?? null;
+  const suggestedUnitId = suggestion?.unit_id ?? topRow?.id ?? null;
   const suggestedSectorId = suggestion?.unit_id
     ? suggestion.sector_id
     : (topRow?.sector_id ?? null);
-  // Only meaningful while nothing is chosen yet -- once `unitId` is set
-  // (accepting this same suggestion, or picking anything else), the mark
-  // must disappear just like `ValidatedTextField`'s.
-  const suggestedLabel = unitId
-    ? null
-    : unitLabel(suggestedUnitId, rows, unitsQuery.data);
-  // Hidden while the popover is open too -- it already shows in the list
-  // right below, so the mark would be redundant clutter next to the search
-  // box the person is actively using.
-  const hasSuggestion = !open && !!suggestedLabel;
-
-  function acceptSuggestion() {
-    if (!suggestedUnitId) return;
-    onChange({ unit_id: suggestedUnitId, sector_id: suggestedSectorId });
-  }
-
-  const trimmedQuery = query.trim();
-  const isSearching = trimmedQuery.length > 0;
-  const searchResults = isSearching
-    ? (unitsQuery.data ?? []).filter((unit) => matchesQuery(unit, trimmedQuery))
-    : [];
-  // Same reasoning as the old `Search` half: `unitsQuery.data` is
-  // `undefined` both while loading and after a failed fetch, so only offer
-  // "create" once the corpus has actually loaded successfully -- otherwise
-  // this risks creating a duplicate row for something already in the
-  // not-yet-loaded/failed corpus.
-  const canOfferCreate = isSearching && unitsQuery.isSuccess;
-
-  function openForEditing() {
-    setOpen(true);
-    setQuery("");
-    setQueryTouched(false);
-  }
-
-  function closeWithoutPicking(next: boolean) {
-    // Closing on a deliberately-cleared, empty search un-sets the value --
-    // matching how erasing a plain text field un-sets it, bringing its
-    // suggestion mark back (see `RecipientUnitComboboxValue.unit_id`'s doc).
-    // Merely opening and closing again without typing anything must NOT
-    // clear an existing value -- hence `queryTouched`, not just `!query`.
-    if (!next && queryTouched && query.trim() === "" && unitId) {
-      onChange({ unit_id: null, sector_id: null });
-    }
-    setOpen(next);
-    if (!next) {
-      setQuery("");
-      setQueryTouched(false);
-    }
-  }
 
   /** The sector a unit belongs to, walked over the corpus exactly as the
    *  server walks it. Used for picks the backend never paired for us -- a
-   *  full-corpus search hit, or a unit created on the spot -- which until now
-   *  posted `sector_id: null` and blanked SECTOR_FINAL in the export. */
+   *  search hit, or a unit created on the spot -- which until now posted
+   *  `sector_id: null` and blanked SECTOR_FINAL in the export. */
   function sectorFor(pickedUnitId: string): string | null {
-    return resolveSector(pickedUnitId, unitsQuery.data ?? [])?.id ?? null;
+    return resolveSector(pickedUnitId, corpus ?? [])?.id ?? null;
   }
 
-  function pick(pickedUnitId: string, pickedSectorId: string | null) {
-    onChange({ unit_id: pickedUnitId, sector_id: pickedSectorId });
-    setOpen(false);
-    setQuery("");
+  function pick(pickedUnitId: string) {
+    // A ranked row already carries the pairing the backend derived; anything
+    // else is resolved the same way the server would.
+    const ranked = rows.find((row) => row.id === pickedUnitId);
+    onChange({
+      unit_id: pickedUnitId,
+      sector_id: ranked ? ranked.sector_id : sectorFor(pickedUnitId),
+    });
   }
 
   return (
-    <Stack gap="1">
-      {label && (
-        <label className={labelStyle} htmlFor={id}>
-          {label}
-        </label>
-      )}
-      <Popover open={open} onOpenChange={closeWithoutPicking}>
-        <PopoverAnchor asChild>
-          <div
-            ref={anchorRef}
-            className={cx(inputBox, hasSuggestion && inputBoxWithSuggestion)}
-          >
-            <input
-              id={id}
-              role="combobox"
-              aria-expanded={open}
-              aria-haspopup="listbox"
-              aria-autocomplete="list"
-              className={input}
-              value={open ? query : (selectedLabel ?? "")}
-              placeholder="Buscar unidad del organigrama…"
-              onFocus={openForEditing}
-              onChange={(event) => {
-                setOpen(true);
-                setQuery(event.target.value);
-                setQueryTouched(true);
-              }}
-            />
-            {hasSuggestion && (
-              <div className={suggestionSlot}>
-                <Suggestion
-                  as="button"
-                  type="button"
-                  clickable
-                  className={suggestionButton}
-                  onClick={acceptSuggestion}
-                >
-                  {suggestedLabel}
-                </Suggestion>
-              </div>
-            )}
-          </div>
-        </PopoverAnchor>
-        <PopoverContent
-          align="start"
-          // Radix only computes `--radix-popover-content-available-height`
-          // (used by `resultList` below) when it is free to flip/shrink, and
-          // `collisionPadding` keeps the panel off the viewport edge so the
-          // last row is never flush against it.
-          collisionPadding={16}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          // `PopoverAnchor` (unlike `PopoverTrigger`) isn't exempted from
-          // Radix's own outside-interaction dismissal -- opening on the
-          // input's `onFocus` means the very pointerdown that focused it (and
-          // triggered this same open) also reads as an "outside" interaction
-          // to the popover that pointerdown just opened, closing it again on
-          // the same tick. Ignore interactions that actually originate on our
-          // own anchor -- they're the open, not a dismiss.
-          onInteractOutside={(event) => {
-            if (anchorRef.current?.contains(event.target as Node)) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <Stack gap="1" className={resultList}>
-            {!isSearching &&
-              rows.map((row) => (
-                <styled.button
-                  key={row.unit_id}
-                  type="button"
-                  className={resultButton}
-                  onClick={() => pick(row.unit_id, row.sector_id)}
-                >
-                  <span>{row.unit_name}</span>
-                  {/* A root unit's path is just its own name -- repeating it
-                      underneath reads as a glitch. */}
-                  {row.path !== row.unit_name && (
-                    <span className={resultPath}>{row.path}</span>
-                  )}
-                </styled.button>
-              ))}
-            {!isSearching && rows.length === 0 && (
-              <span className={statusText}>
-                Escribí para buscar una unidad del organigrama…
-              </span>
-            )}
-
-            {isSearching &&
-              searchResults.map((unit) => (
-                <styled.button
-                  key={unit.id}
-                  type="button"
-                  className={resultButton}
-                  onClick={() => pick(unit.id, sectorFor(unit.id))}
-                >
-                  <span>{unit.name}</span>
-                  {/* The organigram has homonymous units (several DGTALs, see
-                      ADR-0002) -- without the path they are indistinguishable
-                      in a flat search. Skipped for a root, whose path is just
-                      its own name. */}
-                  {unitPath(unit.id, unitsQuery.data ?? []) !== unit.name && (
-                    <span className={resultPath}>
-                      {unitPath(unit.id, unitsQuery.data ?? [])}
-                    </span>
-                  )}
-                </styled.button>
-              ))}
-            {isSearching &&
-              searchResults.length === 0 &&
-              unitsQuery.isLoading && (
-                <span className={statusText}>Buscando en el organigrama…</span>
-              )}
-            {isSearching &&
-              searchResults.length === 0 &&
-              unitsQuery.isError && (
-                <span className={statusText}>
-                  No se pudo cargar el organigrama para buscar. Reintentá más
-                  tarde.
-                </span>
-              )}
-            {isSearching && searchResults.length === 0 && canOfferCreate && (
+    <OrganigramCombobox
+      label={label}
+      placeholder="Buscar unidad del organigrama…"
+      options={rows}
+      emptyPrompt={
+        restricted
+          ? "Este sector no tiene unidades activas."
+          : "Escribí para buscar una unidad del organigrama…"
+      }
+      search={{
+        run: (query) =>
+          (restricted ?? corpus ?? [])
+            .filter((unit) => matchesQuery(unit, query))
+            .map((unit) => ({
+              id: unit.id,
+              name: unit.name,
+              // The organigram has homonymous units (several DGTALs, see
+              // ADR-0002) -- without the path they are indistinguishable in
+              // a flat search.
+              path: unitPath(unit.id, corpus ?? []),
+            })),
+        isLoading: unitsQuery.isLoading,
+        isError: unitsQuery.isError,
+        loadingLabel: "Buscando en el organigrama…",
+        errorLabel:
+          "No se pudo cargar el organigrama para buscar. Reintentá más tarde.",
+      }}
+      selectedLabel={selectedLabel}
+      hasValue={!!unitId}
+      suggestionLabel={unitLabel(suggestedUnitId, rankedRows, corpus)}
+      onAcceptSuggestion={() => {
+        if (!suggestedUnitId) return;
+        onChange({ unit_id: suggestedUnitId, sector_id: suggestedSectorId });
+      }}
+      onPick={pick}
+      onClear={() => onChange({ unit_id: null, sector_id: null })}
+      footer={(query, resultCount) => {
+        // `unitsQuery.data` is `undefined` both while loading and after a
+        // failed fetch, so only offer "create" once the corpus has actually
+        // loaded successfully -- otherwise this risks creating a duplicate
+        // row for something already in the not-yet-loaded corpus. Never
+        // offered while a sector is pinned: the new unit would land outside
+        // it and re-break the pair.
+        const canOfferCreate =
+          resultCount === 0 && unitsQuery.isSuccess && !restricted;
+        return (
+          <>
+            {canOfferCreate && (
               <button
                 type="button"
                 className={resultButton}
@@ -469,32 +245,31 @@ export function RecipientUnitCombobox({
                 onClick={() => {
                   setCreateUnitFailed(false);
                   createUnitMutation.mutate(
-                    { parent_id: null, name: trimmedQuery, is_sector: false },
+                    { parent_id: null, name: query, is_sector: false },
                     {
                       onSuccess: (unit) => {
-                        // Without invalidating, searching the same text
-                        // again within this mounted instance still sees the
-                        // stale (pre-creation) corpus -- matches
+                        // Without invalidating, searching the same text again
+                        // within this mounted instance still sees the stale
+                        // (pre-creation) corpus -- matches
                         // unit-create-dialog.tsx's invalidation of the same
                         // query on a successful create.
                         queryClient.invalidateQueries({
                           queryKey: listUnits().queryKey,
                         });
                         // Created as a root (`parent_id: null`), so it has no
-                        // sector to resolve yet -- `sectorFor` returns null
-                        // here by construction, and stays honest if that
-                        // changes and the unit is created somewhere in the
-                        // tree.
-                        pick(unit.id, sectorFor(unit.id));
+                        // sector to resolve yet -- null by construction here,
+                        // and still honest if that ever changes.
+                        onChange({
+                          unit_id: unit.id,
+                          sector_id: sectorFor(unit.id),
+                        });
                       },
-                      onError: () => {
-                        setCreateUnitFailed(true);
-                      },
+                      onError: () => setCreateUnitFailed(true),
                     },
                   );
                 }}
               >
-                Crear "{trimmedQuery}" como nueva unidad
+                Crear "{query}" como nueva unidad
               </button>
             )}
             {createUnitFailed && (
@@ -504,9 +279,9 @@ export function RecipientUnitCombobox({
                 role="alert"
               />
             )}
-          </Stack>
-        </PopoverContent>
-      </Popover>
-    </Stack>
+          </>
+        );
+      }}
+    />
   );
 }

@@ -322,10 +322,11 @@ describe("RecommendationForm", () => {
       />,
     );
 
-    // 4 comboboxes: macro_sector, topic, subtopic, plus the unit combobox
-    // (always present for a GCBA recipient -- see the empty-candidates
-    // fixture default in `aPrediction`, exercised by the next test).
-    expect(screen.getAllByRole("combobox")).toHaveLength(4);
+    // 5 comboboxes: macro_sector, topic, subtopic, plus the unit and sector
+    // pickers (both always present for a GCBA recipient -- see the
+    // empty-candidates fixture default in `aPrediction`, exercised by the
+    // next test).
+    expect(screen.getAllByRole("combobox")).toHaveLength(5);
   });
 
   it("does not show the organigram unit combobox for a non-GCBA recipient", () => {

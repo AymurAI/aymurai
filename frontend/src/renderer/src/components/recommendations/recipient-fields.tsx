@@ -1,6 +1,8 @@
-import { Radio, Select } from "@aymurai/ui";
+import { Callout, Radio, Select } from "@aymurai/ui";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import RadioGroup from "@/components/radio/radio-group";
+import { listUnits } from "@/services/aymurai/organigram";
 import { css } from "@/styled/css";
 import { Stack } from "@/styled/jsx";
 import { GCBA_MACRO_SECTOR_CODE } from "@/types/catalogs";
@@ -9,6 +11,8 @@ import type {
   OrganigramCandidate,
   RecipientFormValues,
 } from "@/types/dataExtraction";
+import { hasSectorMismatch } from "@/utils/recommendations/recipient-sector-consistency";
+import { RecipientSectorCombobox } from "./recipient-sector-combobox";
 import { RecipientUnitCombobox } from "./recipient-unit-combobox";
 import { ValidatedTextField } from "./validated-text-field";
 
@@ -88,11 +92,15 @@ export function RecipientFields({
   onChange,
 }: RecipientFieldsProps) {
   const { t } = useTranslation("recommendations");
+  const unitsQuery = useQuery(listUnits());
 
   const macroSectorOutOfCatalog = isOutOfCatalog(
     macroSectorOptions,
     value.macro_sector,
   );
+
+  const isGcba = value.macro_sector === GCBA_MACRO_SECTOR_CODE;
+  const sectorMismatch = hasSectorMismatch(value, unitsQuery.data);
 
   return (
     <Stack gap="4">
@@ -130,23 +138,49 @@ export function RecipientFields({
         onChange={(position) => onChange({ position })}
       />
 
-      {value.macro_sector === GCBA_MACRO_SECTOR_CODE && (
-        <RecipientUnitCombobox
-          label={t("validation.unit")}
-          candidates={candidates}
-          unitId={value.unit_id}
-          suggestion={
-            suggestion?.unit_id
-              ? {
-                  unit_id: suggestion.unit_id,
-                  sector_id: suggestion.sector_id,
-                }
-              : undefined
-          }
-          onChange={(picked) =>
-            onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
-          }
-        />
+      {isGcba && (
+        <>
+          <RecipientUnitCombobox
+            label={t("validation.unit")}
+            candidates={candidates}
+            unitId={value.unit_id}
+            suggestion={
+              suggestion?.unit_id
+                ? {
+                    unit_id: suggestion.unit_id,
+                    sector_id: suggestion.sector_id,
+                  }
+                : undefined
+            }
+            // Only while the pair disagrees: the person pinned a sector by
+            // hand and has to land on a unit that belongs to it.
+            restrictToSectorId={sectorMismatch ? value.sector_id : null}
+            onChange={(picked) =>
+              onChange({ unit_id: picked.unit_id, sector_id: picked.sector_id })
+            }
+          />
+
+          <Stack gap="1">
+            <RecipientSectorCombobox
+              label={t("validation.sector")}
+              candidates={candidates}
+              sectorId={value.sector_id}
+              suggestedSectorId={suggestion?.sector_id}
+              // Validating a sector by hand never rewrites the unit -- that
+              // would silently discard what the cargo actually said. The pair
+              // is reported as inconsistent instead, and the unit picker
+              // narrows until the person resolves it themselves.
+              onChange={(sector_id) => onChange({ sector_id })}
+            />
+            {sectorMismatch && (
+              <Callout
+                message={t("validation.sectorMismatch")}
+                variant="warning"
+                role="alert"
+              />
+            )}
+          </Stack>
+        </>
       )}
 
       <RadioGroup

@@ -1,8 +1,8 @@
 import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   FormOption,
   OrganigramCandidate,
@@ -14,10 +14,15 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+// Reassignable so the sector-consistency tests can hand the rule a real tree
+// -- with an empty corpus `hasSectorMismatch` deliberately reports nothing,
+// since it only flags a mismatch it can prove.
+let corpus: unknown[] = [];
+
 vi.mock("@/services/aymurai/organigram", () => ({
   listUnits: () => ({
     queryKey: ["organigram-units"],
-    queryFn: async () => [],
+    queryFn: async () => corpus,
   }),
   createUnit: () => ({
     mutationFn: async (input: { name: string }) => ({
@@ -113,14 +118,14 @@ describe("RecipientFields", () => {
       />,
     );
 
-    // Two comboboxes: the unit combobox plus macro_sector's own `Select`
-    // (`Select` has no accessible name -- Task 11's report already flagged
-    // it has no `aria-labelledby`/`for` linking its visual label -- so this
-    // asserts by count rather than by name).
-    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    // Three comboboxes: the unit and sector pickers plus macro_sector's own
+    // `Select` (`Select` has no accessible name -- Task 11's report already
+    // flagged it has no `aria-labelledby`/`for` linking its visual label --
+    // so this asserts by count rather than by name).
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
   });
 
-  it("still shows the unit combobox for a GCBA recipient with no candidates", () => {
+  it("still shows both organigram fields for a GCBA recipient with no candidates", () => {
     renderWithProvider(
       <RecipientFields
         index={0}
@@ -132,9 +137,9 @@ describe("RecipientFields", () => {
     );
 
     // Unlike the historical `RecipientUnitSelect` (gated on candidates.length
-    // > 0), the merged combobox always renders for a GCBA recipient -- an
-    // empty ranked list just falls back to its search-to-find prompt.
-    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    // > 0), both pickers always render for a GCBA recipient -- an empty
+    // ranked list just falls back to its search-to-find prompt.
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
   });
 
   it("hides the unit combobox entirely for a non-GCBA recipient", () => {
@@ -169,11 +174,123 @@ describe("RecipientFields", () => {
       />,
     );
 
-    // The suggested UNIT, not the sector the candidate row is named after.
+    // Each field suggests its own half of the pair: the unit the cargo
+    // pointed at, and the sector that contains it.
     expect(
       screen.getByText("Dirección General de Coordinación"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(CANDIDATES[0].unit_name)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(CANDIDATES[0].sector_name as string),
+    ).toBeInTheDocument();
+  });
+
+  // `ministerio` [sector] > `direccion`; `otro` [sector] is somewhere else.
+  const TREE = [
+    {
+      id: "ministerio",
+      parent_id: null,
+      name: "Ministerio de Desarrollo Humano y Hábitat",
+      acronym: null,
+      short_name: null,
+      is_sector: true,
+      active: true,
+      order: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+    {
+      id: "direccion",
+      parent_id: "ministerio",
+      name: "Dirección General de Vivienda",
+      acronym: null,
+      short_name: null,
+      is_sector: false,
+      active: true,
+      order: 2,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+    {
+      id: "otro",
+      parent_id: null,
+      name: "Ministerio de Justicia",
+      acronym: null,
+      short_name: null,
+      is_sector: true,
+      active: true,
+      order: 3,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: null,
+    },
+  ];
+
+  afterEach(() => {
+    corpus = [];
+  });
+
+  it("warns when a hand-validated sector does not contain the unit", async () => {
+    corpus = TREE;
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: "direccion", sector_id: "otro" })}
+        candidates={[]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("validation.sectorMismatch"),
+    ).toBeInTheDocument();
+  });
+
+  it("stays quiet when the unit belongs to the sector", async () => {
+    corpus = TREE;
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: "direccion", sector_id: "ministerio" })}
+        candidates={[]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    // Let the corpus settle before concluding the warning is absent -- the
+    // unit's name only resolves once `listUnits()` lands.
+    await waitFor(() =>
+      expect(screen.getByLabelText("validation.unit")).toHaveValue(
+        "Dirección General de Vivienda",
+      ),
+    );
+    expect(
+      screen.queryByText("validation.sectorMismatch"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("narrows the unit picker to the pinned sector while the pair disagrees", async () => {
+    corpus = TREE;
+    renderWithProvider(
+      <RecipientFields
+        index={0}
+        value={aRecipient({ unit_id: "direccion", sector_id: "otro" })}
+        candidates={[]}
+        macroSectorOptions={MACRO_SECTOR_OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+    await screen.findByText("validation.sectorMismatch");
+
+    // Opening the unit picker now offers the pinned sector's own units
+    // instead of the cargo's candidates -- "Dirección General de Vivienda"
+    // hangs off the other ministry, so it is not on offer.
+    fireEvent.focus(screen.getByLabelText("validation.unit"));
+
+    expect(await screen.findByText("Ministerio de Justicia")).toBeVisible();
+    expect(
+      screen.queryByText("Dirección General de Vivienda"),
+    ).not.toBeInTheDocument();
   });
 
   it("marking two recipients as primary leaves both marked", () => {

@@ -1,5 +1,5 @@
 import { Button, Callout } from "@aymurai/ui";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,11 +17,13 @@ import {
   extractDocument,
   validateRecommendation,
 } from "@/services/aymurai/dataExtraction";
+import { listUnits } from "@/services/aymurai/organigram";
 import { css } from "@/styled/css";
 import { Grid, Stack } from "@/styled/jsx";
 import type { RecommendationValidationInput } from "@/types/dataExtraction";
 import { FeatureFlowEnum } from "@/types/features";
 import { buildAnnotations } from "@/utils/recommendations/build-annotations";
+import { hasSectorMismatch } from "@/utils/recommendations/recipient-sector-consistency";
 import RecommendationForm from "./recommendation-form";
 
 // Grid items stretch to the row height by default, but their content can
@@ -79,6 +81,19 @@ export default function RecommendationValidation() {
 
   const saveMutation = useMutation(validateRecommendation());
   const reExtractMutation = useMutation(extractDocument());
+
+  // Same rule the server enforces with a 422 (ADR-0009), asked here so a
+  // hand-validated sector that contradicts its unit can never be submitted.
+  // `hasSectorMismatch` only reports a mismatch it can prove, so a corpus
+  // that has not loaded blocks nothing and the server stays the backstop.
+  const unitsQuery = useQuery(listUnits());
+  const inconsistentRecipients = (payload?.recipients ?? [])
+    .filter((recipient) => hasSectorMismatch(recipient, unitsQuery.data))
+    .map(
+      (recipient, index) =>
+        recipient.name?.trim() ||
+        `${t("validation.recipientLabel")} ${index + 1}`,
+    );
 
   // The highlight is a "why does this field say what it says" reference,
   // not a to-do marker: it never disappears once a field is confirmed, and
@@ -328,10 +343,19 @@ export default function RecommendationValidation() {
         </Stack>
       </Grid>
       <Footer withBuiltBy>
+        {inconsistentRecipients.length > 0 && (
+          <Callout
+            message={t("validation.blockedBySectorMismatch", {
+              recipients: inconsistentRecipients.join(", "),
+            })}
+            variant="warning"
+            role="alert"
+          />
+        )}
         <Button
           size="md"
           onClick={handleValidate}
-          disabled={saveMutation.isPending}
+          disabled={saveMutation.isPending || inconsistentRecipients.length > 0}
         >
           {t("validation.validate")}
         </Button>

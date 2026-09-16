@@ -84,11 +84,22 @@ const recommendations = {
     name: "Nombre",
     position: "Cargo",
     unit: "Unidad del organigrama",
+    // Lo que la Defensoría llama "destinatario por sector": el sector del
+    // organigrama que contiene a la unidad. Coincide con la unidad sólo
+    // cuando ésta es sector en sí misma (IVC, AGC y demás organismos
+    // autónomos). Es lo que el export escribe como SECTOR_FINAL.
+    sector: "Destinatario por sector",
+    sectorMismatch:
+      "La unidad no pertenece a este sector. Elegí una unidad del sector para poder guardar.",
+    blockedBySectorMismatch:
+      "No se puede validar: en {{recipients}} el sector no se condice con la unidad.",
     isPrimary: "¿Es destinatario principal?",
     isPrimaryYes: "Sí",
     isPrimaryNo: "No",
-    macroSector: "Sector",
-    macroSectorOutOfCatalog: "Sector fuera de la lista definida",
+    // "Sector" quedó para el del organigrama; este campo es el ámbito al que
+    // pertenece el destinatario (GCBA, Organismos Nacionales, etc.).
+    macroSector: "Ámbito",
+    macroSectorOutOfCatalog: "Ámbito fuera de la lista definida",
     topic: "Tema",
     subtopic: "Subtema",
     topicOutOfCatalog: "Tema fuera de la taxonomía definida",
