@@ -120,13 +120,17 @@ function renderWithClient(ui: ReactElement) {
   );
 }
 
+// A candidate IS a sector (ADR-0008): `unit_id === sector_id`, and the unit
+// the cargo matched travels in `source_unit_*`.
 const A_CANDIDATE: OrganigramCandidate = {
-  unit_id: "u1",
+  unit_id: "s1",
   unit_name: "Secretaría de Gobierno y Vínculo Ciudadano",
   sector_id: "s1",
-  sector_name: "GCBA",
-  ruta_organigrama: "Jefatura de Gabinete › Secretaría de Gobierno",
+  sector_name: "Secretaría de Gobierno y Vínculo Ciudadano",
+  ruta_organigrama: "Jefatura de Gabinete > Secretaría de Gobierno",
   score: 87.6,
+  source_unit_id: "u1",
+  source_unit_name: "Dirección General de Coordinación",
 };
 
 describe("RecommendationForm — unified date field", () => {

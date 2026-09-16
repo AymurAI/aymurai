@@ -1,3 +1,14 @@
+/**
+ * A ranked SECTOR, not a unit (ADR-0008): the backend matches the cargo
+ * against units and then collapses each match to the sector it resolves to,
+ * keeping the best score per sector. So `unit_id === sector_id` on every row,
+ * and `ruta_organigrama` is the sector's own path.
+ *
+ * `source_unit_*` is the unit whose match produced this sector. Submitting
+ * `unit_id = source_unit_id` together with this row's `sector_id` is the
+ * pairing the server's consistency check is guaranteed to accept, since it is
+ * exactly how the candidate was derived.
+ */
 export interface OrganigramCandidate {
   unit_id: string;
   unit_name: string;
@@ -5,6 +16,8 @@ export interface OrganigramCandidate {
   sector_name: string | null;
   ruta_organigrama: string;
   score: number;
+  source_unit_id: string | null;
+  source_unit_name: string | null;
 }
 
 export interface RecipientPrediction {

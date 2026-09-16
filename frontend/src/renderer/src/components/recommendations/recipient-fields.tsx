@@ -135,7 +135,6 @@ export function RecipientFields({
           label={t("validation.unit")}
           candidates={candidates}
           unitId={value.unit_id}
-          sectorId={value.sector_id}
           suggestion={
             suggestion?.unit_id
               ? {

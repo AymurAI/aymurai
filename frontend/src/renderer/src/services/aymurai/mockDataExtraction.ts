@@ -31,24 +31,29 @@ function makeId(prefix: string): string {
  * instead of nulling both fields.
  */
 const UNIT_NAMES: Record<string, string> = {
-  "unit-201": "Dirección General de Administración",
-  "unit-202": "Dirección General de Recursos Humanos",
-  "unit-203": "Dirección General Técnica Administrativa",
+  ivc: "Instituto de Vivienda de la Ciudad",
+  dgpolea: "Dirección General Política y Estrategia Ambiental",
+  mhfgc: "Ministerio de Hacienda y Finanzas",
 };
 const SECTOR_NAMES: Record<string, string> = {
-  "sector-10": "Ministerio de Educación",
-  "sector-11": "Ministerio de Hacienda y Finanzas",
-  "sector-12": "Ministerio de Justicia y Seguridad",
+  ivc: "Instituto de Vivienda de la Ciudad",
+  avig: "Vicejefatura de Gobierno",
+  mhfgc: "Ministerio de Hacienda y Finanzas",
 };
 
 /**
  * Sample extraction, keyed by `documentId` — mirrors the real endpoint's
  * cache: the same document asked twice returns the same prediction.
  *
- * Two recipients on purpose, contrasting the two shapes Task 12 exercises:
- * a GCBA recipient with several ranked `sector_candidates` (an ambiguous
- * match a human picks from) and a non-GCBA recipient with none (nothing in
- * the organigram plausibly matches, so there is nothing to rank).
+ * Three recipients on purpose, one per shape the unit/sector pair can take:
+ * a unit that IS its own sector (IVC), a unit whose sector is an ancestor
+ * (a dirección under the Vicejefatura), and a non-GCBA recipient with no
+ * organigram at all. Ids are real nodes of `fixtures/organigram.json` (the
+ * actual GCBA tree), so client-side sector resolution works in mock mode.
+ *
+ * Candidates follow the real shape (ADR-0008): each row IS a sector, so
+ * `unit_id === sector_id`, `ruta_organigrama` is the sector's own path, and
+ * the unit that produced it travels in `source_unit_id`.
  */
 function samplePrediction(documentId: string): DataExtractionPrediction {
   return {
@@ -56,46 +61,84 @@ function samplePrediction(documentId: string): DataExtractionPrediction {
     recommendation_number: "123/2026",
     recommendation_date: "22 de noviembre",
     recipients: [
+      // Unidad que ES su propio sector: IVC es un organismo autónomo
+      // (`is_sector`, ADR-0001) y además una hoja del árbol, así que la
+      // unidad inferida del cargo y el sector que la contiene son el mismo
+      // nodo. Los dos campos del formulario muestran IVC.
       {
-        name: "Juan Pérez",
-        position: "Director General",
+        name: "Gabriel Mraida",
+        position:
+          "Presidente del Instituto de Vivienda de la Ciudad Autónoma de Buenos Aires",
         is_primary: true,
         macro_sector: "GCBA",
-        unit_id: null,
-        unit_name: null,
-        sector_id: null,
-        sector_name: null,
+        unit_id: "ivc",
+        unit_name: UNIT_NAMES.ivc,
+        sector_id: "ivc",
+        sector_name: SECTOR_NAMES.ivc,
         match_method: "cargo",
         sector_candidates: [
           {
-            unit_id: "unit-201",
-            unit_name: UNIT_NAMES["unit-201"],
-            sector_id: "sector-10",
-            sector_name: SECTOR_NAMES["sector-10"],
+            unit_id: "ivc",
+            unit_name: SECTOR_NAMES.ivc,
+            sector_id: "ivc",
+            sector_name: SECTOR_NAMES.ivc,
             ruta_organigrama:
-              "GCBA > Ministerio de Educación > Dirección General de Administración",
-            score: 0.92,
+              "Jefe de Gobierno > Jefatura de Gabinete de Ministros > Ministerio de Desarrollo Humano y Hábitat > Instituto de Vivienda de la Ciudad",
+            score: 94.2,
+            source_unit_id: "ivc",
+            source_unit_name: UNIT_NAMES.ivc,
           },
           {
-            unit_id: "unit-202",
-            unit_name: UNIT_NAMES["unit-202"],
-            sector_id: "sector-11",
-            sector_name: SECTOR_NAMES["sector-11"],
-            ruta_organigrama:
-              "GCBA > Ministerio de Hacienda y Finanzas > Dirección General de Recursos Humanos",
-            score: 0.81,
-          },
-          {
-            unit_id: "unit-203",
-            unit_name: UNIT_NAMES["unit-203"],
-            sector_id: "sector-12",
-            sector_name: SECTOR_NAMES["sector-12"],
-            ruta_organigrama:
-              "GCBA > Ministerio de Justicia y Seguridad > Dirección General Técnica Administrativa",
-            score: 0.67,
+            unit_id: "avig",
+            unit_name: SECTOR_NAMES.avig,
+            sector_id: "avig",
+            sector_name: SECTOR_NAMES.avig,
+            ruta_organigrama: "Jefe de Gobierno > Vicejefatura de Gobierno",
+            score: 61.0,
+            source_unit_id: "dgpolea",
+            source_unit_name: UNIT_NAMES.dgpolea,
           },
         ],
       },
+      // Unidad distinta de su sector: la dirección general cuelga de una
+      // subsecretaría que no es sector, así que el recorrido sigue hasta la
+      // Vicejefatura. Unidad y "Destinatario por sector" difieren.
+      {
+        name: "Ana Pérez",
+        position: "Directora General Política y Estrategia Ambiental",
+        is_primary: false,
+        macro_sector: "GCBA",
+        unit_id: "dgpolea",
+        unit_name: UNIT_NAMES.dgpolea,
+        sector_id: "avig",
+        sector_name: SECTOR_NAMES.avig,
+        match_method: "cargo",
+        sector_candidates: [
+          {
+            unit_id: "avig",
+            unit_name: SECTOR_NAMES.avig,
+            sector_id: "avig",
+            sector_name: SECTOR_NAMES.avig,
+            ruta_organigrama: "Jefe de Gobierno > Vicejefatura de Gobierno",
+            score: 88.4,
+            source_unit_id: "dgpolea",
+            source_unit_name: UNIT_NAMES.dgpolea,
+          },
+          {
+            unit_id: "mhfgc",
+            unit_name: SECTOR_NAMES.mhfgc,
+            sector_id: "mhfgc",
+            sector_name: SECTOR_NAMES.mhfgc,
+            ruta_organigrama:
+              "Jefe de Gobierno > Jefatura de Gabinete de Ministros > Ministerio de Hacienda y Finanzas",
+            score: 52.3,
+            source_unit_id: "mhfgc",
+            source_unit_name: UNIT_NAMES.mhfgc,
+          },
+        ],
+      },
+      // Sin organigrama: fuera del GCBA no hay unidad ni sector que validar,
+      // y el "Destinatario por sector" del export es el Ámbito.
       {
         name: "María Gómez",
         position: "Presidenta",

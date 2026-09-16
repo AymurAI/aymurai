@@ -12,6 +12,8 @@ import { css, cx } from "@/styled/css";
 import { Stack, styled } from "@/styled/jsx";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
 import type { OrganigramUnit } from "@/types/organigram";
+import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
+import { resolveSector, unitPath } from "@/utils/organigram/resolve-sector";
 
 export interface RecipientUnitComboboxValue {
   /** `null` clears the field -- emitted when the person types a search,
@@ -36,22 +38,15 @@ export interface RecipientUnitComboboxProps {
    *  always sets `unit_id`/`sector_id` to the same candidate id, by
    *  construction) -- kept as a fallback for that case. */
   unitId: string | null;
-  /** The recipient's current `sector_id`. This is what the backend's
-   *  automatic resolution actually sets consistently: it resolves `unit_id`
-   *  to a leaf unit (never one of these sector candidates) and `sector_id`
-   *  to that leaf's ancestor sector -- which IS one of these candidates'
-   *  ids. */
-  sectorId: string | null;
-  /** The backend's own coarser auto-resolution for this recipient, frozen at
-   *  first render (`suggestions.recipients[i]`) -- used as the suggestion
-   *  ONLY when `candidates` is empty (nothing to rank). Whenever `candidates`
-   *  is non-empty, its own highest-scored entry is the suggestion instead
-   *  (a finer-grained, per-unit ranking that can legitimately disagree with
-   *  this coarser field -- see `topCandidate`'s doc). Shown as a clickable
-   *  violet mark, same as `ValidatedTextField`, until `unitId` is set
-   *  (accepting the suggestion, or picking anything else, both set it).
-   *  `undefined` when there is nothing to suggest at all (a hand-added
-   *  recipient, or the backend found no match). */
+  /** The backend's auto-resolution for this recipient, frozen at first render
+   *  (`suggestions.recipients[i]`). This is the suggestion: it consults the
+   *  learned index and applies a score threshold, and its two ids are
+   *  consistent with each other by construction. The ranked `candidates` are
+   *  alternatives, and only stand in when this came back empty. Shown as a
+   *  clickable violet mark, same as `ValidatedTextField`, until `unitId` is
+   *  set (accepting it, or picking anything else, both set it). `undefined`
+   *  when there is nothing to suggest at all (a hand-added recipient, or
+   *  nothing cleared the threshold). */
   suggestion?: { unit_id: string | null; sector_id: string | null };
   onChange: (value: RecipientUnitComboboxValue) => void;
   label?: string;
@@ -160,19 +155,6 @@ const statusText = css({
   p: "2",
 });
 
-/** Mirrors the backend's `normalize_text` (`aymurai/text/matching.py`): NFKD,
- *  drop combining marks, lowercase. Typing "habitat" has to find "Hábitat" --
- *  people search without accents, and the backend's own cargo matching already
- *  normalizes both sides this way, so the client-side search would otherwise
- *  be strictly stricter than the ranking that produced the candidates. */
-function normalizeForSearch(value: string | null | undefined): string {
-  return (value ?? "")
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .trim();
-}
-
 function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
   const q = normalizeForSearch(needle);
   return (
@@ -182,44 +164,63 @@ function matchesQuery(unit: OrganigramUnit, needle: string): boolean {
   );
 }
 
-/** Finds the `candidates` entry (if any) an (unitId, sectorId) pair refers
- *  to. Tries an exact `unit_id` match FIRST: in practice `candidates` mixes
- *  leaf-unit rows (their own `unit_id`, ranked on their own merit -- e.g. a
- *  strong text match on the office itself) with sector-level rows (per
- *  `_sector_candidates_from_units`, `unit_id = sector_id = <the sector's own
- *  id>`), and a leaf's own ancestor sector is often ALSO a separate
- *  candidate row -- so matching by `sector_id` alone is ambiguous between
- *  the two and would silently prefer the coarser (sector) row over the more
- *  precise (leaf) one it was ranked alongside. `sector_id` is only a
- *  fallback for when the leaf itself never made it into `candidates`. */
-function resolveCandidate(
-  ids: { unitId: string | null; sectorId: string | null },
-  candidates: OrganigramCandidate[],
-): OrganigramCandidate | undefined {
-  const byUnit =
-    ids.unitId &&
-    candidates.find((candidate) => candidate.unit_id === ids.unitId);
-  return (
-    byUnit ||
-    candidates.find((candidate) => candidate.sector_id === ids.sectorId)
-  );
+/** One ranked row of this picker: a real organigram UNIT, unlike the
+ *  `OrganigramCandidate` it comes from (which is a sector). */
+interface UnitRow {
+  unit_id: string;
+  unit_name: string;
+  /** The sector the backend already paired with this unit -- posting the two
+   *  together is the pairing its consistency check is guaranteed to accept. */
+  sector_id: string | null;
+  path: string;
+  score: number;
 }
 
-/** Resolves a display name for an (unitId, sectorId) pair -- neither
- *  `RecipientFormValues` nor its frozen `suggestion` carry a name, only ids
- *  (see `useRecommendationForm.ts`'s `recipientFromDetail`/
- *  `recipientFromPrediction`). Falls back to the already-fetched
- *  `listUnits()` corpus by `unitId` for a unit outside `candidates`
- *  entirely -- e.g. one picked via search. */
-function resolveLabel(
-  ids: { unitId: string | null; sectorId: string | null },
+/**
+ * Turns the ranked sectors the backend sends into the units they were
+ * inferred from. Each candidate carries exactly one `source_unit` (the
+ * best-scoring unit that resolved to that sector), which is what this field
+ * is actually about: the unit the cargo points at.
+ *
+ * The row's path is computed from the corpus, because the candidate's own
+ * `ruta_organigrama` is the SECTOR's path, not the unit's. It falls back to
+ * that sector path while the corpus is still loading, so rows are never
+ * blank.
+ *
+ * A candidate with no `source_unit_id` (an older backend) degrades to the
+ * candidate itself rather than dropping out of the list.
+ */
+function candidateUnitRows(
   candidates: OrganigramCandidate[],
   corpus: OrganigramUnit[] | undefined,
+): UnitRow[] {
+  return candidates.map((candidate) => {
+    const unitId = candidate.source_unit_id ?? candidate.unit_id;
+    const unitName = candidate.source_unit_name ?? candidate.unit_name;
+    const path = corpus ? unitPath(unitId, corpus) : "";
+    return {
+      unit_id: unitId,
+      unit_name: unitName,
+      sector_id: candidate.sector_id,
+      path: path || candidate.ruta_organigrama,
+      score: candidate.score,
+    };
+  });
+}
+
+/** Display name for a unit id. `RecipientFormValues` carries only ids (see
+ *  `useRecommendationForm`'s `recipientFromPrediction`), so the name comes
+ *  from the ranked rows when it is one of them, and from the fetched corpus
+ *  otherwise -- e.g. a unit picked through the full-corpus search. */
+function unitLabel(
+  unitId: string | null,
+  rows: UnitRow[],
+  corpus: OrganigramUnit[] | undefined,
 ): string | null {
-  const candidate = resolveCandidate(ids, candidates);
-  if (candidate) return candidate.unit_name;
-  if (!ids.unitId) return null;
-  return corpus?.find((unit) => unit.id === ids.unitId)?.name ?? null;
+  if (!unitId) return null;
+  const row = rows.find((candidate) => candidate.unit_id === unitId);
+  if (row) return row.unit_name;
+  return corpus?.find((unit) => unit.id === unitId)?.name ?? null;
 }
 
 /**
@@ -237,7 +238,6 @@ function resolveLabel(
 export function RecipientUnitCombobox({
   candidates,
   unitId,
-  sectorId,
   suggestion,
   onChange,
   label,
@@ -255,58 +255,41 @@ export function RecipientUnitCombobox({
   const unitsQuery = useQuery(listUnits());
   const createUnitMutation = useMutation(createUnit());
 
-  const selectedLabel = resolveLabel(
-    { unitId, sectorId },
-    candidates,
-    unitsQuery.data,
-  );
-  // The highest-scored `candidates` row IS the suggestion whenever there are
-  // any -- `sector_candidates`' own ranking is a finer-grained, per-unit
-  // signal than `suggestion`'s `unit_id`/`sector_id` (the backend's separate,
-  // coarser auto-resolution), and the two can legitimately disagree: a
-  // specific office can rank #1 here while that coarser resolution only
-  // committed to its parent sector. Trusting the ranking over the frozen
-  // suggestion is what actually matches "the top-ranked candidate" people
-  // see in the list. `suggestion` itself is only a fallback for when there
-  // is nothing to rank at all.
-  const topCandidate = candidates.reduce<OrganigramCandidate | undefined>(
-    (best, candidate) =>
-      !best || candidate.score > best.score ? candidate : best,
+  const rows = candidateUnitRows(candidates, unitsQuery.data);
+  const selectedLabel = unitLabel(unitId, rows, unitsQuery.data);
+
+  // The suggestion is the backend's own auto-resolution, not the top of the
+  // ranked list. That resolution is the system's committed answer -- it
+  // consults the learned index of what humans already validated, and applies
+  // a score threshold, returning nothing rather than a bad guess. The ranking
+  // has no threshold: `candidates[0]` exists whenever any unit does, however
+  // poorly it scored. The two answer different questions, so the committed
+  // one wins and the ranking stays what it is, a list of alternatives.
+  //
+  // Only when the auto-resolve came back empty (nothing cleared the
+  // threshold) does the best-scoring row stand in as a starting point.
+  const topRow = rows.reduce<UnitRow | undefined>(
+    (best, row) => (!best || row.score > best.score ? row : best),
     undefined,
   );
-  const suggestedCandidate =
-    topCandidate ??
-    (suggestion?.unit_id
-      ? resolveCandidate(
-          { unitId: suggestion.unit_id, sectorId: suggestion.sector_id },
-          candidates,
-        )
-      : undefined);
+  const suggestedUnitId = suggestion?.unit_id ?? topRow?.unit_id ?? null;
+  const suggestedSectorId = suggestion?.unit_id
+    ? suggestion.sector_id
+    : (topRow?.sector_id ?? null);
   // Only meaningful while nothing is chosen yet -- once `unitId` is set
   // (accepting this same suggestion, or picking anything else), the mark
   // must disappear just like `ValidatedTextField`'s.
   const suggestedLabel = unitId
     ? null
-    : (suggestedCandidate?.unit_name ??
-      (suggestion?.unit_id
-        ? (unitsQuery.data?.find((unit) => unit.id === suggestion.unit_id)
-            ?.name ?? null)
-        : null));
-  // Hidden while the popover is open too -- it already shows first
-  // (highest-scored) in the list right below, so the mark would be
-  // redundant clutter next to the search box the person is actively using.
+    : unitLabel(suggestedUnitId, rows, unitsQuery.data);
+  // Hidden while the popover is open too -- it already shows in the list
+  // right below, so the mark would be redundant clutter next to the search
+  // box the person is actively using.
   const hasSuggestion = !open && !!suggestedLabel;
 
   function acceptSuggestion() {
-    if (suggestedCandidate) {
-      onChange({
-        unit_id: suggestedCandidate.unit_id,
-        sector_id: suggestedCandidate.sector_id,
-      });
-      return;
-    }
-    if (!suggestion?.unit_id) return;
-    onChange({ unit_id: suggestion.unit_id, sector_id: suggestion.sector_id });
+    if (!suggestedUnitId) return;
+    onChange({ unit_id: suggestedUnitId, sector_id: suggestedSectorId });
   }
 
   const trimmedQuery = query.trim();
@@ -341,6 +324,14 @@ export function RecipientUnitCombobox({
       setQuery("");
       setQueryTouched(false);
     }
+  }
+
+  /** The sector a unit belongs to, walked over the corpus exactly as the
+   *  server walks it. Used for picks the backend never paired for us -- a
+   *  full-corpus search hit, or a unit created on the spot -- which until now
+   *  posted `sector_id: null` and blanked SECTOR_FINAL in the export. */
+  function sectorFor(pickedUnitId: string): string | null {
+    return resolveSector(pickedUnitId, unitsQuery.data ?? [])?.id ?? null;
   }
 
   function pick(pickedUnitId: string, pickedSectorId: string | null) {
@@ -416,20 +407,22 @@ export function RecipientUnitCombobox({
         >
           <Stack gap="1" className={resultList}>
             {!isSearching &&
-              candidates.map((candidate) => (
+              rows.map((row) => (
                 <styled.button
-                  key={candidate.unit_id}
+                  key={row.unit_id}
                   type="button"
                   className={resultButton}
-                  onClick={() => pick(candidate.unit_id, candidate.sector_id)}
+                  onClick={() => pick(row.unit_id, row.sector_id)}
                 >
-                  <span>{candidate.unit_name}</span>
-                  <span className={resultPath}>
-                    {candidate.ruta_organigrama}
-                  </span>
+                  <span>{row.unit_name}</span>
+                  {/* A root unit's path is just its own name -- repeating it
+                      underneath reads as a glitch. */}
+                  {row.path !== row.unit_name && (
+                    <span className={resultPath}>{row.path}</span>
+                  )}
                 </styled.button>
               ))}
-            {!isSearching && candidates.length === 0 && (
+            {!isSearching && rows.length === 0 && (
               <span className={statusText}>
                 Escribí para buscar una unidad del organigrama…
               </span>
@@ -437,14 +430,23 @@ export function RecipientUnitCombobox({
 
             {isSearching &&
               searchResults.map((unit) => (
-                <button
+                <styled.button
                   key={unit.id}
                   type="button"
                   className={resultButton}
-                  onClick={() => pick(unit.id, null)}
+                  onClick={() => pick(unit.id, sectorFor(unit.id))}
                 >
-                  {unit.name}
-                </button>
+                  <span>{unit.name}</span>
+                  {/* The organigram has homonymous units (several DGTALs, see
+                      ADR-0002) -- without the path they are indistinguishable
+                      in a flat search. Skipped for a root, whose path is just
+                      its own name. */}
+                  {unitPath(unit.id, unitsQuery.data ?? []) !== unit.name && (
+                    <span className={resultPath}>
+                      {unitPath(unit.id, unitsQuery.data ?? [])}
+                    </span>
+                  )}
+                </styled.button>
               ))}
             {isSearching &&
               searchResults.length === 0 &&
@@ -478,7 +480,12 @@ export function RecipientUnitCombobox({
                         queryClient.invalidateQueries({
                           queryKey: listUnits().queryKey,
                         });
-                        pick(unit.id, null);
+                        // Created as a root (`parent_id: null`), so it has no
+                        // sector to resolve yet -- `sectorFor` returns null
+                        // here by construction, and stays honest if that
+                        // changes and the unit is created somewhere in the
+                        // tree.
+                        pick(unit.id, sectorFor(unit.id));
                       },
                       onError: () => {
                         setCreateUnitFailed(true);

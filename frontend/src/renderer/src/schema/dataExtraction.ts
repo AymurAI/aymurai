@@ -2,12 +2,19 @@ import { z } from "zod";
 
 /** Mirrors `OrganigramCandidateResponse` in `aymurai/api/endpoints/schemas/responses/data_extraction.py`. */
 export const organigramCandidateSchema = z.object({
+  // A candidate IS a sector, not a unit (ADR-0008): units are ranked against
+  // the cargo and then collapsed to the sector each one resolves to, so
+  // `unit_id` and `sector_id` are both the sector's own id by construction.
+  // The unit that actually produced the row is `source_unit_id` -- that is
+  // what goes back as `unit_id` on validate.
   unit_id: z.string(),
   unit_name: z.string(),
   sector_id: z.string().nullable(),
   sector_name: z.string().nullable(),
   ruta_organigrama: z.string(),
   score: z.number(),
+  source_unit_id: z.string().nullable(),
+  source_unit_name: z.string().nullable(),
 });
 
 /** Mirrors `RecipientResponse`. */

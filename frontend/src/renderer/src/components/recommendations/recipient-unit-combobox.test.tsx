@@ -5,22 +5,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OrganigramCandidate } from "@/types/dataExtraction";
 import { RecipientUnitCombobox } from "./recipient-unit-combobox";
 
+// Real shape (ADR-0008): every candidate IS a sector, so `unit_id` and
+// `sector_id` hold the same id and `ruta_organigrama` is the sector's own
+// path. The unit the cargo actually matched travels in `source_unit_*`, and
+// that is what this picker lists and posts.
 const CANDIDATES: OrganigramCandidate[] = [
   {
-    unit_id: "u1",
+    unit_id: "s1",
     unit_name: "Secretaría de Gobierno y Vínculo Ciudadano",
     sector_id: "s1",
-    sector_name: "GCBA",
-    ruta_organigrama: "Jefatura de Gabinete › Secretaría de Gobierno",
+    sector_name: "Secretaría de Gobierno y Vínculo Ciudadano",
+    ruta_organigrama: "Jefatura de Gabinete > Secretaría de Gobierno",
     score: 87.6,
+    source_unit_id: "u1",
+    source_unit_name: "Dirección General de Coordinación",
   },
   {
-    unit_id: "u2",
-    unit_name: "Dirección General Obras en Vías Peatonales",
+    unit_id: "s2",
+    unit_name: "Ministerio de Espacio Público e Higiene Urbana",
     sector_id: "s2",
-    sector_name: "GCBA",
-    ruta_organigrama: "Ministerio de Espacio Público › DGTAL",
+    sector_name: "Ministerio de Espacio Público e Higiene Urbana",
+    ruta_organigrama: "Jefe de Gobierno > Ministerio de Espacio Público",
     score: 42.1,
+    source_unit_id: "u2",
+    source_unit_name: "Dirección General Obras en Vías Peatonales",
   },
 ];
 
@@ -98,6 +106,33 @@ const FULL_CORPUS = [
     created_at: "2026-01-01T00:00:00Z",
     updated_at: null,
   },
+  // The IVC case: an autonomous body is its own sector even though it hangs
+  // off a ministry that is also one.
+  {
+    id: "u11",
+    parent_id: "u10",
+    name: "Instituto de Vivienda de la Ciudad",
+    acronym: "IVC",
+    short_name: null,
+    is_sector: true,
+    active: true,
+    order: 3,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: null,
+  },
+  // The ordinary case: a unit whose sector is an ancestor, not itself.
+  {
+    id: "u12",
+    parent_id: "u10",
+    name: "Dirección General de Vivienda",
+    acronym: null,
+    short_name: null,
+    is_sector: false,
+    active: true,
+    order: 4,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: null,
+  },
 ];
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -120,83 +155,112 @@ function openCombobox() {
 }
 
 describe("RecipientUnitCombobox", () => {
-  it("shows the resolved candidate's name as its closed value", () => {
+  it("shows the unit's name as its closed value, not the sector's", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
-        unitId="leaf-unit-42"
-        sectorId="s1"
+        unitId="u1"
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("combobox")).toHaveValue(CANDIDATES[0].unit_name);
+    // "u1" is CANDIDATES[0]'s `source_unit_id`; its sector, "s1", is what the
+    // candidate row itself is named after and must NOT be what shows here.
+    expect(screen.getByRole("combobox")).toHaveValue(
+      "Dirección General de Coordinación",
+    );
+    expect(screen.getByRole("combobox")).not.toHaveValue(
+      CANDIDATES[0].unit_name,
+    );
   });
 
-  it("lists all ranked candidates on focus, with no separate 'Sugerido' tag in the list", () => {
+  it("lists the units the candidates were inferred from, not the sectors", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
     openCombobox();
 
-    expect(screen.getByText(CANDIDATES[0].unit_name)).toBeInTheDocument();
-    expect(screen.getByText(CANDIDATES[1].unit_name)).toBeInTheDocument();
-    // Redundant with being first in the list and with the closed chip
-    // (hidden while open, tested separately) -- no in-list tag at all.
+    expect(
+      screen.getByText("Dirección General de Coordinación"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Dirección General Obras en Vías Peatonales"),
+    ).toBeInTheDocument();
+    // The sector names belong to the other field, not this one.
+    expect(screen.queryByText(CANDIDATES[0].unit_name)).not.toBeInTheDocument();
     expect(screen.queryByText("Sugerido")).not.toBeInTheDocument();
   });
 
-  it("shows the highest-scored candidate as a clickable violet mark when nothing is selected yet", () => {
+  it("degrades to the candidate itself when the backend sends no source unit", () => {
+    const olderShape = [
+      { ...CANDIDATES[0], source_unit_id: null, source_unit_name: null },
+    ];
     renderWithQueryClient(
       <RecipientUnitCombobox
-        candidates={CANDIDATES}
+        candidates={olderShape}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
+    openCombobox();
 
-    // CANDIDATES[0] has the higher score (87.6 vs 42.1).
+    // Rather than dropping the row out of the list entirely.
     expect(screen.getByText(CANDIDATES[0].unit_name)).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveValue("");
   });
 
-  it("the ranking wins over the backend's own separate resolution, both for the tag and for accepting", () => {
+  it("suggests the backend's own resolution, not the top of the ranking", async () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
-        // Simulates the real-world mismatch: `sector_candidates` ranks a
-        // specific office (CANDIDATES[0], the higher score) first, while the
-        // backend's coarser auto-resolution separately settled on something
-        // else entirely (its ancestor sector, or any other id) -- the
-        // ranking must win, not this frozen field.
-        suggestion={{ unit_id: "some-other-unit", sector_id: "some-sector" }}
+        // The auto-resolve is the system's committed answer: it consults the
+        // learned index and applies a threshold. The ranking is a list of
+        // alternatives with no threshold at all, so it must not override it
+        // -- even though CANDIDATES[0] scores higher than anything here.
+        suggestion={{ unit_id: "u12", sector_id: "u10" }}
         onChange={onChange}
       />,
     );
 
-    expect(screen.getByText(CANDIDATES[0].unit_name)).toBeInTheDocument();
-    fireEvent.click(screen.getByText(CANDIDATES[0].unit_name));
+    // The suggested unit is not a candidate, so its name is resolved from the
+    // corpus once `listUnits()` settles.
+    fireEvent.click(await screen.findByText("Dirección General de Vivienda"));
 
     expect(onChange).toHaveBeenCalledWith({
-      unit_id: CANDIDATES[0].unit_id,
-      sector_id: CANDIDATES[0].sector_id,
+      unit_id: "u12",
+      sector_id: "u10",
     });
   });
 
-  it("falls back to the backend's own resolution when there is nothing to rank", async () => {
+  it("falls back to the best-scoring row when the auto-resolve came back empty", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={CANDIDATES}
+        unitId={null}
+        onChange={onChange}
+      />,
+    );
+
+    // CANDIDATES[0] scores higher (87.6 vs 42.1), so its source unit stands
+    // in as the starting point.
+    fireEvent.click(screen.getByText("Dirección General de Coordinación"));
+
+    expect(onChange).toHaveBeenCalledWith({
+      unit_id: "u1",
+      sector_id: "s1",
+    });
+  });
+
+  it("resolves a suggested unit's name from the corpus when it is not a candidate", async () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={[]}
         unitId={null}
-        sectorId={null}
         suggestion={{ unit_id: "u9", sector_id: null }}
         onChange={vi.fn()}
       />,
@@ -213,17 +277,20 @@ describe("RecipientUnitCombobox", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
-        unitId={CANDIDATES[1].unit_id}
-        sectorId="s2"
-        suggestion={{ unit_id: CANDIDATES[0].unit_id, sector_id: "s1" }}
+        unitId="u2"
+        suggestion={{ unit_id: "u1", sector_id: "s1" }}
         onChange={vi.fn()}
       />,
     );
 
-    // The already-selected candidate's name shows as the plain closed
-    // value, not the (different) suggested candidate's mark.
-    expect(screen.getByRole("combobox")).toHaveValue(CANDIDATES[1].unit_name);
-    expect(screen.queryByText(CANDIDATES[0].unit_name)).not.toBeInTheDocument();
+    // The already-selected unit's name shows as the plain closed value, not
+    // the (different) suggested unit's mark.
+    expect(screen.getByRole("combobox")).toHaveValue(
+      "Dirección General Obras en Vías Peatonales",
+    );
+    expect(
+      screen.queryByText("Dirección General de Coordinación"),
+    ).not.toBeInTheDocument();
   });
 
   it("typing then erasing back to empty clears the value on close, restoring the suggestion", () => {
@@ -231,9 +298,8 @@ describe("RecipientUnitCombobox", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
-        unitId={CANDIDATES[1].unit_id}
-        sectorId="s2"
-        suggestion={{ unit_id: CANDIDATES[0].unit_id, sector_id: "s1" }}
+        unitId="u2"
+        suggestion={{ unit_id: "u1", sector_id: "s1" }}
         onChange={onChange}
       />,
     );
@@ -252,8 +318,7 @@ describe("RecipientUnitCombobox", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
-        unitId={CANDIDATES[1].unit_id}
-        sectorId="s2"
+        unitId="u2"
         onChange={onChange}
       />,
     );
@@ -263,21 +328,46 @@ describe("RecipientUnitCombobox", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("shows each candidate's organigram path inline, never the score", () => {
+  it("falls back to the candidate's sector path while the unit is not in the corpus", () => {
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
     openCombobox();
 
+    // "u1" is not in `FULL_CORPUS`, so its own path cannot be walked -- the
+    // row falls back to the sector path the backend sent rather than blank.
     expect(
       screen.getByText(CANDIDATES[0].ruta_organigrama),
     ).toBeInTheDocument();
     expect(screen.queryByText(/87\.6|0\.87/)).not.toBeInTheDocument();
+  });
+
+  it("walks the unit's own path from the corpus when it is there", async () => {
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={[
+          {
+            ...CANDIDATES[0],
+            source_unit_id: "u12",
+            source_unit_name: "Dirección General de Vivienda",
+          },
+        ]}
+        unitId={null}
+        onChange={vi.fn()}
+      />,
+    );
+    openCombobox();
+
+    // The unit's own chain, not the sector path the candidate carries.
+    expect(
+      await screen.findByText(
+        "Ministerio de Desarrollo Humano y Hábitat > Dirección General de Vivienda",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("emits both unit_id and sector_id when a ranked candidate is picked", () => {
@@ -286,14 +376,21 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={onChange}
       />,
     );
     openCombobox();
-    fireEvent.click(screen.getByText(CANDIDATES[0].unit_name));
+    fireEvent.click(screen.getByText("Dirección General de Coordinación"));
 
+    // The regression this whole change is about: `unit_id` must be the unit
+    // the cargo matched (`source_unit_id`), NOT the candidate's own id --
+    // which is the sector's, and posting it put the same value in both
+    // columns.
     expect(onChange).toHaveBeenCalledWith({
+      unit_id: "u1",
+      sector_id: "s1",
+    });
+    expect(onChange).not.toHaveBeenCalledWith({
       unit_id: CANDIDATES[0].unit_id,
       sector_id: CANDIDATES[0].sector_id,
     });
@@ -304,7 +401,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={[]}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -319,7 +415,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -340,7 +435,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -359,7 +453,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -373,13 +466,56 @@ describe("RecipientUnitCombobox", () => {
     ).toBeInTheDocument();
   });
 
-  it("picking a full-corpus match emits its id with a null sector_id", async () => {
+  // Picks made through the free search have no candidate to read the sector
+  // off, so the sector is walked over the corpus exactly as the server walks
+  // it. Until now these posted `sector_id: null`, which blanks SECTOR_FINAL
+  // in the export.
+  it("derives the sector when picking a unit whose sector is an ancestor", async () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
+        onChange={onChange}
+      />,
+    );
+    openCombobox();
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "vivienda" },
+    });
+    fireEvent.click(await screen.findByText("Dirección General de Vivienda"));
+
+    expect(onChange).toHaveBeenCalledWith({ unit_id: "u12", sector_id: "u10" });
+  });
+
+  // The IVC case: an autonomous body is its own sector, so both ids are the
+  // same id -- legitimately this time, unlike the bug this change fixes.
+  it("derives a self-sector unit to itself", async () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={CANDIDATES}
+        unitId={null}
+        onChange={onChange}
+      />,
+    );
+    openCombobox();
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "instituto de vivienda" },
+    });
+    fireEvent.click(
+      await screen.findByText("Instituto de Vivienda de la Ciudad"),
+    );
+
+    expect(onChange).toHaveBeenCalledWith({ unit_id: "u11", sector_id: "u11" });
+  });
+
+  it("emits a null sector for a unit that has no sector ancestor at all", async () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <RecipientUnitCombobox
+        candidates={CANDIDATES}
+        unitId={null}
         onChange={onChange}
       />,
     );
@@ -397,7 +533,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -419,7 +554,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={onChange}
       />,
     );
@@ -446,7 +580,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -475,7 +608,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -500,7 +632,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );
@@ -523,7 +654,6 @@ describe("RecipientUnitCombobox", () => {
       <RecipientUnitCombobox
         candidates={CANDIDATES}
         unitId={null}
-        sectorId={null}
         onChange={vi.fn()}
       />,
     );

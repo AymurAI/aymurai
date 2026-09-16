@@ -70,14 +70,18 @@ const MACRO_SECTOR_OPTIONS: FormOption[] = [
   { value: "GCBA", label: "GCBA", outOfCatalog: false },
 ];
 
+// A candidate IS a sector (ADR-0008): `unit_id === sector_id`, and the unit
+// the cargo matched travels in `source_unit_*`.
 const CANDIDATES: OrganigramCandidate[] = [
   {
-    unit_id: "u1",
+    unit_id: "s1",
     unit_name: "Secretaría de Gobierno y Vínculo Ciudadano",
     sector_id: "s1",
-    sector_name: "GCBA",
-    ruta_organigrama: "Jefatura de Gabinete › Secretaría de Gobierno",
+    sector_name: "Secretaría de Gobierno y Vínculo Ciudadano",
+    ruta_organigrama: "Jefatura de Gabinete > Secretaría de Gobierno",
     score: 87.6,
+    source_unit_id: "u1",
+    source_unit_name: "Dirección General de Coordinación",
   },
 ];
 
@@ -156,7 +160,7 @@ describe("RecipientFields", () => {
         index={0}
         value={aRecipient({ unit_id: null, sector_id: null })}
         suggestion={aRecipient({
-          unit_id: CANDIDATES[0].unit_id,
+          unit_id: CANDIDATES[0].source_unit_id,
           sector_id: CANDIDATES[0].sector_id,
         })}
         candidates={CANDIDATES}
@@ -165,7 +169,11 @@ describe("RecipientFields", () => {
       />,
     );
 
-    expect(screen.getByText(CANDIDATES[0].unit_name)).toBeInTheDocument();
+    // The suggested UNIT, not the sector the candidate row is named after.
+    expect(
+      screen.getByText("Dirección General de Coordinación"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(CANDIDATES[0].unit_name)).not.toBeInTheDocument();
   });
 
   it("marking two recipients as primary leaves both marked", () => {
