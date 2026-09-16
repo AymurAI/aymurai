@@ -130,7 +130,17 @@ export function buildAnnotations(
   const byParagraph = new Map<string, ExtractedValueAnnotation[]>();
 
   for (const { field, value } of fieldsToLocate(prediction, payload)) {
-    const ranges = locateValue(value, paragraphs);
+    // Every occurrence, not `locateValue`'s default first three. The
+    // highlight answers "where in the document does this come from", and a
+    // cap answers it for part of the document only: a name appearing five
+    // times highlighted at its first three leaves the other two dark, which
+    // reads as the matcher failing rather than as a limit. Worse, narrowing
+    // the search (typing a character that happens to occur beside only one
+    // of them) made the missing ones appear -- the cap looked like a
+    // matching bug from every angle except the one that explains it.
+    const ranges = locateValue(value, paragraphs, {
+      maxMatches: Number.POSITIVE_INFINITY,
+    });
     for (const range of ranges) {
       const annotation: ExtractedValueAnnotation = {
         type: "extracted",

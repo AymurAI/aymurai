@@ -209,6 +209,71 @@ describe("buildAnnotations", () => {
       expect(map.get("d:1")?.map((a) => a.field)).toContain("recipient:0:name");
     });
 
+    // `locateValue` caps exact matches at three by default. Applied here it
+    // highlighted a name's first three occurrences and left the rest dark,
+    // which reads as the matcher failing on the ones further down.
+    it("highlights every occurrence of a value, not just the first few", () => {
+      const repeated: Paragraph[] = [
+        {
+          id: "d:0",
+          document_id: "d",
+          value: "los Refugios Tita Merello para mujeres",
+        },
+        {
+          id: "d:1",
+          document_id: "d",
+          value: "los Refugios Tita Merello y Mariquita Sánchez",
+        },
+        {
+          id: "d:2",
+          document_id: "d",
+          value: "el Hogar Eva Duarte; los Refugios Tita Merello",
+        },
+        {
+          id: "d:3",
+          document_id: "d",
+          value: 'refugios - y "Tita Merello" - para mujeres',
+        },
+        {
+          id: "d:4",
+          document_id: "d",
+          value: "en el refugio Tita Merello (17 plazas)",
+        },
+      ];
+      const map = buildAnnotations(
+        { ...basePrediction, recommendation_date: "", recipients: [] },
+        repeated,
+        {
+          recommendation_number: null,
+          recommendation_date_text: null,
+          recommendation_date: null,
+          topic: null,
+          subtopic: null,
+          personal_data: null,
+          publishable_content: "",
+          recipients: [
+            {
+              name: "Tita Merello",
+              position: null,
+              is_primary: true,
+              macro_sector: null,
+              unit_id: null,
+              sector_id: null,
+            },
+          ],
+        },
+      );
+
+      // Including the last two, which the default cap used to drop.
+      expect([...map.keys()].sort()).toEqual([
+        "d:0",
+        "d:1",
+        "d:2",
+        "d:3",
+        "d:4",
+      ]);
+    });
+
     // The typed value still wins whenever there is one -- the fallback must
     // not swallow a real edit.
     it("locates a typed value that appears inside surrounding punctuation", () => {
