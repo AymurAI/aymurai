@@ -1,6 +1,9 @@
 import uuid
 from datetime import date, datetime
 
+import openpyxl
+from openpyxl.utils import get_column_letter
+
 from aymurai.api.endpoints.routers.llm.data_extraction_export import (
     DESTINATARIOS_COLUMNS,
     RECOMENDACIONES_COLUMNS,
@@ -8,6 +11,7 @@ from aymurai.api.endpoints.routers.llm.data_extraction_export import (
     _to_local_date,
     build_destinatarios_rows,
     build_recomendaciones_rows,
+    write_xlsx,
 )
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.schema import (
@@ -340,3 +344,43 @@ def test_destinatarios_gcba_stays_blank_when_no_sector_validated(session):
 
     assert len(rows) == 1
     assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
+
+
+def test_write_xlsx_styles_the_header_and_sizes_columns():
+    long_content = "x" * 100  # wider than a sheet's default column width
+    recomendaciones = [
+        {
+            column: long_content if column == "CONTENIDO_PARA_PUBLICAR" else ""
+            for column in RECOMENDACIONES_COLUMNS
+        }
+    ]
+    destinatarios: list = []
+
+    path = write_xlsx(recomendaciones, destinatarios)
+    try:
+        workbook = openpyxl.load_workbook(path)
+        sheet = workbook["recomendaciones"]
+
+        assert all(cell.font.bold for cell in sheet[1])
+        assert sheet.freeze_panes == "A2"
+
+        contenido_idx = RECOMENDACIONES_COLUMNS.index("CONTENIDO_PARA_PUBLICAR") + 1
+        letter = get_column_letter(contenido_idx)
+        # Capped, not left to grow with the content -- a long summary must
+        # not blow the sheet out sideways.
+        assert sheet.column_dimensions[letter].width == 60
+        # Wrapped instead: the row grows taller, the column doesn't grow wider.
+        data_cell = sheet.cell(row=2, column=contenido_idx)
+        assert data_cell.alignment.wrap_text is True
+        header_cell = sheet.cell(row=1, column=contenido_idx)
+        assert header_cell.alignment.wrap_text is not True
+
+        # CONTENIDO_INICIAL wraps too, same as CONTENIDO_PARA_PUBLICAR.
+        inicial_idx = RECOMENDACIONES_COLUMNS.index("CONTENIDO_INICIAL") + 1
+        assert sheet.cell(row=2, column=inicial_idx).alignment.wrap_text is True
+
+        expediente_idx = RECOMENDACIONES_COLUMNS.index("EXPEDIENTE") + 1
+        expediente_letter = get_column_letter(expediente_idx)
+        assert sheet.column_dimensions[expediente_letter].width >= 10
+    finally:
+        path.unlink()

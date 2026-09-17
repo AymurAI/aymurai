@@ -7,6 +7,9 @@ from zoneinfo import ZoneInfo
 
 import openpyxl
 import pandas as pd
+from openpyxl.styles import Alignment, Font
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlmodel import Session, select
 
 from aymurai.database.schema import (
@@ -290,6 +293,48 @@ def build_destinatarios_rows(session: Session) -> list[dict[str, Any]]:
     return rows
 
 
+_MIN_COLUMN_WIDTH = 10
+_MAX_COLUMN_WIDTH = 60
+
+
+def _style_sheet(
+    sheet: Worksheet, columns: tuple[str, ...], *, wrap_columns: tuple[str, ...] = ()
+) -> None:
+    """
+    Bolds the header row, freezes it so it stays visible while scrolling,
+    sizes each column to its widest cell (header or content) so the sheet
+    opens already readable instead of every column the same default width,
+    and wraps text in `wrap_columns` so a long value grows the row instead of
+    spilling past the column's (capped) width.
+
+    Args:
+        sheet (Worksheet): The sheet to style, header already written.
+        columns (tuple[str, ...]): Column names, in the order they were
+            written -- used to size each one independently.
+        wrap_columns (tuple[str, ...]): Columns whose data cells (never the
+            header) get `wrap_text` -- Excel/LibreOffice auto-fit the row
+            height for a wrapped cell on open, since no explicit row height
+            was set here to override that.
+    """
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    sheet.freeze_panes = "A2"
+
+    wrap_alignment = Alignment(wrap_text=True, vertical="top")
+    for col_idx, column in enumerate(columns, start=1):
+        widest = len(column)
+        wraps = column in wrap_columns
+        for (cell,) in sheet.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+            if wraps:
+                cell.alignment = wrap_alignment
+            if cell.value is not None:
+                widest = max(widest, len(str(cell.value)))
+        letter = get_column_letter(col_idx)
+        sheet.column_dimensions[letter].width = min(
+            max(widest + 2, _MIN_COLUMN_WIDTH), _MAX_COLUMN_WIDTH
+        )
+
+
 def write_xlsx(
     recomendaciones: list[dict[str, Any]], destinatarios: list[dict[str, Any]]
 ) -> Path:
@@ -317,11 +362,17 @@ def write_xlsx(
         recomendaciones_sheet.append(
             [row[column] for column in RECOMENDACIONES_COLUMNS]
         )
+    _style_sheet(
+        recomendaciones_sheet,
+        RECOMENDACIONES_COLUMNS,
+        wrap_columns=("CONTENIDO_PARA_PUBLICAR", "CONTENIDO_INICIAL"),
+    )
 
     destinatarios_sheet = workbook.create_sheet("destinatarios")
     destinatarios_sheet.append(DESTINATARIOS_COLUMNS)
     for row in destinatarios:
         destinatarios_sheet.append([row[column] for column in DESTINATARIOS_COLUMNS])
+    _style_sheet(destinatarios_sheet, DESTINATARIOS_COLUMNS)
 
     fd, path = tempfile.mkstemp(suffix=".xlsx")
     os.close(fd)
