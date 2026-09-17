@@ -1,3 +1,4 @@
+import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useMemo } from "react";
@@ -203,8 +204,13 @@ function renderValidation(
     defaultOptions: { queries: { retry: false } },
   });
   return render(
+    // The blocked-save reason hangs off a Radix Tooltip on the footer
+    // button, which throws without a provider ancestor; `app.tsx` supplies
+    // one globally.
     <QueryClientProvider client={client}>
-      <RecommendationValidation />
+      <TooltipProvider>
+        <RecommendationValidation />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
@@ -291,9 +297,51 @@ describe("RecommendationValidation", () => {
         screen.getByRole("button", { name: "validation.validate" }),
       ).toBeDisabled(),
     );
+  });
+
+  // The reason lives on the button, not in a second banner beside it: the
+  // actionable notice is the one `RecipientFields` renders under the sector
+  // field. A disabled button emits no pointer events, so this asserts the
+  // path that actually has to work -- the wrapper that carries the tooltip.
+  it("explains the blocked save on the button itself", async () => {
+    mockUnits = TREE;
+    mockRecipients = [aRecipientPayload({ sector_id: "otro" })];
+    renderValidation();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "validation.validate" }),
+      ).toBeDisabled(),
+    );
+
+    fireEvent.focus(
+      screen.getByRole("button", { name: "validation.validate" })
+        .parentElement as HTMLElement,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/validation.blockedBySectorMismatch/).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("keeps the footer free of a second warning banner", async () => {
+    mockUnits = TREE;
+    mockRecipients = [aRecipientPayload({ sector_id: "otro" })];
+    renderValidation();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "validation.validate" }),
+      ).toBeDisabled(),
+    );
+
+    // Nothing is shown until the reason is asked for -- the banner that used
+    // to sit in `AppFooter`'s `actions` slot stretched the footer.
     expect(
-      screen.getByText(/validation.blockedBySectorMismatch/),
-    ).toBeInTheDocument();
+      screen.queryByText(/validation.blockedBySectorMismatch/),
+    ).not.toBeInTheDocument();
   });
 
   it("allows validating once the pair agrees", async () => {

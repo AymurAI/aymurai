@@ -1,4 +1,10 @@
-import { Button, Callout } from "@aymurai/ui";
+import {
+  Button,
+  Callout,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@aymurai/ui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -223,6 +229,53 @@ export default function RecommendationValidation() {
     );
   }
 
+  const blockedBySectorMismatch = inconsistentRecipients.length > 0;
+
+  /**
+   * The reason a blocked save is blocked rides on the button itself rather
+   * than a second warning next to it. The per-recipient `Callout` under
+   * "Destinatario por sector" (`RecipientFields`) is the one visible notice
+   * -- it sits where the fix happens and says what to do -- and a banner
+   * here repeating it was both redundant and, living in `AppFooter`'s
+   * `actions` slot (sized for buttons), tall enough to stretch the footer.
+   *
+   * A disabled `<button>` emits no pointer events, so the tooltip cannot
+   * hang off the button itself; it hangs off a wrapper that is not disabled.
+   * `tabIndex` on that wrapper is what keeps the reason reachable from the
+   * keyboard, which a disabled button never is.
+   */
+  function renderValidateButton() {
+    const button = (
+      <Button
+        size="md"
+        onClick={handleValidate}
+        disabled={saveMutation.isPending || blockedBySectorMismatch}
+      >
+        {t("validation.validate")}
+      </Button>
+    );
+
+    if (!blockedBySectorMismatch) return button;
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the span is
+              here precisely to be the focusable stand-in for a button that
+              cannot be focused, so removing tabIndex would leave keyboard
+              users with a dead control and no stated reason. Radix's own
+              guidance for a disabled trigger is this same wrapper. */}
+          <span tabIndex={0}>{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="top" role="alert">
+          {t("validation.blockedBySectorMismatch", {
+            recipients: inconsistentRecipients.join(", "),
+          })}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
   return (
     <>
       <Header title={t("title")} feature={feature} currentStep={3} />
@@ -336,24 +389,7 @@ export default function RecommendationValidation() {
           )}
         </Stack>
       </Grid>
-      <Footer withBuiltBy>
-        {inconsistentRecipients.length > 0 && (
-          <Callout
-            message={t("validation.blockedBySectorMismatch", {
-              recipients: inconsistentRecipients.join(", "),
-            })}
-            variant="warning"
-            role="alert"
-          />
-        )}
-        <Button
-          size="md"
-          onClick={handleValidate}
-          disabled={saveMutation.isPending || inconsistentRecipients.length > 0}
-        >
-          {t("validation.validate")}
-        </Button>
-      </Footer>
+      <Footer withBuiltBy>{renderValidateButton()}</Footer>
     </>
   );
 }

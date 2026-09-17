@@ -47,3 +47,17 @@ if (globalThis.localStorage == null) {
     get: () => storage,
   });
 }
+
+// jsdom implements no `ResizeObserver`. Radix's floating primitives build one
+// the moment their content opens (the Popper behind Tooltip/Popover/Select),
+// so a test that opens one throws "ResizeObserver is not defined" before it
+// can assert anything. A no-op that never fires is enough: nothing in this
+// suite asserts on reflow or measured position, only on the content being
+// there.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
