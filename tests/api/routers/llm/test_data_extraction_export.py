@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from aymurai.api.endpoints.routers.llm.data_extraction_export import (
     DESTINATARIOS_COLUMNS,
@@ -66,7 +66,7 @@ def test_recomendaciones_columns_and_order(session):
         dataset_id=dataset.id,
         document_id=uuid.uuid4(),
         recommendation_number="5/2024",
-        recommendation_date_text="01 de enero de 2024",
+        recommendation_date=date(2024, 1, 1),
         topic_id=topic.id,
         subtopic_id=subtopic.id,
         personal_data=None,
@@ -81,15 +81,121 @@ def test_recomendaciones_columns_and_order(session):
     row = rows[0]
     assert tuple(row.keys()) == RECOMENDACIONES_COLUMNS
     assert row["NUMERO_RECOMENDACION"] == "5/2024"
+    # A real `date` object, never a string -- Excel must render it as a date.
+    assert row["FECHA_RECOMENDACION"] == date(2024, 1, 1)
     assert row["TEMA"] == "SALUD"
-    assert row["TEMA_CODIGO"] == "SALUD"
     assert row["SUBTEMA"] == "Hospitales"
-    assert row["SUBTEMA_CODIGO"] == "S1"
     assert row["DATOS_PERSONALES"] == ""  # tri-state: unanswered, not "no"
-    assert row["CANTIDAD_DESTINATARIOS"] == 0
+    # Columns a human fills in by hand -- always blank coming out of here.
+    for manual_column in (
+        "EXPEDIENTE",
+        "CONTENIDO_INICIAL",
+        "ESTADO_DE_SITUACION",
+        "ESTADO",
+        "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE",
+        "PARA_PUBLICAR",
+        "LINK",
+    ):
+        assert row[manual_column] == ""
 
 
-def test_destinatarios_columns_order_and_ruta_organigrama(session):
+def test_recomendaciones_destinatario_is_the_primary_recipients_unit(session):
+    dataset = get_or_create_default_dataset(session)
+    ministerio = OrganigramUnit(
+        id=uuid.uuid4(), name="Ministerio de Salud", is_sector=True
+    )
+    session.add(ministerio)
+    session.commit()
+    session.refresh(ministerio)
+
+    macro_sector = MacroSector(id=uuid.uuid4(), code="GCBA", name="GCBA")
+    session.add(macro_sector)
+    session.commit()
+    session.refresh(macro_sector)
+
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        publishable_content="Contenido.",
+    )
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+
+    # A secondary (notified-only) recipient comes first by order, but the
+    # primary one must still be the row's representative.
+    session.add(
+        Recipient(
+            id=uuid.uuid4(),
+            recommendation_id=recommendation.id,
+            order=0,
+            raw_name="Notificado",
+            raw_position="Un cargo cualquiera",
+            is_primary=False,
+            macro_sector_id=macro_sector.id,
+        )
+    )
+    session.add(
+        Recipient(
+            id=uuid.uuid4(),
+            recommendation_id=recommendation.id,
+            order=1,
+            raw_name="Alguien",
+            raw_position="Ministro de Salud",
+            is_primary=True,
+            macro_sector_id=macro_sector.id,
+            unit_id=ministerio.id,
+            sector_id=ministerio.id,
+        )
+    )
+    session.commit()
+
+    row = build_recomendaciones_rows(session)[0]
+
+    assert row["DESTINATARIO"] == "Ministerio de Salud"
+    assert row["DESTINATARIO_POR_SECTOR"] == "Ministerio de Salud"
+
+
+def test_recomendaciones_destinatario_non_gcba_uses_cargo(session):
+    dataset = get_or_create_default_dataset(session)
+    macro_sector = MacroSector(
+        id=uuid.uuid4(), code="ORGANISMOS_NACIONALES", name="Organismos Nacionales"
+    )
+    session.add(macro_sector)
+    session.commit()
+    session.refresh(macro_sector)
+
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        publishable_content="Contenido.",
+    )
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+
+    session.add(
+        Recipient(
+            id=uuid.uuid4(),
+            recommendation_id=recommendation.id,
+            order=0,
+            raw_name="Alguien",
+            raw_position="Titular de un organismo nacional",
+            is_primary=True,
+            macro_sector_id=macro_sector.id,
+        )
+    )
+    session.commit()
+
+    row = build_recomendaciones_rows(session)[0]
+
+    assert row["DESTINATARIO"] == "Titular de un organismo nacional"
+    assert row["DESTINATARIO_POR_SECTOR"] == "Organismos Nacionales"
+
+
+def test_destinatarios_columns_order(session):
     dataset = get_or_create_default_dataset(session)
     ministerio = OrganigramUnit(
         id=uuid.uuid4(), name="Ministerio de Salud", is_sector=True
@@ -142,20 +248,17 @@ def test_destinatarios_columns_order_and_ruta_organigrama(session):
     row = rows[0]
     assert tuple(row.keys()) == DESTINATARIOS_COLUMNS
     assert row["NOMBRE"] == "Alguien"
+    # CARGO is the validated unit's name for a GCBA recipient, not the raw
+    # extracted text -- "Directora General..." (a person's title) never
+    # appears once a unit ("Dirección General...", the office) is validated.
+    assert row["CARGO"] == "Dirección General Legal y Técnica"
     assert row["DESTINATARIO_PRINCIPAL"] == "si"
-    assert row["CARGO_FINAL"] == "Dirección General Legal y Técnica"
-    assert row["MACRO_SECTOR"] == "GCBA"
-    # SECTOR_FINAL is the human-validated `sector_id`, independent of
-    # `unit_id` -- never derived from it.
-    assert row["SECTOR_FINAL"] == "Ministerio de Salud"
-    assert row["RUTA_ORGANIGRAMA"] == (
-        "Ministerio de Salud > Dirección General Legal y Técnica"
-    )
+    # DESTINATARIO_POR_SECTOR is the human-validated `sector_id`, independent
+    # of `unit_id` -- never derived from it.
+    assert row["DESTINATARIO_POR_SECTOR"] == "Ministerio de Salud"
 
 
-def test_destinatarios_non_gcba_falls_back_sector_final_to_macro_sector(
-    session,
-):
+def test_destinatarios_non_gcba_cargo_is_raw_position(session):
     dataset = get_or_create_default_dataset(session)
     macro_sector = MacroSector(
         id=uuid.uuid4(), code="ORGANISMOS_NACIONALES", name="Organismos Nacionales"
@@ -189,15 +292,14 @@ def test_destinatarios_non_gcba_falls_back_sector_final_to_macro_sector(
 
     row = build_destinatarios_rows(session)[0]
 
-    assert row["CARGO_FINAL"] == ""  # no unit -- nothing to show
-    assert row["MACRO_SECTOR"] == "Organismos Nacionales"
-    assert row["SECTOR_FINAL"] == "Organismos Nacionales"
-    assert row["RUTA_ORGANIGRAMA"] == ""
+    assert row["CARGO"] == "Titular de un organismo nacional"
+    assert row["DESTINATARIO_POR_SECTOR"] == "Organismos Nacionales"
 
 
-def test_destinatarios_gcba_falls_back_sector_final_to_unit_when_sector_id_unset(
-    session,
-):
+def test_destinatarios_gcba_stays_blank_when_no_sector_validated(session):
+    """A validated `unit_id` alone is not enough -- DESTINATARIO_POR_SECTOR
+    reports only what a human confirmed *as the sector*, never a fallback to
+    the unit. Unlike the old SECTOR_FINAL column, this must stay blank."""
     dataset = get_or_create_default_dataset(session)
     ivc = OrganigramUnit(id=uuid.uuid4(), name="IVC", is_sector=False)
     session.add(ivc)
@@ -237,7 +339,4 @@ def test_destinatarios_gcba_falls_back_sector_final_to_unit_when_sector_id_unset
     rows = build_destinatarios_rows(session)
 
     assert len(rows) == 1
-    # SECTOR_FINAL falls back to the validated unit's own name when no
-    # sector-level reference was resolved/promoted -- never blank while a
-    # validated organigram unit exists.
-    assert rows[0]["SECTOR_FINAL"] == "IVC"
+    assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""

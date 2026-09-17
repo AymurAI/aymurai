@@ -9,7 +9,6 @@ import openpyxl
 import pandas as pd
 from sqlmodel import Session, select
 
-from aymurai.database.crud.organigram.unit import ruta_organigrama
 from aymurai.database.schema import (
     MacroSector,
     OrganigramUnit,
@@ -20,33 +19,33 @@ from aymurai.database.schema import (
 )
 from aymurai.settings import settings
 
+# EXPEDIENTE, CONTENIDO_INICIAL, ESTADO_DE_SITUACION, ESTADO,
+# SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE, PARA_PUBLICAR and LINK are filled
+# in by hand after export -- this pipeline only ever writes "" for them.
 RECOMENDACIONES_COLUMNS = (
-    "RECOMENDACION_ID",
-    "DOCUMENT_ID",
+    "EXPEDIENTE",
+    "TEMA",
+    "SUBTEMA",
     "NUMERO_RECOMENDACION",
     "FECHA_RECOMENDACION",
-    "TEMA",
-    "TEMA_CODIGO",
-    "SUBTEMA",
-    "SUBTEMA_CODIGO",
-    "DATOS_PERSONALES",
+    "DESTINATARIO",
+    "DESTINATARIO_POR_SECTOR",
     "CONTENIDO_PARA_PUBLICAR",
-    "CANTIDAD_DESTINATARIOS",
-    "FECHA_CREACION",
-    "FECHA_VALIDACION",
+    "CONTENIDO_INICIAL",
+    "ESTADO_DE_SITUACION",
+    "ESTADO",
+    "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE",
+    "PARA_PUBLICAR",
+    "DATOS_PERSONALES",
+    "LINK",
 )
 
 DESTINATARIOS_COLUMNS = (
-    "RECOMENDACION_ID",
-    "DOCUMENT_ID",
     "NUMERO_RECOMENDACION",
     "NOMBRE",
     "CARGO",
-    "CARGO_FINAL",
+    "DESTINATARIO_POR_SECTOR",
     "DESTINATARIO_PRINCIPAL",
-    "MACRO_SECTOR",
-    "SECTOR_FINAL",
-    "RUTA_ORGANIGRAMA",
 )
 
 
@@ -90,10 +89,88 @@ def _to_local_date(dt: datetime | None) -> str:
     return local.strftime("%Y-%m-%d")
 
 
+def _destinatario_por_sector(
+    sector: OrganigramUnit | None, macro_sector: MacroSector | None
+) -> str:
+    """
+    The sector a human explicitly validated -- never derived from a plain
+    `unit_id`, and never falls back to it. A GCBA recipient with a unit but
+    no validated sector exports blank here on purpose: this column reports
+    what was confirmed as *the sector*, not the best available guess.
+
+    Args:
+        sector (OrganigramUnit | None): The recipient's validated `sector_id`
+            row, if any.
+        macro_sector (MacroSector | None): The recipient's macro sector.
+
+    Returns:
+        str: The sector's name (GCBA), the macro sector's name (non-GCBA),
+            or "" when neither is resolved.
+    """
+    if sector is not None:
+        return sector.name
+    if macro_sector is not None and macro_sector.code != "GCBA":
+        return macro_sector.name
+    return ""
+
+
+def _destinatario(
+    unit: OrganigramUnit | None,
+    macro_sector: MacroSector | None,
+    raw_position: str | None,
+) -> str:
+    """
+    The validated organigram unit's name for a GCBA recipient, or the cargo
+    as extracted for everyone else -- and for a GCBA recipient with no
+    validated unit either, since there's nothing more specific to show.
+
+    Args:
+        unit (OrganigramUnit | None): The recipient's validated `unit_id`
+            row, if any.
+        macro_sector (MacroSector | None): The recipient's macro sector.
+        raw_position (str | None): The cargo as extracted, used as a
+            fallback whenever there's no validated GCBA unit to name.
+
+    Returns:
+        str: The unit's name, the raw cargo, or "" if neither is available.
+    """
+    is_gcba = macro_sector is not None and macro_sector.code == "GCBA"
+    if is_gcba and unit is not None:
+        return unit.name
+    return raw_position or ""
+
+
+def _representative_recipient(session: Session, recommendation_id) -> Recipient | None:
+    """
+    The recipient that stands in for a recommendation on the one-row-per-
+    recommendation `recomendaciones` sheet: the one marked `is_primary`, or
+    (if none is) the first by `order` -- never an error when there are zero.
+
+    Args:
+        session (Session): Database session.
+        recommendation_id: The recommendation's id.
+
+    Returns:
+        Recipient | None: The representative recipient, or None if the
+            recommendation has no recipients at all.
+    """
+    recipients = session.exec(
+        select(Recipient)
+        .where(Recipient.recommendation_id == recommendation_id)
+        .order_by(Recipient.is_primary.desc(), Recipient.order)
+    ).all()
+    return recipients[0] if recipients else None
+
+
 def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
     """
     Builds one row per recommendation, ready to write to the `recomendaciones`
     sheet/CSV. Empty dataset -> empty list, never an error.
+
+    `DESTINATARIO`/`DESTINATARIO_POR_SECTOR` summarize the recommendation's
+    *representative* recipient (see `_representative_recipient`) -- a
+    recommendation with several recipients still gets exactly one row here;
+    the full per-recipient detail lives in the `destinatarios` sheet.
 
     Args:
         session (Session): Database session.
@@ -117,31 +194,48 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
             if recommendation.subtopic_id
             else None
         )
-        recipient_count = len(
-            session.exec(
-                select(Recipient).where(
-                    Recipient.recommendation_id == recommendation.id
-                )
-            ).all()
-        )
+
+        representative = _representative_recipient(session, recommendation.id)
+        destinatario = ""
+        destinatario_por_sector = ""
+        if representative is not None:
+            macro_sector = (
+                session.get(MacroSector, representative.macro_sector_id)
+                if representative.macro_sector_id
+                else None
+            )
+            unit = (
+                session.get(OrganigramUnit, representative.unit_id)
+                if representative.unit_id
+                else None
+            )
+            sector = (
+                session.get(OrganigramUnit, representative.sector_id)
+                if representative.sector_id
+                else None
+            )
+            destinatario = _destinatario(
+                unit, macro_sector, representative.raw_position
+            )
+            destinatario_por_sector = _destinatario_por_sector(sector, macro_sector)
 
         rows.append(
             {
-                "RECOMENDACION_ID": str(recommendation.id),
-                "DOCUMENT_ID": str(recommendation.document_id),
-                "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
-                "FECHA_RECOMENDACION": recommendation.recommendation_date_text or "",
+                "EXPEDIENTE": "",
                 "TEMA": topic.name if topic else "",
-                "TEMA_CODIGO": (topic.code or "") if topic else "",
                 "SUBTEMA": subtopic.name if subtopic else "",
-                "SUBTEMA_CODIGO": (subtopic.code or "") if subtopic else "",
-                "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
+                "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
+                "FECHA_RECOMENDACION": recommendation.recommendation_date,
+                "DESTINATARIO": destinatario,
+                "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "CANTIDAD_DESTINATARIOS": recipient_count,
-                "FECHA_CREACION": _to_local_date(recommendation.created_at),
-                "FECHA_VALIDACION": _to_local_date(
-                    recommendation.updated_at or recommendation.created_at
-                ),
+                "CONTENIDO_INICIAL": "",
+                "ESTADO_DE_SITUACION": "",
+                "ESTADO": "",
+                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": "",
+                "PARA_PUBLICAR": "",
+                "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
+                "LINK": "",
             }
         )
     return rows
@@ -182,34 +276,15 @@ def build_destinatarios_rows(session: Session) -> list[dict[str, Any]]:
             else None
         )
 
-        # `sector_id` (a human-validated sector-level organigram reference)
-        # wins when present. `unit_id` (a leaf reference, or one picked via
-        # full-corpus search/creation that never got promoted to a sector)
-        # is the next best validated signal -- always preferred over the
-        # raw macro_sector label. Only a non-GCBA recipient with neither
-        # falls back to its macro_sector; a GCBA recipient with neither is
-        # genuinely unvalidated and exports blank.
-        if sector is not None:
-            sector_final = sector.name
-        elif unit is not None:
-            sector_final = unit.name
-        elif macro_sector is not None and macro_sector.code != "GCBA":
-            sector_final = macro_sector.name
-        else:
-            sector_final = ""
-
         rows.append(
             {
-                "RECOMENDACION_ID": str(recommendation.id),
-                "DOCUMENT_ID": str(recommendation.document_id),
                 "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
                 "NOMBRE": recipient.raw_name or "",
-                "CARGO": recipient.raw_position or "",
-                "CARGO_FINAL": unit.name if unit else "",
+                "CARGO": _destinatario(unit, macro_sector, recipient.raw_position),
+                "DESTINATARIO_POR_SECTOR": _destinatario_por_sector(
+                    sector, macro_sector
+                ),
                 "DESTINATARIO_PRINCIPAL": _format_tri_state(recipient.is_primary),
-                "MACRO_SECTOR": macro_sector.name if macro_sector else "",
-                "SECTOR_FINAL": sector_final,
-                "RUTA_ORGANIGRAMA": ruta_organigrama(unit, session) if unit else "",
             }
         )
     return rows
@@ -220,6 +295,11 @@ def write_xlsx(
 ) -> Path:
     """
     Writes the two-sheet workbook to a fresh temp file.
+
+    `FECHA_RECOMENDACION` is written as a native `date` (never a string), so
+    the column opens in Excel as an actual, sortable/filterable date -- the
+    date-formatted cell is what `openpyxl` produces for a Python `date`
+    written directly, no explicit `number_format` needed.
 
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` sheet.
@@ -253,6 +333,9 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     """
     Writes just the `recomendaciones` rows to a fresh temp CSV file -- a CSV
     can't hold two sheets, so `destinatarios` isn't part of this format.
+
+    `FECHA_RECOMENDACION` (a `date`/`None` column) serializes through pandas
+    as plain ISO text in the CSV -- CSV has no native date type regardless.
 
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` table.

@@ -1,5 +1,6 @@
 import io
 import json
+from datetime import datetime
 
 import openpyxl
 
@@ -42,9 +43,9 @@ def test_export_empty_dataset_returns_headers_not_404(extraction_client):
     workbook = openpyxl.load_workbook(io.BytesIO(response.content))
     assert workbook.sheetnames == ["recomendaciones", "destinatarios"]
     assert [c.value for c in workbook["recomendaciones"][1]][:3] == [
-        "RECOMENDACION_ID",
-        "DOCUMENT_ID",
-        "NUMERO_RECOMENDACION",
+        "EXPEDIENTE",
+        "TEMA",
+        "SUBTEMA",
     ]
     assert workbook["recomendaciones"].max_row == 1  # header only
 
@@ -91,15 +92,21 @@ def test_export_reflects_a_correction_made_via_api(
     recomendaciones = workbook["recomendaciones"]
     headers = [c.value for c in recomendaciones[1]]
     row = dict(zip(headers, [c.value for c in recomendaciones[2]]))
+    assert row["NUMERO_RECOMENDACION"] == "5/2024"
+    # openpyxl round-trips an empty string cell back as None -- this just
+    # confirms the pipeline never wrote a value into a hand-filled column.
+    assert row["EXPEDIENTE"] is None
     assert row["CONTENIDO_PARA_PUBLICAR"] == "Resumen corregido por un humano."
     assert row["DATOS_PERSONALES"] == "si"
+    # A real date cell (openpyxl round-trips it back as `datetime`), not text.
+    assert row["FECHA_RECOMENDACION"] == datetime(2024, 1, 1)
+    assert row["DESTINATARIO"] == "Ministerio de Salud"
+    assert row["DESTINATARIO_POR_SECTOR"] == "Ministerio de Salud"
 
     destinatarios = workbook["destinatarios"]
     dest_headers = [c.value for c in destinatarios[1]]
     dest_row = dict(zip(dest_headers, [c.value for c in destinatarios[2]]))
-    assert dest_row["CARGO_FINAL"] == "Ministerio de Salud"
-    assert dest_row["SECTOR_FINAL"] == "Ministerio de Salud"
-    assert dest_row["RUTA_ORGANIGRAMA"] == "Ministerio de Salud"
+    assert dest_row["DESTINATARIO_POR_SECTOR"] == "Ministerio de Salud"
 
 
 def test_export_csv_format_has_only_recomendaciones(
@@ -132,6 +139,7 @@ def test_export_csv_format_has_only_recomendaciones(
 
     assert response.status_code == 200
     text = response.content.decode("utf-8")
-    assert "RECOMENDACION_ID" in text
+    assert "NUMERO_RECOMENDACION" in text
     assert "Contenido csv." in text
-    assert "SECTOR_FINAL" not in text  # csv never carries the destinatarios sheet
+    # destinatarios-only column -- csv never carries that sheet at all.
+    assert "DESTINATARIO_PRINCIPAL" not in text
