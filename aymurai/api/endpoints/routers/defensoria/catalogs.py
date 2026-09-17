@@ -192,6 +192,19 @@ async def api_subtopic_update(
         )
     except ValueError as exc:
         raise NotFoundError(detail=str(exc))
+    except Exception as exc:
+        # Renaming collides with the same two constraints a create does: a
+        # correction typed onto a name a sibling already carries is a client
+        # error to report, not a 500. Topics need no such guard -- only their
+        # `code` is unique, and this endpoint never changes it.
+        session.rollback()
+        if _integrity_error_is_duplicate(exc, constraint="subtopic.name"):
+            raise ConflictError(
+                detail=f"Subtopic name already exists for this topic: {payload.name}"
+            )
+        if _integrity_error_is_duplicate(exc):
+            raise ConflictError(detail=f"Subtopic code already exists: {payload.code}")
+        raise
     return SubtopicResponse(**subtopic.model_dump())
 
 

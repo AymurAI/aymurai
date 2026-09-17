@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, Index, func, text
@@ -12,6 +12,12 @@ if TYPE_CHECKING:
 class OrganigramHolderBase(SQLModel):
     unit_id: uuid.UUID = Field(foreign_key="organigram_unit.id")
     name: str
+    # When this person took office, which is not when the row was written:
+    # seeding an existing organigram in 2026 records terms that began years
+    # earlier, and a real history needs the term date, not the insert date.
+    # `created_at` stays what it has always been -- an audit timestamp.
+    # Nullable because rows predating this column have no term date to claim.
+    start_date: date | None = None
     # A curated flag, not "the most recent row": fixing a typo in a past
     # holder must never make it current again. Enforced by a partial unique
     # index on (unit_id) WHERE is_current -- see the migration.
@@ -48,6 +54,7 @@ class OrganigramHolderCreate(OrganigramHolderBase):
 
 class OrganigramHolderUpdate(SQLModel):
     name: str | None = None
+    start_date: date | None = None
 
 
 class OrganigramHolderRead(OrganigramHolderBase):

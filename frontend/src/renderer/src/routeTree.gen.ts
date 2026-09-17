@@ -20,6 +20,10 @@ import { Route as FeatureValidationRouteImport } from './routes/$feature/validat
 import { Route as HomeIndexRouteImport } from './routes/home/index'
 import { Route as HomeFeaturesRouteImport } from './routes/home/features'
 import { Route as HomeHostRouteImport } from './routes/home/host'
+import { Route as HomeSettingsIndexRouteImport } from './routes/home/settings/index'
+import { Route as HomeSettingsOrganigramRouteImport } from './routes/home/settings/organigram'
+import { Route as HomeSettingsServerRouteImport } from './routes/home/settings/server'
+import { Route as HomeSettingsTaxonomyRouteImport } from './routes/home/settings/taxonomy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +80,26 @@ const HomeHostRoute = HomeHostRouteImport.update({
   path: '/home/host',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeSettingsIndexRoute = HomeSettingsIndexRouteImport.update({
+  id: '/home/settings/',
+  path: '/home/settings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsOrganigramRoute = HomeSettingsOrganigramRouteImport.update({
+  id: '/home/settings/organigram',
+  path: '/home/settings/organigram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsServerRoute = HomeSettingsServerRouteImport.update({
+  id: '/home/settings/server',
+  path: '/home/settings/server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsTaxonomyRoute = HomeSettingsTaxonomyRouteImport.update({
+  id: '/home/settings/taxonomy',
+  path: '/home/settings/taxonomy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +113,10 @@ export interface FileRoutesByFullPath {
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings/': typeof HomeSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -101,6 +129,10 @@ export interface FileRoutesByTo {
   '/home/host': typeof HomeHostRoute
   '/$feature': typeof FeatureIndexRoute
   '/home': typeof HomeIndexRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings': typeof HomeSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,6 +147,10 @@ export interface FileRoutesById {
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings/': typeof HomeSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,6 +166,10 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,6 +182,10 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature'
     | '/home'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings'
   id:
     | '__root__'
     | '/'
@@ -155,6 +199,10 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -163,6 +211,10 @@ export interface RootRouteChildren {
   HomeFeaturesRoute: typeof HomeFeaturesRoute
   HomeHostRoute: typeof HomeHostRoute
   HomeIndexRoute: typeof HomeIndexRoute
+  HomeSettingsOrganigramRoute: typeof HomeSettingsOrganigramRoute
+  HomeSettingsServerRoute: typeof HomeSettingsServerRoute
+  HomeSettingsTaxonomyRoute: typeof HomeSettingsTaxonomyRoute
+  HomeSettingsIndexRoute: typeof HomeSettingsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -244,6 +296,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeHostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home/settings/': {
+      id: '/home/settings/'
+      path: '/home/settings'
+      fullPath: '/home/settings/'
+      preLoaderRoute: typeof HomeSettingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/organigram': {
+      id: '/home/settings/organigram'
+      path: '/home/settings/organigram'
+      fullPath: '/home/settings/organigram'
+      preLoaderRoute: typeof HomeSettingsOrganigramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/server': {
+      id: '/home/settings/server'
+      path: '/home/settings/server'
+      fullPath: '/home/settings/server'
+      preLoaderRoute: typeof HomeSettingsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/taxonomy': {
+      id: '/home/settings/taxonomy'
+      path: '/home/settings/taxonomy'
+      fullPath: '/home/settings/taxonomy'
+      preLoaderRoute: typeof HomeSettingsTaxonomyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -275,6 +355,10 @@ const rootRouteChildren: RootRouteChildren = {
   HomeFeaturesRoute: HomeFeaturesRoute,
   HomeHostRoute: HomeHostRoute,
   HomeIndexRoute: HomeIndexRoute,
+  HomeSettingsOrganigramRoute: HomeSettingsOrganigramRoute,
+  HomeSettingsServerRoute: HomeSettingsServerRoute,
+  HomeSettingsTaxonomyRoute: HomeSettingsTaxonomyRoute,
+  HomeSettingsIndexRoute: HomeSettingsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

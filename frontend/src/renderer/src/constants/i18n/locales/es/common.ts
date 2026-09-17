@@ -2,6 +2,7 @@ const common = {
   back: "Volver",
   howItWorks: "¿Cómo funciona?",
   platformBuiltBy: "Plataforma hecha por",
+  appVersion: "Versión {{version}}",
   settings: "Configuración",
   close: "Cerrar",
   featuresMenu: {

@@ -49,6 +49,29 @@ export const SUMMARIZE_MOCK_DELAY_MS = Number(
   import.meta.env.VITE_SUMMARIZE_MOCK_DELAY_MS ?? 300,
 );
 
+// Opt-in now that the catalogs endpoints exist (`/api/catalogs/*`, gated
+// server-side by DEFENSORIA_ENABLED): the app talks to the real API by default,
+// and VITE_USE_MOCK_CATALOGS=true switches back to the in-memory fixtures for
+// working offline or without a running backend.
+export const USE_MOCK_CATALOGS =
+  import.meta.env.VITE_USE_MOCK_CATALOGS === "true";
+
+// Same as USE_MOCK_CATALOGS above, for `/api/organigram/*`.
+export const USE_MOCK_ORGANIGRAM =
+  import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
+
+// Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
+// surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
+// only the two Defensoría-specific screens and their nav entries are.
+//
+// Exported as a function (not a frozen const) so callers always read the live
+// value instead of one captured at first import — mirrors `isElectronApp()` in
+// `utils/app-mode.ts`, which solves the same `vi.stubEnv`-per-test /
+// module-caching problem for `VITE_APP_MODE`.
+export function isDefensoriaEnabled(): boolean {
+  return import.meta.env.VITE_DEFENSORIA_ENABLED === "true";
+}
+
 // Cache ON in production, OFF in dev. Override with VITE_ASR_USE_CACHE=true|false.
 export const USE_ASR_CACHE =
   import.meta.env.VITE_ASR_USE_CACHE !== undefined

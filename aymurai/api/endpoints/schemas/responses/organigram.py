@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,6 +25,9 @@ class OrganigramHolderResponse(BaseModel):
     id: uuid.UUID
     unit_id: uuid.UUID
     name: str
+    # When the term began. `created_at` stays alongside it as the audit
+    # timestamp -- the two differ whenever a history is entered after the fact.
+    start_date: date | None
     is_current: bool
     created_at: datetime
     updated_at: datetime | None
