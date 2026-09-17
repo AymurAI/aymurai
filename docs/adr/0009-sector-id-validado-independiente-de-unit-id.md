@@ -1,6 +1,6 @@
 # ADR-0009 — `sector_id` se valida independiente de `unit_id`, nunca se deriva
 
-**Fecha:** 2026-08-31 · **Estado:** aceptada
+**Fecha:** 2026-08-31 · **Estado:** aceptada · **Enmendada:** 2026-09-17 (el gate del cliente)
 
 ## Contexto
 
@@ -55,3 +55,21 @@ Probado contra la base real (Resolución 1765/22, dos destinatarios):
 - La comparación `RecipientMatch.sector_id`/`sector_name` en la respuesta de extracción (autoresolve) sigue
   derivando vía `resolve_sector` cuando no hay validación previa — esta ADR sólo cambia qué pasa una vez que
   un humano valida, no la sugerencia inicial del sistema.
+
+### El cliente espeja el chequeo, el server sigue siendo la autoridad *(enmienda 2026-09-17)*
+
+El 422 llega tarde para lo único que importa acá: la persona ya apretó Validar y ya perdió el viaje. El
+requisito que salió del QA fue más duro —*no se puede avanzar con el par inconsistente*—, así que el
+formulario aplica **la misma regla, antes**: `hasSectorMismatch` corre contra el corpus del organigrama que la
+pantalla ya tiene en memoria, deshabilita el botón Validar mientras haya un destinatario inconsistente, y
+explica cuál en un tooltip sobre el propio botón.
+
+La parte que hay que preservar si esto se toca: **el chequeo del cliente sólo reporta una inconsistencia que
+puede probar.** Si el corpus todavía no cargó, no reporta nada y no bloquea nada — bloquear sobre una
+suposición sería peor que no bloquear, porque dejaría a la persona trabada sin poder hacer nada al respecto.
+El server sigue siendo la autoridad y el 422 sigue siendo el respaldo real; el gate del cliente es una
+cortesía, no la garantía.
+
+Un solo aviso visible, y vive junto al campo que hay que corregir —no junto al botón—, porque es ahí donde
+está la acción. El motivo agregado, que nombra al destinatario inconsistente, va en el tooltip del botón para
+quien esté mirando la pestaña de otro destinatario y no entienda por qué no puede avanzar.

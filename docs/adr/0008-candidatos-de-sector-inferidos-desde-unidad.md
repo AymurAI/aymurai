@@ -1,6 +1,7 @@
 # ADR-0008 — Los candidatos de sector se infieren desde matches de unidad, no se buscan por nombre de sector
 
-**Fecha:** 2026-08-31 · **Estado:** aceptada
+**Fecha:** 2026-08-31 · **Estado:** aceptada · **Enmendada:** 2026-09-17 (la trampa del contrato y una
+alternativa que se probó y se revirtió)
 
 ## Contexto
 
@@ -52,3 +53,38 @@ Higiene Urbana del Gobierno de la Ciudad Autónoma de Buenos Aires"*.
 - `sector_candidates` se calcula **siempre**, incluso cuando el índice aprendido (`recipient_learned_index_lookup`)
   resuelve con confianza sin correr ninguna búsqueda — un humano debe poder ver alternativas aunque el sistema
   ya tenga una respuesta aprendida.
+
+### La trampa del contrato: `unit_id === sector_id` *(enmienda 2026-09-17)*
+
+El colapso deja cada fila de `sector_candidates` describiendo **un sector**, así que `unit_id` y `sector_id`
+son el mismo valor y `ruta_organigrama` es la ruta del sector, no la de la unidad que matcheó. Es correcto y es
+lo que esta decisión implica — pero el nombre `unit_id` invita a leerlo como la unidad, y nada en la respuesta
+avisaba lo contrario.
+
+El frontend lo leyó así y posteó `unit_id = candidate.unit_id` al validar: el **sector** escrito en la columna
+de la unidad. No saltó ninguna alarma. El chequeo de consistencia de
+[ADR-0009](0009-sector-id-validado-independiente-de-unit-id.md) no puede atraparlo, porque un sector *es* su
+propio ancestro-o-sí-mismo: el par `(sector, sector)` es consistente por definición. El daño salió recién en el
+export, con CARGO_FINAL y RUTA_ORGANIGRAMA apuntando al sector en vez de a la unidad real.
+
+La corrección es que la fila lleve también **de dónde salió**: `source_unit_id` y `source_unit_name`, la unidad
+cuyo match produjo ese sector. El cliente postea `unit_id = source_unit_id` junto con el `sector_id` de la
+fila, que es exactamente el par del que se derivó el candidato y por lo tanto el que el server siempre acepta.
+
+Cuando `source_unit_id` viene nulo (respuesta de un backend anterior a este campo), la fila cae al
+comportamiento viejo en vez de desaparecer del listado.
+
+## Alternativas consideradas
+
+- **Que el candidato mejor rankeado le gane a la autorresolución como sugerencia del formulario.** *(Probada y
+  revertida, 2026-09-16.)* Se implementó persiguiendo una discrepancia real —el IVC aparecía primero en el
+  ranking mientras la sugerencia mostraba "Ministerio de Desarrollo Humano y Hábitat"— bajo la premisa de que
+  una de las dos estaba mal. No lo estaban: eran respuestas a dos preguntas distintas.
+  `recipient.unit_id`/`sector_id` son la respuesta comprometida del sistema (índice aprendido, o match de
+  cargo/titular, con umbrales) y son consistentes entre sí por construcción; `sector_candidates[0]` es apenas
+  el tope de una lista de alternativas, sin umbral. Se revirtió: la sugerencia vuelve a ser la
+  autorresolución, y el ranking queda como lista de alternativas. Sólo cuando la autorresolución no llegó a
+  nada (`unit_id` nulo, bajo umbral) se sugiere el `source_unit` del candidato mejor rankeado.
+- **Exponer el pool sin colapsar en vez de, o además de, `sector_candidates`.** Se descartó al escribir esta
+  decisión y se adoptó después, con evidencia de uso: ver [ADR-0012](0012-ranking-en-el-backend-filtrado-en-el-cliente.md).
+  `sector_candidates` no cambió.
