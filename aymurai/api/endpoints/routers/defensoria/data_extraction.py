@@ -209,7 +209,7 @@ async def api_data_extraction(
 
     record = llm_extraction_create_or_update(
         document_id,
-        None,
+        payload.document.file_name,
         document_text,
         raw_extraction.model_dump(),
         config,
