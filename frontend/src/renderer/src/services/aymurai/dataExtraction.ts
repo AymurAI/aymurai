@@ -30,6 +30,7 @@ export const extractDocument = () =>
     mutationFn: async (input: {
       documentId: string;
       paragraphs: string[];
+      fileName?: string | null;
       useCache?: boolean;
       signal?: AbortSignal;
     }) => {
@@ -42,6 +43,7 @@ export const extractDocument = () =>
                 document: {
                   document_id: input.documentId,
                   document: input.paragraphs,
+                  file_name: input.fileName ?? null,
                 },
               },
               {

@@ -125,6 +125,7 @@ export function useDataExtraction(
 
   const documentId = parseQuery.data?.document_id;
   const paragraphs = parseQuery.data?.document;
+  const fileName = parseQuery.data?.file_name;
 
   useEffect(() => {
     if (manualStop.current) return;
@@ -222,6 +223,7 @@ export function useDataExtraction(
     mutation.mutate({
       documentId,
       paragraphs: paragraphs ?? [],
+      fileName,
       signal: controller.signal,
     });
     // `mutation.mutate` is stable across renders (TanStack Query memoizes
@@ -231,6 +233,7 @@ export function useDataExtraction(
     envelopeQuery.data,
     documentId,
     paragraphs,
+    fileName,
     dispatch,
     mutation.mutate,
     state.status,

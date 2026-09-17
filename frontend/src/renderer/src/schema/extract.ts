@@ -6,6 +6,7 @@ export const documentExtractSchema = z.object({
   header: z.string().nullable(),
   document: z.array(z.string()),
   page_count: z.number().nullable().optional(),
+  file_name: z.string().nullable().optional(),
 
   // Preserving schema for future use
   // id: z.string().uuid(),
