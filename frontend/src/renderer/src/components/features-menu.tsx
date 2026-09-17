@@ -10,7 +10,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { DotsNine, Gear } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { FEATURE_ICON } from "@/constants/config";
+import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
 import { useFileDispatch } from "@/hooks/useFiles";
 import { removeAllFiles } from "@/reducers/file/actions";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
@@ -23,7 +23,12 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
   const { t } = useTranslation();
   const dispatch = useFileDispatch();
   const navigate = useNavigate();
-  const features = Object.values(FeatureFlowEnum);
+  const features = Object.values(FeatureFlowEnum).filter((feature) => {
+    if (feature === FeatureFlowEnum.Recommendations)
+      return isDefensoriaEnabled();
+    if (feature === FeatureFlowEnum.Dataset) return !isDefensoriaEnabled();
+    return true;
+  });
 
   const handleClearFiles = () => {
     dispatch(removeAllFiles());
@@ -73,11 +78,16 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
       <PopoverContent align="end" surface={false}>
         <FeaturesMenuGrid>
           {features.map((feature) => {
-            const Icon = FEATURE_ICON[feature];
+            const Icon =
+              feature === FeatureFlowEnum.Recommendations
+                ? FEATURE_ICON[FeatureFlowEnum.Dataset]
+                : FEATURE_ICON[feature];
             const label =
               feature === FeatureFlowEnum.Summarizer
                 ? t("featuresMenu.summary")
-                : t("title", { ns: featureNamespace[feature] });
+                : feature === FeatureFlowEnum.Recommendations
+                  ? t("title", { ns: "dataset" })
+                  : t("title", { ns: featureNamespace[feature] });
             return (
               <FeaturesMenuItem
                 key={feature}

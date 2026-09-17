@@ -42,6 +42,11 @@ export const STEPPER_HIDE_BELOW: Record<
   [FeatureFlowEnum.Dataset]: 880,
   [FeatureFlowEnum.Anonymizer]: 920,
   [FeatureFlowEnum.Summarizer]: 1080,
+  // Recommendations has no header/stepper screen yet (task 5 only registers
+  // the flow behind the flag); 1080 is the most conservative existing
+  // threshold, reused rather than measured. Re-sweep per the method above
+  // once a real screen renders "Recomendaciones" in the header.
+  [FeatureFlowEnum.Recommendations]: 1080,
 };
 
 /** The class `Header` puts on AppHeader's root for `feature`. */

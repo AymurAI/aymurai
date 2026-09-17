@@ -22,7 +22,13 @@ LEGACY_API_ROUTE_PREFIXES = (
     "redoc",
     "server",
 )
-FEATURE_ROUTE_SLUGS = ("anonymizer", "dataset", "summarizer", "voice-to-text")
+FEATURE_ROUTE_SLUGS = (
+    "anonymizer",
+    "dataset",
+    "recommendations",
+    "summarizer",
+    "voice-to-text",
+)
 FEATURE_ROUTE_STEPS = ("", "finish", "onboarding", "preview", "process", "validation")
 # Anything the SPA no longer routes, mapped to the slug it moved to. Covers the
 # 1.x desktop app's `/app/<ENUM>/...` links, the bare `<ENUM>` form, and the
@@ -30,6 +36,7 @@ FEATURE_ROUTE_STEPS = ("", "finish", "onboarding", "preview", "process", "valida
 LEGACY_FEATURE_ROUTE_SLUGS = {
     "ANONYMIZER": "anonymizer",
     "DATA_SET": "dataset",
+    "RECOMMENDATIONS": "recommendations",
     "SUMMARIZER": "summarizer",
     "VOICE_TO_TEXT": "voice-to-text",
     "data_set": "dataset",

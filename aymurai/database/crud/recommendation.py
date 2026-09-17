@@ -119,6 +119,11 @@ class RecipientValidationData:
     sector_id: (
         uuid.UUID | None
     )  # human-confirmed, used directly -- never derived from unit_id
+    # Index into extraction.prediction.recipients this came from; None for a
+    # recipient the person added by hand. Placed last (with a default) because
+    # every field above it is a required positional/keyword arg -- a dataclass
+    # can't put a defaulted field ahead of one without a default.
+    source_index: int | None = None
 
 
 @dataclass
@@ -130,6 +135,10 @@ class RecommendationValidationData:
     personal_data: bool | None
     publishable_content: str
     recipients: list[RecipientValidationData] = field(default_factory=list)
+    # Explicit human override from the date-picker field, wins over
+    # `parse_recommendation_date(recommendation_date_text)` when given --
+    # `None` keeps today's auto-parse-on-every-save behavior unchanged.
+    recommendation_date: date | None = None
 
 
 def _resolve_topic_subtopic(
@@ -227,6 +236,7 @@ def _reconcile_recipients(
 
         values = {
             "order": order,
+            "source_index": item.source_index,
             "raw_name": item.name,
             "raw_position": item.position,
             "normalized_name": normalize_text(item.name) or None,
@@ -276,7 +286,11 @@ def recommendation_upsert(
     """
     dataset = get_or_create_default_dataset(session)
     topic_id, subtopic_id = _resolve_topic_subtopic(data.topic, data.subtopic, session)
-    recommendation_date = parse_recommendation_date(data.recommendation_date_text)
+    recommendation_date = (
+        data.recommendation_date
+        if data.recommendation_date is not None
+        else parse_recommendation_date(data.recommendation_date_text)
+    )
 
     recommendation = session.exec(
         select(Recommendation)

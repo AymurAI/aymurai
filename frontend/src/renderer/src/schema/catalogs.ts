@@ -25,6 +25,19 @@ export const subtopicSchema = z.object({
 
 export const subtopicsSchema = z.array(subtopicSchema);
 
+export const macroSectorSchema = z.object({
+  id: z.string(),
+  // Never nullable, unlike topic/subtopic's `code` — see the type's comment.
+  code: z.string(),
+  name: z.string(),
+  active: z.boolean(),
+  order: z.number(),
+  created_at: z.string(),
+  updated_at: z.string().nullable(),
+});
+
+export const macroSectorsSchema = z.array(macroSectorSchema);
+
 export const categoryUsageSchema = z.object({
   count: z.number(),
 });

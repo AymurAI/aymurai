@@ -4,6 +4,7 @@ import {
   Detective,
   FileAudio,
   type Icon,
+  Megaphone,
 } from "phosphor-react";
 import { FeatureFlowEnum } from "@/types/features";
 
@@ -36,6 +37,7 @@ export const FEATURE_ICON: Record<FeatureFlowEnum, Icon> = {
   [FeatureFlowEnum.Anonymizer]: Detective,
   [FeatureFlowEnum.VoiceToText]: FileAudio,
   [FeatureFlowEnum.Summarizer]: Article,
+  [FeatureFlowEnum.Recommendations]: Megaphone,
 };
 
 export const USE_MOCK_STT = import.meta.env.VITE_USE_MOCK_STT === "true";
@@ -59,6 +61,10 @@ export const USE_MOCK_CATALOGS =
 // Same as USE_MOCK_CATALOGS above, for `/api/organigram/*`.
 export const USE_MOCK_ORGANIGRAM =
   import.meta.env.VITE_USE_MOCK_ORGANIGRAM === "true";
+
+// Same as USE_MOCK_CATALOGS above, for `/api/llm/data-extraction/*`.
+export const USE_MOCK_DATA_EXTRACTION =
+  import.meta.env.VITE_USE_MOCK_DATA_EXTRACTION === "true";
 
 // Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —

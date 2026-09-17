@@ -8,10 +8,11 @@ import { organigramService } from "@/services/aymurai";
 import { css } from "@/styled/css";
 import { Divider, HStack, Stack, styled } from "@/styled/jsx";
 import type { OrganigramHolder, OrganigramUnit } from "@/types/organigram";
+import { formatDisplayDate } from "@/utils/format-date";
 import HolderCorrectDialog, {
   type HolderCorrection,
 } from "./holder-correct-dialog";
-import { holderDate, holderInitials } from "./holder-format";
+import { holderInitials } from "./holder-format";
 import RenameButton from "./rename-button";
 
 const card = css({
@@ -95,7 +96,7 @@ export default function UnitHoldersSection({ unit }: UnitHoldersSectionProps) {
   // The term start when there is one; for a row written before term dates
   // existed, the day it was recorded — the date this screen has always shown.
   const sinceDate = (holder: OrganigramHolder) =>
-    holderDate(holder.start_date ?? holder.created_at);
+    formatDisplayDate(holder.start_date ?? holder.created_at);
 
   return (
     <>

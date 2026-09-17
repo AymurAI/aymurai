@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import AppCredits from "@/components/brand/app-credits";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
-import { FEATURE_ICON } from "@/constants/config";
+import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
 import { css } from "@/styled/css";
 import { Grid, Stack, styled } from "@/styled/jsx";
@@ -88,6 +88,7 @@ function RouteComponent() {
     "anonymizer",
     "voice-to-text",
     "summarizer",
+    "recommendations",
   ]);
 
   return (
@@ -101,13 +102,23 @@ function RouteComponent() {
                 {t("home.features.greeting")}
               </styled.h1>
               <Grid gap="6" className={featureGrid}>
-                <FeatureCardLink
-                  to="/$feature"
-                  params={{ feature: FeatureFlowEnum.Dataset }}
-                  title={t("dataset:title")}
-                  subtitle={t("dataset:subtitle")}
-                  icon={FEATURE_ICON.DATA_SET}
-                />
+                {isDefensoriaEnabled() ? (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Recommendations }}
+                    title={t("dataset:title")}
+                    subtitle={t("recommendations:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                ) : (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Dataset }}
+                    title={t("dataset:title")}
+                    subtitle={t("dataset:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                )}
                 <FeatureCardLink
                   to="/$feature"
                   params={{ feature: FeatureFlowEnum.Anonymizer }}

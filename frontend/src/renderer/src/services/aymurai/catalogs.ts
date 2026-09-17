@@ -2,6 +2,7 @@ import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import { USE_MOCK_CATALOGS } from "@/constants/config";
 import {
   categoryUsageSchema,
+  macroSectorsSchema,
   reassignResultSchema,
   subtopicSchema,
   subtopicsSchema,
@@ -128,5 +129,26 @@ export const reassignSubtopic = () =>
             })
           ).data;
       return reassignResultSchema.parse(data);
+    },
+  });
+
+/**
+ * The 4 fixed macro sectors. Read-only from the recommendation form's point
+ * of view (Task 11) — there is no create/update here, unlike topics/
+ * subtopics, since nothing in this flow adds or edits one.
+ */
+export const listMacroSectors = () =>
+  queryOptions({
+    queryKey: ["macro-sectors", api.defaults.baseURL],
+    queryFn: async () => {
+      const data = USE_MOCK_CATALOGS
+        ? await mock.mockListMacroSectors()
+        : (
+            await api.get("/catalogs/macro_sectors", {
+              // See listTopics on include_inactive.
+              params: { include_inactive: true },
+            })
+          ).data;
+      return macroSectorsSchema.parse(data);
     },
   });

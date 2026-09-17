@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +31,10 @@ class RecipientValidationRequest(BaseModel):
     # the specific unit ("cargo normalizado") and the sector independently.
     unit_id: uuid.UUID | None = None
     sector_id: uuid.UUID | None = None
+    # Index into `extraction.prediction.recipients` this recipient came from;
+    # None when the person added it by hand. Lets the form diff suggestion
+    # against value without pairing the two lists by array position.
+    source_index: int | None = None
 
 
 class ValidateRecommendationRequest(BaseModel):
@@ -37,6 +42,10 @@ class ValidateRecommendationRequest(BaseModel):
 
     recommendation_number: str | None = None
     recommendation_date_text: str | None = None
+    # Explicit human override, wins over the backend's auto-parse of
+    # `recommendation_date_text` when given -- `None` (old clients included)
+    # keeps today's auto-parse-on-every-save behavior unchanged.
+    recommendation_date: date | None = None
     topic: str | None = None
     subtopic: str | None = None
     personal_data: bool | None = None

@@ -259,8 +259,8 @@ def test_candidates_are_still_returned_alongside_a_confident_match(session, dgta
 def test_embeddings_cache_is_invalidated_when_organigram_is_edited(session, dgtal_tree):
     from aymurai.api.endpoints.routers.llm.organigram_matching import (
         _get_or_build_embeddings,
-        clean_cargo,
     )
+    from aymurai.text.cargo import clean_cargo
 
     unit = dgtal_tree["educacion"]
     choices = [clean_cargo(unit.name)]
@@ -369,6 +369,133 @@ def test_sector_candidates_resolve_via_a_disambiguated_unit_match(session, dgtal
 
     assert match.sector_candidates[0].unit_name == "Ministerio de Salud"
     assert match.sector_candidates[0].score > 90
+
+
+def test_sector_candidates_carry_the_sector_id(session, dgtal_tree):
+    """A candidate must name its sector by id, not only by label.
+
+    The validation form sends `unit_id` and `sector_id` together; without the
+    id the client would have to resolve a display name back to a row, and
+    `_reconcile_recipients` stores `sector_id=None` for a request that omits
+    it -- silently blanking SECTOR_FINAL in the export.
+    """
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position=(
+            "Directora General Obras en Vías Peatonales, dependiente del "
+            "Ministerio de Salud"
+        ),
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    assert match.sector_candidates, "expected at least one ranked candidate"
+    for candidate in match.sector_candidates:
+        assert candidate.sector_id is not None
+        sector = session.get(OrganigramUnit, candidate.sector_id)
+        assert sector is not None
+
+
+def test_sector_candidates_carry_a_source_unit_that_pairs_validly(session, dgtal_tree):
+    """A candidate must also name the specific unit whose match produced it,
+    so the client can submit `unit_id=source_unit_id` alongside this
+    candidate's own `sector_id` and have `_reconcile_recipients` accept the
+    pair -- picking a sector from this list must never require the client to
+    separately hunt for a matching `unit_id`."""
+    from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_sector
+
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position=(
+            "Directora General Obras en Vías Peatonales, dependiente del "
+            "Ministerio de Salud"
+        ),
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    assert match.sector_candidates, "expected at least one ranked candidate"
+    for candidate in match.sector_candidates:
+        assert candidate.source_unit_id is not None
+        source_unit = session.get(OrganigramUnit, candidate.source_unit_id)
+        assert source_unit is not None
+        assert source_unit.name == candidate.source_unit_name
+        sector = resolve_sector(source_unit, session)
+        assert sector.id == candidate.sector_id
+        assert sector.is_sector is True
+        assert sector.name == candidate.sector_name
+
+
+def test_unit_candidates_keep_the_units_uncollapsed(session, dgtal_tree):
+    """`sector_candidates` keeps one row per sector, so the homonymous DGTALs
+    collapse to a single ministry and the other one disappears. Narrowing the
+    form's unit field to a validated sector needs the units themselves, so
+    `unit_candidates` must carry both."""
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position="Dirección General Técnica, Administrativa y Legal",
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    unit_ids = {candidate.unit_id for candidate in match.unit_candidates}
+    assert dgtal_tree["dgtal_salud"].id in unit_ids
+    assert dgtal_tree["dgtal_educacion"].id in unit_ids
+
+
+def test_unit_candidates_pair_each_unit_with_its_own_sector(session, dgtal_tree):
+    """Every row must be submittable as-is: `unit_id` with this row's
+    `sector_id` is the pair `_reconcile_recipients` accepts, and
+    `ruta_organigrama` is the UNIT's path, not its sector's."""
+    from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_sector
+
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position="Dirección General Técnica, Administrativa y Legal",
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    assert match.unit_candidates, "expected at least one ranked unit"
+    for candidate in match.unit_candidates:
+        unit = session.get(OrganigramUnit, candidate.unit_id)
+        assert unit is not None
+        assert unit.name == candidate.unit_name
+        sector = resolve_sector(unit, session)
+        assert (sector.id if sector else None) == candidate.sector_id
+        assert candidate.ruta_organigrama.endswith(unit.name)
+
+
+def test_unit_candidates_survive_filtering_to_one_sector(session, dgtal_tree):
+    """The whole point: once a human validates a sector, filtering these rows
+    to it must still leave that sector's own units, ordered by score. A
+    top-k-then-collapse pool would leave nothing for the losing ministry."""
+    _macro_sector(session)
+
+    match = resolve_recipient_unit(
+        name=None,
+        position="Dirección General Técnica, Administrativa y Legal",
+        macro_sector_name="GCBA",
+        session=session,
+    )
+
+    for ministry in ("educacion", "salud"):
+        in_sector = [
+            candidate
+            for candidate in match.unit_candidates
+            if candidate.sector_id == dgtal_tree[ministry].id
+        ]
+        assert in_sector, f"nothing left for {ministry} after filtering"
+        scores = [candidate.score for candidate in in_sector]
+        assert scores == sorted(scores, reverse=True)
 
 
 def test_embeddings_cache_key_is_order_sensitive():

@@ -193,3 +193,51 @@ def test_destinatarios_non_gcba_falls_back_sector_final_to_macro_sector(
     assert row["MACRO_SECTOR"] == "Organismos Nacionales"
     assert row["SECTOR_FINAL"] == "Organismos Nacionales"
     assert row["RUTA_ORGANIGRAMA"] == ""
+
+
+def test_destinatarios_gcba_falls_back_sector_final_to_unit_when_sector_id_unset(
+    session,
+):
+    dataset = get_or_create_default_dataset(session)
+    ivc = OrganigramUnit(id=uuid.uuid4(), name="IVC", is_sector=False)
+    session.add(ivc)
+    session.commit()
+    session.refresh(ivc)
+
+    macro_sector = MacroSector(id=uuid.uuid4(), code="GCBA", name="GCBA")
+    session.add(macro_sector)
+    session.commit()
+    session.refresh(macro_sector)
+
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        recommendation_number="7/2024",
+        publishable_content="Contenido.",
+    )
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+
+    recipient = Recipient(
+        id=uuid.uuid4(),
+        recommendation_id=recommendation.id,
+        order=0,
+        raw_name="Alguien",
+        raw_position="Titular del IVC",
+        is_primary=True,
+        macro_sector_id=macro_sector.id,
+        unit_id=ivc.id,
+        sector_id=None,
+    )
+    session.add(recipient)
+    session.commit()
+
+    rows = build_destinatarios_rows(session)
+
+    assert len(rows) == 1
+    # SECTOR_FINAL falls back to the validated unit's own name when no
+    # sector-level reference was resolved/promoted -- never blank while a
+    # validated organigram unit exists.
+    assert rows[0]["SECTOR_FINAL"] == "IVC"

@@ -33,7 +33,9 @@ from aymurai.api.endpoints.schemas.requests.data_extraction import (
 from aymurai.api.endpoints.schemas.responses.data_extraction import (
     DataExtractionConfigResponse,
     DataExtractionResponse,
+    DocumentExtractionEnvelopeResponse,
     OrganigramCandidateResponse,
+    OrganigramUnitCandidateResponse,
     RecipientDetailResponse,
     RecipientResponse,
     RecommendationDetailResponse,
@@ -53,6 +55,7 @@ from aymurai.database.crud.recommendation import (
     RecipientValidationData,
     RecommendationValidationData,
     recommendation_get,
+    recommendation_get_by_document,
     recommendation_list,
     recommendation_upsert,
 )
@@ -100,6 +103,10 @@ def _recipient_response(raw: dict, session: Session) -> RecipientResponse:
             OrganigramCandidateResponse(**c.model_dump())
             for c in match.sector_candidates
         ],
+        unit_candidates=[
+            OrganigramUnitCandidateResponse(**c.model_dump())
+            for c in match.unit_candidates
+        ],
     )
 
 
@@ -122,6 +129,23 @@ def _response_from_record(
     )
 
 
+def _catalogs_stale(record: LLMExtraction, session: Session) -> bool:
+    """
+    Says whether an extraction was inferred against an outdated taxonomy.
+
+    Args:
+        record (LLMExtraction): The stored extraction.
+        session (Session): Database session.
+
+    Returns:
+        bool: True when the stored hash differs from the live catalogs snapshot.
+    """
+    topics, macro_sector_names = _catalogs_snapshot(session)
+    return record.config.get("catalogs_hash") != catalogs_hash(
+        topics, macro_sector_names
+    )
+
+
 @router.post("/data-extraction", response_model=DataExtractionResponse)
 async def api_data_extraction(
     payload: DataExtractionRequest,
@@ -133,7 +157,9 @@ async def api_data_extraction(
     if use_cache:
         existing = llm_extraction_get(document_id, session)
         if existing:
-            return _response_from_record(existing, session)
+            response = _response_from_record(existing, session)
+            response.catalogs_stale = _catalogs_stale(existing, session)
+            return response
 
     if not settings.LLAMACPP_BASE_URL:
         raise ConfigurationError(detail="LLAMACPP_BASE_URL is not configured")
@@ -208,6 +234,7 @@ def _recipient_detail_response(
     )
     return RecipientDetailResponse(
         id=recipient.id,
+        source_index=recipient.source_index,
         name=recipient.raw_name,
         position=recipient.raw_position,
         is_primary=recipient.is_primary,
@@ -274,6 +301,7 @@ async def api_data_extraction_validate(
     data = RecommendationValidationData(
         recommendation_number=payload.recommendation_number,
         recommendation_date_text=payload.recommendation_date_text,
+        recommendation_date=payload.recommendation_date,
         topic=payload.topic,
         subtopic=payload.subtopic,
         personal_data=payload.personal_data,
@@ -287,6 +315,7 @@ async def api_data_extraction_validate(
                 macro_sector=r.macro_sector,
                 unit_id=r.unit_id,
                 sector_id=r.sector_id,
+                source_index=r.source_index,
             )
             for r in payload.recipients
         ],
@@ -363,4 +392,59 @@ async def api_data_extraction_export(
         background=BackgroundTask(os.remove, str(path)),
         media_type=media_type,
         filename=f"recomendaciones.{format}",
+    )
+
+
+# Registered last, deliberately: `{document_id}` is a single generic path
+# segment, matching the same shape as `/recommendations` and `/export` above.
+# FastAPI/Starlette routes are tried in registration order and a path
+# parameter's type (uuid.UUID here) is enforced *after* a route is selected,
+# not encoded into the matching regex -- so if this route were registered
+# first, GET .../recommendations and GET .../export would match it instead of
+# their own literal routes, and 422 on failing to parse "recommendations" or
+# "export" as a UUID (confirmed by running the full suite: both endpoints
+# broke with exactly that 422 until this was moved here).
+@router.get(
+    "/data-extraction/{document_id}",
+    response_model=DocumentExtractionEnvelopeResponse,
+)
+async def api_data_extraction_envelope(document_id: uuid.UUID, session: SessionDep):
+    """
+    Reports what is stored for a document without inferring anything.
+
+    Pure read: the client asks this before deciding whether to spend an
+    inference, and a failure here must stop the flow rather than fall through
+    to a fresh extraction -- the historical client failed open and silently
+    overwrote human validations with fresh model output.
+
+    Args:
+        document_id (uuid.UUID): Content-addressed document id.
+        session (Session): Database session.
+
+    Returns:
+        DocumentExtractionEnvelopeResponse: Stored prediction and validation,
+            either or both possibly null, plus catalog staleness.
+    """
+    extraction = llm_extraction_get(document_id, session)
+    recommendation = recommendation_get_by_document(document_id, session)
+
+    prediction = None
+    stale = False
+    if extraction:
+        prediction = _response_from_record(extraction, session)
+        stale = _catalogs_stale(extraction, session)
+        prediction.catalogs_stale = stale
+
+    validation = None
+    if recommendation and extraction:
+        validation = _recommendation_detail_response(
+            recommendation, extraction, session
+        )
+
+    return DocumentExtractionEnvelopeResponse(
+        document_id=document_id,
+        prediction=prediction,
+        validation=validation,
+        catalogs_stale=stale,
+        updated_at=extraction.updated_at if extraction else None,
     )

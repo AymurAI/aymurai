@@ -182,13 +182,17 @@ def build_destinatarios_rows(session: Session) -> list[dict[str, Any]]:
             else None
         )
 
-        # `sector_id` is a human-validated choice, independent of `unit_id`
-        # (never derived from it) -- organigram matching only ever runs for
-        # GCBA recipients (everything else is gated out before it starts),
-        # so a non-GCBA recipient never has one; falling back to the macro
-        # sector keeps the column from reading as an unexplained blank.
+        # `sector_id` (a human-validated sector-level organigram reference)
+        # wins when present. `unit_id` (a leaf reference, or one picked via
+        # full-corpus search/creation that never got promoted to a sector)
+        # is the next best validated signal -- always preferred over the
+        # raw macro_sector label. Only a non-GCBA recipient with neither
+        # falls back to its macro_sector; a GCBA recipient with neither is
+        # genuinely unvalidated and exports blank.
         if sector is not None:
             sector_final = sector.name
+        elif unit is not None:
+            sector_final = unit.name
         elif macro_sector is not None and macro_sector.code != "GCBA":
             sector_final = macro_sector.name
         else:

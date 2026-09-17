@@ -2,6 +2,7 @@ import type {
   CategoryUsage,
   CreateSubtopicInput,
   CreateTopicInput,
+  MacroSector,
   ReassignSubtopicInput,
   Subtopic,
   Topic,
@@ -153,6 +154,31 @@ export function mockUpdateSubtopic(
   const updated: Subtopic = { ...existing, ...input, updated_at: now };
   subtopics = subtopics.map((s) => (s.id === input.id ? updated : s));
   return delay(updated);
+}
+
+// The 4 macro sectors hardcoded in the historical prompt, mirroring the
+// real backend's seed (`aymurai/database/seed/catalogs.py`) exactly — this
+// is mock-backend seed data, not a taxonomy the form hardcodes: the form
+// itself only ever reads it through `listMacroSectors()`.
+const macroSectors: MacroSector[] = [
+  { code: "GCBA", name: "GCBA", order: 0 },
+  {
+    code: "ORGANISMOS_NACIONALES",
+    name: "Organismos Nacionales",
+    order: 1,
+  },
+  { code: "OBRA_SOCIAL_PREPAGA", name: "Obra Social / Prepaga", order: 2 },
+  { code: "EMPRESA", name: "Empresa", order: 3 },
+].map((entry, index) => ({
+  id: `macro-sector-${index}`,
+  active: true,
+  created_at: now,
+  updated_at: now,
+  ...entry,
+}));
+
+export function mockListMacroSectors(): Promise<MacroSector[]> {
+  return delay([...macroSectors].sort((a, b) => a.order - b.order));
 }
 
 export function mockReassignSubtopic(

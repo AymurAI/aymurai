@@ -1,6 +1,7 @@
 # ADR-0001 — El sector del GCBA es un atributo del nodo, no un conjunto de reglas
 
-**Fecha:** 2026-08-27 · **Estado:** aceptada
+**Fecha:** 2026-08-27 · **Estado:** aceptada · **Enmendada:** 2026-09-17 (segunda implementación de la
+regla, en el cliente)
 
 ## Contexto
 
@@ -43,6 +44,16 @@ Medido sobre el organigrama real (520 nodos, 489 con titular, profundidad 7):
 - El flag hay que exponerlo en el ABM del organigrama: es un campo que la persona tiene que poder ver y cambiar.
 - Un seed mal corrido produce sectores mal asignados de forma silenciosa → debe cubrirse con un test que
   compare contra las reglas sobre el archivo real.
+- **La regla tiene ahora dos implementaciones** *(enmienda 2026-09-17)*. Al pasar el filtrado de unidades por
+  sector al cliente ([ADR-0012](0012-ranking-en-el-backend-filtrado-en-el-cliente.md)), el frontend necesitó
+  caminar el mismo árbol: `frontend/src/renderer/src/utils/organigram/resolve-sector.ts` es el espejo de
+  `resolve_sector` sobre el corpus plano que `listUnits()` ya trae, más `normalize-for-search.ts` espejando
+  `normalize_text`. Son funciones puras y testeadas, pero **es duplicación de una regla de dominio**: si la
+  definición de sector cambia, hay que cambiarla en dos lenguajes o la UI y el server empiezan a discrepar en
+  silencio. Vale la pena saber, además, que el espejo tiene una asimetría deliberada que el original también
+  tiene: `resolveSector` exige `is_sector && active`, mientras que `isSectorAncestorOf` —pertenencia, usada
+  para detectar el par inconsistente— ignora `active`, para no declarar inconsistente un par que se validó
+  antes de que alguien desactivara la unidad.
 
 ## Alternativas consideradas
 

@@ -18,8 +18,15 @@ Convención: ver [`../agents/domain.md`](../agents/domain.md).
 | [0009](0009-sector-id-validado-independiente-de-unit-id.md) | `sector_id` se valida independiente de `unit_id`, nunca se deriva | Persistencia |
 | [0010](0010-identidad-de-unidades-creadas-desde-la-app.md) | Las unidades creadas desde la app llevan `uuid4`, no `uuid5` | Organigrama |
 | [0011](0011-fecha-de-asuncion-del-titular.md) | La fecha de asunción del titular es distinta de `created_at` | Organigrama |
+| [0012](0012-ranking-en-el-backend-filtrado-en-el-cliente.md) | El ranking vive en el backend; el filtrado por sector, en el cliente | Organigrama |
+| [0013](0013-la-marca-de-sugerencia-es-el-acto-de-validar.md) | La marca de sugerencia es el acto de validar: un campo no validado queda vacío | Validación |
 
 0001–0007 surgieron del análisis en [`../defensoria/`](../defensoria/); 0008–0009 surgieron de testear la API
 real con documentos reales (ver la conversación de esa sesión para el detalle completo); 0010–0011 surgieron
 de construir el ABM de la fase 7, cuando la app pasó a escribir sobre lo que hasta entonces sólo sembraba el
-seed.
+seed; 0012–0013 salieron de una pasada retrospectiva sobre las decisiones que se habían ido tomando por
+síntoma durante el QA del formulario de validación, sin quedar declaradas en ningún lado.
+
+En esa misma pasada se enmendaron 0001, 0008 y 0009. Las enmiendas van fechadas dentro de cada documento, con
+la decisión original intacta: lo que se agrega es lo que se aprendió después, no una reescritura de lo que se
+había decidido.

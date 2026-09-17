@@ -69,6 +69,31 @@ describe("catalogs service — real (non-mock) implementation", () => {
     expect(result).toEqual({ count: 3 });
   });
 
+  it("lists macro sectors from GET /catalogs/macro_sectors", async () => {
+    const macroSectors = [
+      {
+        id: "m1",
+        code: "GCBA",
+        name: "GCBA",
+        active: true,
+        order: 0,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+    const getSpy = vi
+      .spyOn(api, "get")
+      .mockResolvedValue({ data: macroSectors });
+
+    const { queryFn } = catalogs.listMacroSectors();
+    const result = await (queryFn as () => Promise<unknown>)();
+
+    expect(getSpy).toHaveBeenCalledWith("/catalogs/macro_sectors", {
+      params: { include_inactive: true },
+    });
+    expect(result).toEqual(macroSectors);
+  });
+
   it("reassigns a subtopic via POST /catalogs/subtopics/{id}/reassign", async () => {
     const postSpy = vi
       .spyOn(api, "post")

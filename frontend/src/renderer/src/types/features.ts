@@ -1,5 +1,6 @@
 export enum FeatureFlowEnum {
   Dataset = "DATA_SET",
+  Recommendations = "RECOMMENDATIONS",
   Anonymizer = "ANONYMIZER",
   VoiceToText = "VOICE_TO_TEXT",
   Summarizer = "SUMMARIZER",
@@ -14,6 +15,7 @@ export const featureNamespace = {
   [FeatureFlowEnum.Anonymizer]: "anonymizer",
   [FeatureFlowEnum.VoiceToText]: "voice-to-text",
   [FeatureFlowEnum.Summarizer]: "summarizer",
+  [FeatureFlowEnum.Recommendations]: "recommendations",
 } as const satisfies Record<FeatureFlowEnum, string>;
 
 /**
@@ -28,6 +30,7 @@ export const featureRouteSlug = {
   [FeatureFlowEnum.Anonymizer]: "anonymizer",
   [FeatureFlowEnum.VoiceToText]: "voice-to-text",
   [FeatureFlowEnum.Summarizer]: "summarizer",
+  [FeatureFlowEnum.Recommendations]: "recommendations",
 } as const satisfies Record<FeatureFlowEnum, string>;
 
 const FEATURE_BY_ROUTE_SLUG = Object.fromEntries(

@@ -5,7 +5,9 @@ import {
   useParams,
 } from "@tanstack/react-router";
 
+import { isDefensoriaEnabled } from "@/constants/config";
 import FileProvider from "@/context/File";
+import RecommendationProvider from "@/context/Recommendation";
 import SummaryProvider from "@/context/Summary";
 import TranscriptionProvider from "@/context/Transcription";
 import APIProtected from "@/features/APIProtected";
@@ -32,6 +34,14 @@ export const Route = createFileRoute("/$feature")({
       feature: getFeatureRouteSlug(feature),
     }),
   },
+  beforeLoad: ({ params }) => {
+    if (
+      params.feature === FeatureFlowEnum.Recommendations &&
+      !isDefensoriaEnabled()
+    ) {
+      throw redirect({ to: "/home/features" });
+    }
+  },
   component: AppLayoutRoute,
 });
 
@@ -39,6 +49,7 @@ function AppLayoutRoute() {
   const { feature } = useParams({ from: "/$feature" });
   const isVoice = feature === FeatureFlowEnum.VoiceToText;
   const isSummarizer = feature === FeatureFlowEnum.Summarizer;
+  const isRecommendations = feature === FeatureFlowEnum.Recommendations;
   const inner = (
     <Stack
       width="full"
@@ -56,6 +67,8 @@ function AppLayoutRoute() {
     <TranscriptionProvider>{inner}</TranscriptionProvider>
   ) : isSummarizer ? (
     <SummaryProvider>{inner}</SummaryProvider>
+  ) : isRecommendations ? (
+    <RecommendationProvider>{inner}</RecommendationProvider>
   ) : (
     inner
   );

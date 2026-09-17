@@ -20,6 +20,12 @@ class RecipientBase(SQLModel):
     # denormalized on purpose, fixed at validation time and never recomputed
     # if the organigram reorganizes later.
     sector_id: uuid.UUID | None = Field(None, foreign_key="organigram_unit.id")
+    # Which entry of `extraction.prediction.recipients` this row came from, so
+    # the form can diff the frozen suggestion against the human's value without
+    # re-pairing the two lists by array position -- the historical bug that
+    # misattributed every later recipient as soon as an earlier one was deleted.
+    # None when a person added the recipient by hand.
+    source_index: int | None = None
 
 
 class Recipient(RecipientBase, table=True):
@@ -47,6 +53,7 @@ class RecipientUpdate(SQLModel):
     macro_sector_id: uuid.UUID | None = None
     unit_id: uuid.UUID | None = None
     sector_id: uuid.UUID | None = None
+    source_index: int | None = None
 
 
 class RecipientRead(RecipientBase):

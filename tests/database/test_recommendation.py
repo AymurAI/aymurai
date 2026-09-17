@@ -473,6 +473,109 @@ def test_q_search_treats_wildcards_as_literal_text(session):
     assert len(recommendation_list(session, q="_")[0]) == 0
 
 
+def test_source_index_survives_deleting_an_earlier_recipient(session):
+    """Deleting a recipient must not shift what the survivors point at.
+
+    This is the historical index-pairing bug: suggestions were re-paired to the
+    prediction by array position, so removing an earlier recipient
+    misattributed every later one. `source_index` pins the link explicitly.
+    """
+    document_id = uuid.uuid4()
+    recommendation = recommendation_upsert(
+        document_id,
+        _data(
+            recipients=[
+                RecipientValidationData(
+                    id=None,
+                    name="Primero",
+                    position=None,
+                    is_primary=True,
+                    macro_sector=None,
+                    unit_id=None,
+                    sector_id=None,
+                    source_index=0,
+                ),
+                RecipientValidationData(
+                    id=None,
+                    name="Segundo",
+                    position=None,
+                    is_primary=False,
+                    macro_sector=None,
+                    unit_id=None,
+                    sector_id=None,
+                    source_index=1,
+                ),
+            ]
+        ),
+        session,
+    )
+    saved = sorted(
+        session.exec(
+            select(Recipient).where(Recipient.recommendation_id == recommendation.id)
+        ).all(),
+        key=lambda r: r.order,
+    )
+    second_id = saved[1].id
+
+    # Drop the first recipient and re-save, exactly as the form does.
+    recommendation_upsert(
+        document_id,
+        _data(
+            recipients=[
+                RecipientValidationData(
+                    id=second_id,
+                    name="Segundo",
+                    position=None,
+                    is_primary=False,
+                    macro_sector=None,
+                    unit_id=None,
+                    sector_id=None,
+                    source_index=1,
+                ),
+            ]
+        ),
+        session,
+    )
+
+    survivors = session.exec(
+        select(Recipient).where(Recipient.recommendation_id == recommendation.id)
+    ).all()
+    assert len(survivors) == 1
+    assert survivors[0].id == second_id
+    assert survivors[0].order == 0, "order compacts, it is a display position"
+    assert survivors[0].source_index == 1, (
+        "source_index must keep pointing at prediction.recipients[1] even though "
+        "the row is now first"
+    )
+
+
+def test_source_index_is_none_for_a_human_added_recipient(session):
+    """A recipient the person typed in did not come from any prediction entry."""
+    document_id = uuid.uuid4()
+    recommendation = recommendation_upsert(
+        document_id,
+        _data(
+            recipients=[
+                RecipientValidationData(
+                    id=None,
+                    name="Agregado a mano",
+                    position=None,
+                    is_primary=False,
+                    macro_sector=None,
+                    unit_id=None,
+                    sector_id=None,
+                    source_index=None,
+                ),
+            ]
+        ),
+        session,
+    )
+    saved = session.exec(
+        select(Recipient).where(Recipient.recommendation_id == recommendation.id)
+    ).one()
+    assert saved.source_index is None
+
+
 def test_q_search_treats_a_backslash_as_literal_text(session):
     """`_like_escape` escapes the backslash first; getting that order wrong
     would double-escape the sentinels it adds afterwards."""
@@ -486,3 +589,33 @@ def test_q_search_treats_a_backslash_as_literal_text(session):
     assert len(recommendation_list(session, q="\\")[0]) == 1
     assert len(recommendation_list(session, q=r"c:\temp")[0]) == 1
     assert len(recommendation_list(session, q=r"c:\%")[0]) == 0
+
+
+def test_recommendation_upsert_uses_explicit_date_over_auto_parse(session):
+    document_id = uuid.uuid4()
+    data = RecommendationValidationData(
+        recommendation_number="123",
+        recommendation_date_text="10 de julio de 2024",
+        recommendation_date=date(2024, 7, 11),  # human-corrected, off by a day
+        topic=None,
+        subtopic=None,
+        personal_data=None,
+        publishable_content="contenido",
+    )
+    recommendation = recommendation_upsert(document_id, data, session)
+    assert recommendation.recommendation_date == date(2024, 7, 11)
+
+
+def test_recommendation_upsert_falls_back_to_auto_parse_when_date_omitted(session):
+    document_id = uuid.uuid4()
+    data = RecommendationValidationData(
+        recommendation_number="123",
+        recommendation_date_text="10 de julio de 2024",
+        recommendation_date=None,
+        topic=None,
+        subtopic=None,
+        personal_data=None,
+        publishable_content="contenido",
+    )
+    recommendation = recommendation_upsert(document_id, data, session)
+    assert recommendation.recommendation_date == date(2024, 7, 10)

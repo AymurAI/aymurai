@@ -2,7 +2,14 @@ import hashlib
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from aymurai.api.endpoints.routers.llm.summarization_engine import ContextTooSmallError
 from aymurai.llm_providers import LlamaCppLLMProvider
@@ -14,12 +21,31 @@ logger = get_logger(__name__)
 
 PROMPT_PATH = Path(settings.RESOURCES_BASEPATH) / "llm" / "data_extraction.yml"
 
+_LITERAL_NULL_STRINGS = {"null", "none"}
+
+
+def _clean_raw_string(value: str | None) -> str | None:
+    """The model sometimes emits the literal text "null"/"None" instead of a
+    real null when a field has no answer -- normalize both to `None` at the
+    one place every raw prediction passes through, before it's ever
+    persisted into `record.prediction`."""
+    if value is None:
+        return None
+    if value.strip().lower() in _LITERAL_NULL_STRINGS:
+        return None
+    return value
+
 
 class RawRecipient(BaseModel):
     name: str | None = None
     position: str | None = None
     is_primary: bool
     macro_sector: str | None = None
+
+    @field_validator("name", "position", "macro_sector", mode="before")
+    @classmethod
+    def _strip_literal_null(cls, value: str | None) -> str | None:
+        return _clean_raw_string(value)
 
 
 class RawExtraction(BaseModel):
@@ -32,6 +58,17 @@ class RawExtraction(BaseModel):
     subtopic: str | None = None
     personal_data: bool | None = None
     publishable_content: str
+
+    @field_validator(
+        "recommendation_number",
+        "recommendation_date",
+        "topic",
+        "subtopic",
+        mode="before",
+    )
+    @classmethod
+    def _strip_literal_null(cls, value: str | None) -> str | None:
+        return _clean_raw_string(value)
 
     @model_validator(mode="after")
     def _validate_topic_subtopic(self, info: ValidationInfo) -> "RawExtraction":

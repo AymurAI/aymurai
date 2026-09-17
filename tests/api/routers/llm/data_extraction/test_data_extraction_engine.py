@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from aymurai.api.endpoints.routers.llm.data_extraction_engine import (
     RawExtraction,
+    RawRecipient,
     build_response_schema,
     catalogs_hash,
 )
@@ -77,3 +78,21 @@ def test_catalogs_hash_changes_when_catalogs_change():
     a = catalogs_hash({"SALUD": ["Hospitales"]}, ["GCBA"])
     b = catalogs_hash({"SALUD": ["Hospitales", "Medicamentos"]}, ["GCBA"])
     assert a != b
+
+
+@pytest.mark.parametrize("literal", ["null", "None", "none", "NULL"])
+def test_raw_recipient_treats_literal_null_strings_as_none(literal):
+    recipient = RawRecipient(name=literal, position=literal, is_primary=False)
+    assert recipient.name is None
+    assert recipient.position is None
+
+
+def test_raw_extraction_treats_literal_null_strings_as_none():
+    extraction = RawExtraction(
+        recommendation_number="null",
+        recommendation_date="none",
+        publishable_content="contenido real",
+    )
+    assert extraction.recommendation_number is None
+    assert extraction.recommendation_date is None
+    assert extraction.publishable_content == "contenido real"
