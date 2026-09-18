@@ -95,6 +95,7 @@ export default function RecommendationValidation() {
   // recomputes that list into a new array (`useRecommendationForm`'s memo), so
   // the warning is asked again instead of a stale "yes" waving through fields
   // that were still pending when it was given.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pendingFields is used only as an identity signal, not read in the body
   useEffect(() => {
     setConfirmUnvalidated(false);
   }, [pendingFields]);

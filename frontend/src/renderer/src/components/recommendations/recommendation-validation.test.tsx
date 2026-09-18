@@ -115,6 +115,13 @@ function aValidation(
 let mockRecipients: RecommendationValidationInput["recipients"] = [];
 /** What the stubbed form reports as still-unvalidated; set per test. */
 let mockPendingFields: PendingValidationField[] = [];
+/**
+ * Bumped by a test to simulate "the form now reports a different
+ * pending-fields list" (i.e. an edit), since the stub's mount effect
+ * otherwise only fires once. Not read by the effect body, only used to
+ * force it to re-run against the (by-then-updated) `mockPendingFields`.
+ */
+let mockPendingFieldsVersion = 0;
 
 // `ministerio` [sector] > `direccion`; `otro` [sector] is somewhere else, so
 // pairing `direccion` with `otro` is exactly what the server 422s on.
@@ -169,10 +176,14 @@ vi.mock("./recommendation-form", () => ({
     }, [seeded, onValuesChange]);
 
     // Module-scope value, fixed before render by each test -- reported once
-    // on mount, the same beat the real form reports it on.
+    // on mount, the same beat the real form reports it on. A test that wants
+    // to simulate an edit changing the pending-fields list bumps
+    // `mockPendingFieldsVersion` after updating `mockPendingFields`, which
+    // re-runs this effect and reports the new array.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: mockPendingFieldsVersion is a test-only re-fire trigger (outer-scope value), not read in the body
     useEffect(() => {
       onPendingFieldsChange?.(mockPendingFields);
-    }, [onPendingFieldsChange]);
+    }, [onPendingFieldsChange, mockPendingFieldsVersion]);
 
     return (
       <textarea
@@ -250,6 +261,7 @@ describe("RecommendationValidation", () => {
     mockUnitsFetches = 0;
     showToast.mockReset();
     mockPendingFields = [];
+    mockPendingFieldsVersion = 0;
   });
 
   const TREE = [
@@ -554,5 +566,35 @@ describe("RecommendationValidation", () => {
 
     await waitFor(() => expect(mockValidate).toHaveBeenCalled());
     expect(showToast).not.toHaveBeenCalled();
+  });
+
+  // A confirmation belongs to the list it was given for: any edit to the
+  // form must re-arm the warning instead of letting a stale "yes" wave
+  // through a since-changed set of pending fields.
+  it("re-arms the warning after an edit changes the pending-fields list", async () => {
+    mockPendingFields = [{ labelKey: "topic" }];
+    renderValidation();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+    await waitFor(() => expect(showToast).toHaveBeenCalledTimes(1));
+    expect(mockValidate).not.toHaveBeenCalled();
+
+    // Simulate an edit: the form now reports a different pending-fields
+    // list (a new array reference, as the real memo would produce), and an
+    // actual field edit forces the stub to re-render and re-report it.
+    mockPendingFields = [{ labelKey: "subtopic" }];
+    mockPendingFieldsVersion += 1;
+    fireEvent.change(screen.getByLabelText("validation.publishableContent"), {
+      target: { value: "edited content" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledTimes(2));
+    expect(mockValidate).not.toHaveBeenCalled();
   });
 });
