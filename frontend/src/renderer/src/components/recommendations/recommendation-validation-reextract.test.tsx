@@ -197,4 +197,49 @@ describe("RecommendationValidation -- re-extraction remounts the form", () => {
       screen.queryByRole("button", { name: "123/2026" }),
     ).not.toBeInTheDocument();
   });
+
+  it("passes the uploaded file's name to the re-extract mutation", async () => {
+    mockExtract.mockResolvedValue(
+      aPrediction({
+        recommendation_number: "999/2026",
+        config: { model: "m", options: {}, catalogs_hash: "hash-2" },
+        catalogs_stale: false,
+      }),
+    );
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <FileContext.Provider value={[FILE]}>
+            <RecommendationProvider>
+              <SeedPrediction prediction={aPrediction()}>
+                <RecommendationValidation />
+              </SeedPrediction>
+            </RecommendationProvider>
+          </FileContext.Provider>
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByLabelText("validation.recommendationNumber");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.reExtract" }),
+    );
+
+    await waitFor(() => expect(mockExtract).toHaveBeenCalled());
+
+    // Verify the mutation call includes the file name from FILE.data.name
+    const [callArgs] = mockExtract.mock.calls[0];
+    expect(callArgs).toEqual(
+      expect.objectContaining({
+        documentId: "doc-1",
+        fileName: "acta.pdf", // FILE.data.name
+      }),
+    );
+  });
 });
