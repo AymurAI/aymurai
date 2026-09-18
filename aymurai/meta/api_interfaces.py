@@ -97,9 +97,6 @@ class Document(BaseModel):
     header: list[str] | None = None
     footer: list[str] | None = None
     page_count: int | None = None
-    # The uploaded file's original name, if this Document came from an
-    # upload -- carried through so `/llm/data-extraction` can record it on
-    # `llm_extraction.file_name` instead of always storing None.
     file_name: str | None = None
 
 
