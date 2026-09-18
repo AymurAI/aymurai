@@ -90,7 +90,8 @@ def test_recomendaciones_columns_and_order(session):
     assert row["TEMA"] == "SALUD"
     assert row["SUBTEMA"] == "Hospitales"
     assert row["DATOS_PERSONALES"] == ""  # tri-state: unanswered, not "no"
-    # Columns a human fills in by hand -- always blank coming out of here.
+    # Template columns left unset on this recommendation -- text ones blank,
+    # tri-state ones "" (unanswered), never "no".
     for manual_column in (
         "EXPEDIENTE",
         "CONTENIDO_INICIAL",
@@ -101,6 +102,35 @@ def test_recomendaciones_columns_and_order(session):
         "LINK",
     ):
         assert row[manual_column] == ""
+
+
+def test_recomendaciones_template_columns_export_populated_values(session):
+    dataset = get_or_create_default_dataset(session)
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        publishable_content="Contenido.",
+        file_number="EXP-123/2024",
+        initial_content="Contenido inicial.",
+        situation_status="En trámite",
+        status="Abierto",
+        resolved_in_file=True,
+        approved_for_publication=False,
+        link="https://example.org/expediente/123",
+    )
+    session.add(recommendation)
+    session.commit()
+
+    row = build_recomendaciones_rows(session)[0]
+
+    assert row["EXPEDIENTE"] == "EXP-123/2024"
+    assert row["CONTENIDO_INICIAL"] == "Contenido inicial."
+    assert row["ESTADO_DE_SITUACION"] == "En trámite"
+    assert row["ESTADO"] == "Abierto"
+    assert row["SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE"] == "si"
+    assert row["PARA_PUBLICAR"] == "no"
+    assert row["LINK"] == "https://example.org/expediente/123"
 
 
 def test_recomendaciones_destinatario_is_the_primary_recipients_unit(session):

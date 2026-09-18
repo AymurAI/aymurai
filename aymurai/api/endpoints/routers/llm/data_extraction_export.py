@@ -22,9 +22,6 @@ from aymurai.database.schema import (
 )
 from aymurai.settings import settings
 
-# EXPEDIENTE, CONTENIDO_INICIAL, ESTADO_DE_SITUACION, ESTADO,
-# SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE, PARA_PUBLICAR and LINK are filled
-# in by hand after export -- this pipeline only ever writes "" for them.
 RECOMENDACIONES_COLUMNS = (
     "EXPEDIENTE",
     "TEMA",
@@ -224,7 +221,7 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
 
         rows.append(
             {
-                "EXPEDIENTE": "",
+                "EXPEDIENTE": recommendation.file_number or "",
                 "TEMA": topic.name if topic else "",
                 "SUBTEMA": subtopic.name if subtopic else "",
                 "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
@@ -232,13 +229,17 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
                 "DESTINATARIO": destinatario,
                 "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "CONTENIDO_INICIAL": "",
-                "ESTADO_DE_SITUACION": "",
-                "ESTADO": "",
-                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": "",
-                "PARA_PUBLICAR": "",
+                "CONTENIDO_INICIAL": recommendation.initial_content or "",
+                "ESTADO_DE_SITUACION": recommendation.situation_status or "",
+                "ESTADO": recommendation.status or "",
+                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": _format_tri_state(
+                    recommendation.resolved_in_file
+                ),
+                "PARA_PUBLICAR": _format_tri_state(
+                    recommendation.approved_for_publication
+                ),
                 "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
-                "LINK": "",
+                "LINK": recommendation.link or "",
             }
         )
     return rows
