@@ -201,16 +201,36 @@ def _reconcile_recipients(
                 select(MacroSector).where(MacroSector.name == item.macro_sector)
             ).first()
 
-        unit = session.get(OrganigramUnit, item.unit_id) if item.unit_id else None
-        sector = session.get(OrganigramUnit, item.sector_id) if item.sector_id else None
+        # A recipient's ámbito can be *explicitly* corrected away from GCBA
+        # after a unit was already picked while it looked GCBA -- the
+        # frontend's unit picker hides rather than clears a prior pick when
+        # the ámbito toggles non-GCBA (recipient-fields.tsx, by documented
+        # design: "hidden rather than cleared ... so a prior pick survives an
+        # accidental sector toggle"), and `toPayload` still sends the stale
+        # unit_id/sector_id unconditionally. Treat them as not-provided here
+        # rather than rejecting the save: the picker that would let the human
+        # clear them is exactly the one now hidden, so raising would trap the
+        # correction with no way through the UI to fix it. This only fires
+        # for an explicitly non-GCBA macro_sector -- `macro_sector is None`
+        # (nothing resolved: not provided, or an implicitly-suggested GCBA
+        # ámbito never explicitly confirmed) must keep trusting unit_id/
+        # sector_id exactly as before.
+        unit_id = item.unit_id
+        sector_id = item.sector_id
+        if macro_sector is not None and macro_sector.code != "GCBA":
+            unit_id = None
+            sector_id = None
 
-        if item.unit_id is not None and unit is None:
+        unit = session.get(OrganigramUnit, unit_id) if unit_id else None
+        sector = session.get(OrganigramUnit, sector_id) if sector_id else None
+
+        if unit_id is not None and unit is None:
             raise OrganigramReferenceNotFoundError(
-                f"unit_id {item.unit_id} does not exist in the organigram"
+                f"unit_id {unit_id} does not exist in the organigram"
             )
-        if item.sector_id is not None and sector is None:
+        if sector_id is not None and sector is None:
             raise OrganigramReferenceNotFoundError(
-                f"sector_id {item.sector_id} does not exist in the organigram"
+                f"sector_id {sector_id} does not exist in the organigram"
             )
 
         # ADR-0001: `is_sector` is the single source of truth for what a
@@ -220,7 +240,7 @@ def _reconcile_recipients(
         # later exported as SECTOR_FINAL.
         if sector is not None and not sector.is_sector:
             raise InconsistentSectorError(
-                f"sector_id {item.sector_id} is not a sector "
+                f"sector_id {sector_id} is not a sector "
                 "(is_sector=False) in the organigram"
             )
 
@@ -231,7 +251,7 @@ def _reconcile_recipients(
         if unit is not None and sector is not None:
             if not is_sector_ancestor_of(sector, unit, session):
                 raise InconsistentSectorError(
-                    f"sector_id {item.sector_id} is not unit_id {item.unit_id}'s "
+                    f"sector_id {sector_id} is not unit_id {unit_id}'s "
                     "sector in the organigram"
                 )
 

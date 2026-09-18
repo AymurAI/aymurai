@@ -17,6 +17,7 @@ from aymurai.database.crud.recommendation import (
     recommendation_upsert,
 )
 from aymurai.database.schema import (
+    MacroSector,
     OrganigramUnit,
     Recipient,
     SubtopicCreate,
@@ -424,6 +425,58 @@ def test_sector_id_must_name_an_actual_sector(session):
         )
 
 
+def test_non_gcba_macro_sector_nulls_stale_unit_and_sector_id(session):
+    """A recipient's ámbito can be implicitly-suggested as GCBA, get a unit
+    picked while it looks GCBA, and then be explicitly corrected to a
+    non-GCBA ámbito -- the frontend's unit picker hides (never clears) the
+    stale pick when this happens (recipient-fields.tsx's documented
+    hide-not-clear design), so `toPayload` still sends the stale unit_id/
+    sector_id. `_reconcile_recipients` must null them out rather than store a
+    non-GCBA recipient with a GCBA unit/sector, and must not reject the save
+    -- the picker that would let the human clear them is exactly the one now
+    hidden."""
+    ministerio = OrganigramUnit(
+        id=uuid.uuid4(), name="Ministerio de Salud", is_sector=True
+    )
+    session.add(ministerio)
+    direccion = OrganigramUnit(
+        id=uuid.uuid4(),
+        name="Dirección General Legal y Técnica",
+        parent_id=ministerio.id,
+    )
+    session.add(direccion)
+    macro_sector = MacroSector(
+        id=uuid.uuid4(), code="ORGANISMOS_NACIONALES", name="Organismos Nacionales"
+    )
+    session.add(macro_sector)
+    session.commit()
+
+    document_id = uuid.uuid4()
+    recommendation = recommendation_upsert(
+        document_id,
+        _data(
+            recipients=[
+                RecipientValidationData(
+                    id=None,
+                    name="Alguien",
+                    position="Titular de un organismo nacional",
+                    is_primary=True,
+                    macro_sector="Organismos Nacionales",
+                    unit_id=direccion.id,  # stale GCBA pick, hidden not cleared
+                    sector_id=ministerio.id,
+                )
+            ]
+        ),
+        session,
+    )
+
+    stored = session.exec(
+        select(Recipient).where(Recipient.recommendation_id == recommendation.id)
+    ).first()
+    assert stored.unit_id is None
+    assert stored.sector_id is None
+
+
 def test_suggested_pair_with_a_deactivated_nearer_sector_is_accepted(session):
     """The suggestion path skips a deactivated sector and proposes the next
     ACTIVE ancestor. Saving that exact pair must not 422 -- validation checks
@@ -465,6 +518,9 @@ def test_suggested_pair_with_a_deactivated_nearer_sector_is_accepted(session):
     stored = session.exec(
         select(Recipient).where(Recipient.recommendation_id == recommendation.id)
     ).first()
+    # macro_sector is None here (never explicitly confirmed) -- unit_id must
+    # still be trusted unchanged, unlike the explicitly-non-GCBA case above.
+    assert stored.unit_id == unidad.id
     assert stored.sector_id == raiz.id
 
 
