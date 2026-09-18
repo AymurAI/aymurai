@@ -123,22 +123,22 @@ def _destinatario(
     raw_position: str | None,
 ) -> str:
     """
-    The validated organigram unit's name for a GCBA recipient, or the cargo
-    as extracted for everyone else -- and for a GCBA recipient with no
-    validated unit either, since there's nothing more specific to show.
+    The validated organigram unit's name when a unit is set, or the cargo as
+    extracted otherwise. A validated `unit_id` already implies GCBA (the
+    organigram is GCBA-only), so no additional ámbito gate is needed.
 
     Args:
         unit (OrganigramUnit | None): The recipient's validated `unit_id`
             row, if any.
-        macro_sector (MacroSector | None): The recipient's macro sector.
+        macro_sector (MacroSector | None): The recipient's macro sector (not
+            used for this logic; kept for API compatibility).
         raw_position (str | None): The cargo as extracted, used as a
-            fallback whenever there's no validated GCBA unit to name.
+            fallback when there's no validated unit.
 
     Returns:
         str: The unit's name, the raw cargo, or "" if neither is available.
     """
-    is_gcba = macro_sector is not None and macro_sector.code == "GCBA"
-    if is_gcba and unit is not None:
+    if unit is not None:
         return unit.name
     return raw_position or ""
 

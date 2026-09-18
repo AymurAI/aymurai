@@ -346,6 +346,49 @@ def test_destinatarios_gcba_stays_blank_when_no_sector_validated(session):
     assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
 
 
+def test_destinatarios_gcba_unit_without_macro_sector_uses_unit_name(session):
+    """A validated `unit_id` with `macro_sector_id = NULL` should still use
+    the unit's name in CARGO, not the raw extracted position. The organigram
+    is GCBA-only, so a `unit_id` already implies GCBA."""
+    dataset = get_or_create_default_dataset(session)
+    ivc = OrganigramUnit(id=uuid.uuid4(), name="IVC", is_sector=False)
+    session.add(ivc)
+    session.commit()
+    session.refresh(ivc)
+
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        recommendation_number="8/2024",
+        publishable_content="Contenido.",
+    )
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+
+    recipient = Recipient(
+        id=uuid.uuid4(),
+        recommendation_id=recommendation.id,
+        order=0,
+        raw_name="Alguien",
+        raw_position="Titular del IVC",
+        is_primary=True,
+        macro_sector_id=None,  # NULL macro_sector_id
+        unit_id=ivc.id,
+        sector_id=None,
+    )
+    session.add(recipient)
+    session.commit()
+
+    rows = build_destinatarios_rows(session)
+
+    assert len(rows) == 1
+    # CARGO should be the unit's name, not the raw position
+    assert rows[0]["CARGO"] == "IVC"
+    assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
+
+
 def test_write_xlsx_styles_the_header_and_sizes_columns():
     long_content = "x" * 100  # wider than a sheet's default column width
     recomendaciones = [
