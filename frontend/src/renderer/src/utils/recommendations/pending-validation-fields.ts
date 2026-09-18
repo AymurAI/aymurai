@@ -49,6 +49,15 @@ const RECIPIENT_FIELDS: {
   // ADR-0013: `unit_id`/`sector_id` are only ever blanked and filled together,
   // so the pair is one pending field, named after the unit -- the control the
   // person actually picks (`RecipientUnitCombobox`; the sector follows).
+  //
+  // Known gap: this only reports the unit as pending when the backend's own
+  // auto-resolved suggestion (`suggestion.unit_id`) is set. It does NOT see
+  // the case where `recipient-unit-combobox.tsx` falls back to a ranked
+  // candidate (`topRow`, derived there from candidate query data this pure
+  // function has no access to) with no backend suggestion -- the combobox
+  // still shows a violet suggestion mark on screen in that case, but this
+  // check reports nothing pending for it. Same root cause covers the sibling
+  // `sector_id` half of the pair, not a second bug.
   { labelKey: "unit", read: (r) => r.unit_id },
 ];
 

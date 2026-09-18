@@ -99,6 +99,13 @@ blanco. Los tres campos que este ADR deja precargados (`personal_data`, `is_prim
 `publishable_content`) siguen afuera, con la misma asimetría conocida: se guardan con la respuesta del modelo
 y el aviso no los menciona. `unit_id`/`sector_id` se nombran una sola vez, como el par que son.
 
+Hay un hueco conocido en ese mismo criterio para unidad/sector: `RecipientUnitCombobox`
+(`recipient-unit-combobox.tsx`) no sólo pinta la marca cuando el modelo sugirió algo, también la pinta
+cuando no sugirió nada pero la búsqueda del organigrama igual rankeó un candidato (`topRow`), y ese
+candidato no llega a esta función pura. En ese caso puntual la marca está en pantalla, Validar no avisa, y
+el campo se guarda vacío en silencio — exactamente el descuido que esta enmienda existe para cerrar, pero
+sin cerrar del todo para esta combinación.
+
 ## Alternativas consideradas
 
 - **Precargar el valor y marcar visualmente los campos no confirmados** (un borde, un ícono de pendiente).
