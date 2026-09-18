@@ -40,3 +40,13 @@ describe("recommendations i18n — preview", () => {
     expect(typeof recommendations.preview.continue).toBe("string");
   });
 });
+
+describe("recommendations i18n — unvalidated-fields warning", () => {
+  it("defines the warning with its {{fields}} slot and the confirm label", () => {
+    expect(recommendations.validation.unvalidatedFieldsWarning).toContain(
+      "{{fields}}",
+    );
+    expect(typeof recommendations.validation.validateAnyway).toBe("string");
+    expect(recommendations.validation.validateAnyway.length).toBeGreaterThan(0);
+  });
+});

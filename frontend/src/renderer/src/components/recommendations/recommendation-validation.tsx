@@ -7,7 +7,7 @@ import {
 } from "@aymurai/ui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileAnnotator } from "@/components";
 import Footer from "@/components/layout/footer";
@@ -17,6 +17,7 @@ import {
   useRecommendation,
   useRecommendationDispatch,
 } from "@/context/Recommendation";
+import { showToast } from "@/features/showToast";
 import { useFiles } from "@/hooks";
 import { SectionTitle } from "@/layout/section-title";
 import {
@@ -29,6 +30,7 @@ import { Grid, Stack } from "@/styled/jsx";
 import type { RecommendationValidationInput } from "@/types/dataExtraction";
 import { FeatureFlowEnum } from "@/types/features";
 import { buildAnnotations } from "@/utils/recommendations/build-annotations";
+import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import { hasSectorMismatch } from "@/utils/recommendations/recipient-sector-consistency";
 import RecommendationForm from "./recommendation-form";
 
@@ -84,6 +86,18 @@ export default function RecommendationValidation() {
   );
   const [saveFailed, setSaveFailed] = useState(false);
   const [reExtractFailed, setReExtractFailed] = useState(false);
+  const [pendingFields, setPendingFields] = useState<PendingValidationField[]>(
+    [],
+  );
+  const [confirmUnvalidated, setConfirmUnvalidated] = useState(false);
+
+  // A confirmation belongs to the exact list the person was shown. Every edit
+  // recomputes that list into a new array (`useRecommendationForm`'s memo), so
+  // the warning is asked again instead of a stale "yes" waving through fields
+  // that were still pending when it was given.
+  useEffect(() => {
+    setConfirmUnvalidated(false);
+  }, [pendingFields]);
 
   const saveMutation = useMutation(validateRecommendation());
   const reExtractMutation = useMutation(extractDocument());
@@ -149,6 +163,30 @@ export default function RecommendationValidation() {
     [recommendation.prediction, file?.paragraphs, payload],
   );
 
+  // Literal keys, never `t(`validation.${labelKey}`)`: the bundle is typed
+  // (`constants/i18n/index.ts`'s `CustomTypeOptions`) and a literal is what
+  // survives a rename search. Each label is the one its own field already
+  // carries on screen, so the warning and the form say the same words.
+  const labelByField: Record<PendingValidationField["labelKey"], string> = {
+    recommendationNumber: t("validation.recommendationNumber"),
+    recommendationDate: t("validation.recommendationDate"),
+    topic: t("validation.topic"),
+    subtopic: t("validation.subtopic"),
+    macroSector: t("validation.macroSector"),
+    name: t("validation.name"),
+    position: t("validation.position"),
+    unit: t("validation.unit"),
+  };
+
+  // Recipients are named by number, not by their own `name`: that field may
+  // itself be one of the pending ones, and a blank there would leave the
+  // warning pointing at nobody.
+  const pendingLabels = pendingFields.map(({ labelKey, recipientIndex }) =>
+    recipientIndex === undefined
+      ? labelByField[labelKey]
+      : `${t("validation.recipientLabel")} ${recipientIndex + 1}: ${labelByField[labelKey]}`,
+  );
+
   const handleReExtract = () => {
     if (!recommendation.documentId) return;
     setReExtractFailed(false);
@@ -184,6 +222,20 @@ export default function RecommendationValidation() {
 
   const handleValidate = async () => {
     if (!recommendation.documentId || !payload) return;
+    // ADR-0013 (enmienda 2026-09-18): these fields are about to be persisted
+    // empty. Say which ones, once; the next press goes through. This warns,
+    // it does not forbid -- blocking outright is the alternative the ADR
+    // rejected.
+    if (pendingFields.length > 0 && !confirmUnvalidated) {
+      showToast(
+        t("validation.unvalidatedFieldsWarning", {
+          fields: pendingLabels.join(", "),
+        }),
+        "warning",
+      );
+      setConfirmUnvalidated(true);
+      return;
+    }
     setSaveFailed(false);
     try {
       const validation = await saveMutation.mutateAsync({
@@ -251,7 +303,9 @@ export default function RecommendationValidation() {
         onClick={handleValidate}
         disabled={saveMutation.isPending || blockedBySectorMismatch}
       >
-        {t("validation.validate")}
+        {confirmUnvalidated
+          ? t("validation.validateAnyway")
+          : t("validation.validate")}
       </Button>
     );
 
@@ -378,6 +432,7 @@ export default function RecommendationValidation() {
             prediction={recommendation.prediction}
             validation={recommendation.validation}
             onValuesChange={setPayload}
+            onPendingFieldsChange={setPendingFields}
           />
 
           {saveFailed && (

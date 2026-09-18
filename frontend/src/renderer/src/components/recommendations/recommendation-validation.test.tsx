@@ -8,10 +8,17 @@ import type {
   RecommendationValidationInput,
   RecommendationValidation as RecommendationValidationRecord,
 } from "@/types/dataExtraction";
+import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import RecommendationValidation from "./recommendation-validation";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    // Interpolated `fields` are appended so a test can assert what the
+    // message actually names. Every other call still returns the bare key,
+    // which is what the existing assertions in this file match on.
+    t: (key: string, options?: Record<string, unknown>) =>
+      options && "fields" in options ? `${key}:${options.fields}` : key,
+  }),
 }));
 
 vi.mock("@/components/layout/header", () => ({
@@ -37,6 +44,11 @@ const mockFiles = [
   },
 ];
 vi.mock("@/hooks", () => ({ useFiles: () => mockFiles }));
+
+const showToast = vi.fn();
+vi.mock("@/features/showToast", () => ({
+  showToast: (...args: unknown[]) => showToast(...args),
+}));
 
 const { mockDispatch, mockNavigate, mockValidate, mockExtract } = vi.hoisted(
   () => ({
@@ -101,6 +113,8 @@ function aValidation(
 // Reassignable so the save-gate tests can hand the screen a recipient whose
 // validated sector contradicts its unit; every other test leaves it empty.
 let mockRecipients: RecommendationValidationInput["recipients"] = [];
+/** What the stubbed form reports as still-unvalidated; set per test. */
+let mockPendingFields: PendingValidationField[] = [];
 
 // `ministerio` [sector] > `direccion`; `otro` [sector] is somewhere else, so
 // pairing `direccion` with `otro` is exactly what the server 422s on.
@@ -125,10 +139,12 @@ vi.mock("./recommendation-form", () => ({
   default: ({
     prediction,
     onValuesChange,
+    onPendingFieldsChange,
   }: {
     prediction: DataExtractionPrediction;
     validation: RecommendationValidationRecord | null;
     onValuesChange?: (payload: RecommendationValidationInput) => void;
+    onPendingFieldsChange?: (fields: PendingValidationField[]) => void;
   }) => {
     // Memoized (stable reference across re-renders unless `prediction`
     // itself changes) so the mount effect below fires exactly once instead
@@ -151,6 +167,12 @@ vi.mock("./recommendation-form", () => ({
     useEffect(() => {
       onValuesChange?.(seeded);
     }, [seeded, onValuesChange]);
+
+    // Module-scope value, fixed before render by each test -- reported once
+    // on mount, the same beat the real form reports it on.
+    useEffect(() => {
+      onPendingFieldsChange?.(mockPendingFields);
+    }, [onPendingFieldsChange]);
 
     return (
       <textarea
@@ -226,6 +248,8 @@ describe("RecommendationValidation", () => {
     mockRecipients = [];
     mockUnits = [];
     mockUnitsFetches = 0;
+    showToast.mockReset();
+    mockPendingFields = [];
   });
 
   const TREE = [
@@ -461,5 +485,74 @@ describe("RecommendationValidation", () => {
     expect(
       screen.queryByRole("button", { name: "validation.validate" }),
     ).not.toBeInTheDocument();
+  });
+
+  // ADR-0013 (enmienda 2026-09-18): saving a field nobody validated is
+  // allowed, but it must be something the person chose, not something that
+  // happened to them.
+  it("warns instead of saving when a suggested field was never validated", async () => {
+    mockPendingFields = [{ labelKey: "topic" }];
+    renderValidation();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledTimes(1));
+    expect(showToast).toHaveBeenCalledWith(
+      "validation.unvalidatedFieldsWarning:validation.topic",
+      "warning",
+    );
+    expect(mockValidate).not.toHaveBeenCalled();
+  });
+
+  it("names every pending field, recipients by number", async () => {
+    mockPendingFields = [
+      { labelKey: "topic" },
+      { labelKey: "position", recipientIndex: 1 },
+    ];
+    renderValidation();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith(
+        "validation.unvalidatedFieldsWarning:validation.topic, validation.recipientLabel 2: validation.position",
+        "warning",
+      ),
+    );
+  });
+
+  // The warning is a warning, not a gate: the second press goes through with
+  // the fields still empty. Blocking outright is the alternative ADR-0013
+  // rejected.
+  it("saves on the second press, with the fields still empty", async () => {
+    mockPendingFields = [{ labelKey: "topic" }];
+    renderValidation();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+    await waitFor(() => expect(showToast).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validateAnyway" }),
+    );
+
+    await waitFor(() => expect(mockValidate).toHaveBeenCalled());
+  });
+
+  it("saves on the first press when nothing is left to validate", async () => {
+    mockPendingFields = [];
+    renderValidation();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "validation.validate" }),
+    );
+
+    await waitFor(() => expect(mockValidate).toHaveBeenCalled());
+    expect(showToast).not.toHaveBeenCalled();
   });
 });
