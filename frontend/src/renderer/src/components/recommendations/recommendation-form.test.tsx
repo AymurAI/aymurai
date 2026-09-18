@@ -485,4 +485,29 @@ describe("RecommendationForm", () => {
     // One more settled render for the one edit -- not runaway.
     expect(renderCount.current).toBeLessThanOrEqual(rendersAfterMount + 2);
   });
+
+  it("reports the fields still awaiting validation, and drops one once it is filled", () => {
+    const onPendingFieldsChange = vi.fn();
+    renderWithClient(
+      <RecommendationForm
+        prediction={aPrediction()}
+        validation={null}
+        onPendingFieldsChange={onPendingFieldsChange}
+      />,
+    );
+
+    // `aPrediction()` suggests a recommendation_number, so it starts pending.
+    expect(onPendingFieldsChange).toHaveBeenCalledTimes(1);
+    expect(onPendingFieldsChange).toHaveBeenLastCalledWith(
+      expect.arrayContaining([{ labelKey: "recommendationNumber" }]),
+    );
+
+    fireEvent.change(screen.getByLabelText("validation.recommendationNumber"), {
+      target: { value: "999/2026" },
+    });
+
+    expect(onPendingFieldsChange).toHaveBeenLastCalledWith(
+      expect.not.arrayContaining([{ labelKey: "recommendationNumber" }]),
+    );
+  });
 });
