@@ -53,7 +53,8 @@ _SPANISH_MONTHS = {
     "diciembre": 12,
 }
 _PROSE_DATE_PATTERN = re.compile(
-    r"(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de[l]?\s+(\d{4})", re.IGNORECASE
+    r"(\d{1,2})\s*(?:°|º|ro\.?)?\s+de\s+([a-záéíóúñ]+)\s+de[l]?\s+(\d{4})",
+    re.IGNORECASE,
 )
 
 

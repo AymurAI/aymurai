@@ -35,6 +35,16 @@ from aymurai.database.schema import (
         ("fecha desconocida", None),
         ("32 de enero de 2024", None),  # invalid day
         ("15 de mesinventado de 2024", None),  # unknown month
+        # Ordinal markers: tolerate °, º, ro. after the day digit
+        ("1° de marzo de 2024", date(2024, 3, 1)),
+        ("1º de marzo de 2024", date(2024, 3, 1)),
+        ("1ro de marzo de 2024", date(2024, 3, 1)),
+        ("Buenos Aires, 1° de marzo de 2024", date(2024, 3, 1)),
+        # Non-regression: prose without a day digit must return None
+        (
+            "enero de 2024",
+            None,
+        ),  # no day digit to parse; inventing one would fabricate data
     ],
 )
 def test_parse_recommendation_date(text, expected):
