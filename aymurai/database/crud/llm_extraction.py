@@ -35,7 +35,10 @@ def llm_extraction_create_or_update(
 
     Args:
         extraction_id (uuid.UUID): ID of the extraction record.
-        file_name (str | None): Original file name, if known.
+        file_name (str | None): Original file name, if known. When updating an existing
+            record, None is treated as "caller doesn't know the file name", not as a signal
+            to clear it — the schema has no way to express "remove the file name", and
+            no caller needs to. Thus None only ever means "preserve the existing value".
         source_text (str): Document text the extraction ran against.
         prediction (dict[str, Any]): Raw model output, verbatim.
         config (dict[str, Any]): Generation config used for this run.
@@ -55,7 +58,8 @@ def llm_extraction_create_or_update(
             config=config,
         )
     else:
-        record.file_name = file_name
+        if file_name is not None:
+            record.file_name = file_name
         record.source_text = source_text
         record.prediction = prediction
         record.config = config
