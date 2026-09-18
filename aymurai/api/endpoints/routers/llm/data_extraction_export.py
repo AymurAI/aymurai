@@ -121,14 +121,19 @@ def _destinatario(
 ) -> str:
     """
     The validated organigram unit's name when a unit is set, or the cargo as
-    extracted otherwise. A validated `unit_id` already implies GCBA (the
-    organigram is GCBA-only), so no additional ámbito gate is needed.
+    extracted otherwise. A stored `unit_id` implies GCBA, but that's enforced
+    upstream, not merely assumed true by construction: `_reconcile_recipients`
+    (aymurai/database/crud/recommendation.py) nulls out `unit_id`/`sector_id`
+    at write time whenever an explicitly non-GCBA `macro_sector` is confirmed
+    for that recipient, so by the time a row gets here a non-null `unit_id`
+    can only ever be a GCBA one. No additional ámbito gate is needed here.
 
     Args:
         unit (OrganigramUnit | None): The recipient's validated `unit_id`
             row, if any.
         macro_sector (MacroSector | None): The recipient's macro sector (not
-            used for this logic; kept for API compatibility).
+            used for this logic; kept for call-site symmetry with the
+            sibling `_destinatario_por_sector`, which does use it).
         raw_position (str | None): The cargo as extracted, used as a
             fallback when there's no validated unit.
 

@@ -92,7 +92,7 @@ def test_recomendaciones_columns_and_order(session):
     assert row["DATOS_PERSONALES"] == ""  # tri-state: unanswered, not "no"
     # Template columns left unset on this recommendation -- text ones blank,
     # tri-state ones "" (unanswered), never "no".
-    for manual_column in (
+    for unset_column in (
         "EXPEDIENTE",
         "CONTENIDO_INICIAL",
         "ESTADO_DE_SITUACION",
@@ -101,7 +101,7 @@ def test_recomendaciones_columns_and_order(session):
         "PARA_PUBLICAR",
         "LINK",
     ):
-        assert row[manual_column] == ""
+        assert row[unset_column] == ""
 
 
 def test_recomendaciones_template_columns_export_populated_values(session):
@@ -417,6 +417,11 @@ def test_destinatarios_gcba_unit_without_macro_sector_uses_unit_name(session):
     # CARGO should be the unit's name, not the raw position
     assert rows[0]["CARGO"] == "IVC"
     assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
+
+    # Same invariant on the `recomendaciones` sheet's DESTINATARIO column --
+    # the actual defect this fix wave targeted (see commit "fix(export): stop
+    # gating DESTINATARIO on macro_sector code").
+    assert build_recomendaciones_rows(session)[0]["DESTINATARIO"] == "IVC"
 
 
 def test_write_xlsx_styles_the_header_and_sizes_columns():
