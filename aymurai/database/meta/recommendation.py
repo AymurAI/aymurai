@@ -93,32 +93,3 @@ class Recommendation(RecommendationBase, table=True):
     updated_at: datetime | None = Field(
         sa_column=Column(DateTime(), onupdate=func.now())
     )
-
-
-class RecommendationCreate(RecommendationBase):
-    pass
-
-
-class RecommendationUpdate(SQLModel):
-    recommendation_number: str | None = None
-    recommendation_date_text: str | None = None
-    recommendation_date: date | None = None
-    topic_id: uuid.UUID | None = None
-    subtopic_id: uuid.UUID | None = None
-    personal_data: bool | None = None
-    publishable_content: str | None = None
-    # Same post-publication lifecycle fields as `RecommendationBase` -- see
-    # the comment there. Present here for schema symmetry only; nothing in
-    # this task's write paths (`recommendation_upsert`) sets them.
-    file_number: str | None = None
-    recommendation_detail: str | None = None
-    recommendation_situation: RecommendationSituation | None = None
-    status: RecommendationStatus | None = None
-    approved_for_publication: bool | None = None
-    link: str | None = None
-
-
-class RecommendationRead(RecommendationBase):
-    id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime | None = None

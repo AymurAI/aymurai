@@ -9,10 +9,9 @@ from aymurai.database.schema import Recommendation
 
 def test_recommendation_situation_rejects_values_outside_the_closed_catalog(session):
     """`SITUACION_DE_LA_RECOMENDACION` only admits Respuesta / Respuesta
-    parcial / Notificado. SQLModel table classes don't validate on plain
-    construction (only non-table classes like `RecommendationCreate` do),
-    so the actual guardrail here is the DB-level CHECK constraint, which
-    fires on commit."""
+    parcial / Notificado. SQLModel `table=True` classes don't validate on
+    plain construction the way a plain pydantic model does, so the actual
+    guardrail here is the DB-level CHECK constraint, which fires on commit."""
     dataset = get_or_create_default_dataset(session)
     session.add(
         Recommendation(
