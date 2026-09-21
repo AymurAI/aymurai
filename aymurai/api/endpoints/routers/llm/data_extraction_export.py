@@ -33,7 +33,6 @@ RECOMENDACIONES_COLUMNS = (
     "DESTINATARIO",
     "DESTINATARIO_POR_SECTOR",
     "CONTENIDO_PARA_PUBLICAR",
-    "CONTENIDO_INICIAL",
     "DETALLE_DE_LA_RECOMENDACION",
     "SITUACION_DE_LA_RECOMENDACION",
     "ESTADO",
@@ -256,7 +255,6 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
                 "DESTINATARIO": destinatario,
                 "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "CONTENIDO_INICIAL": recommendation.initial_content or "",
                 "DETALLE_DE_LA_RECOMENDACION": recommendation.recommendation_detail
                 or "",
                 "SITUACION_DE_LA_RECOMENDACION": _format_closed_catalog(
@@ -394,7 +392,7 @@ def write_xlsx(
     _style_sheet(
         recomendaciones_sheet,
         RECOMENDACIONES_COLUMNS,
-        wrap_columns=("CONTENIDO_PARA_PUBLICAR", "CONTENIDO_INICIAL"),
+        wrap_columns=("CONTENIDO_PARA_PUBLICAR",),
     )
 
     destinatarios_sheet = workbook.create_sheet("destinatarios")

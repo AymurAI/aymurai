@@ -137,7 +137,6 @@ class RecommendationResponse(BaseModel):
     # the export writes them today; a future, partial-update endpoint (#58)
     # will let a human edit them.
     file_number: str | None
-    initial_content: str | None
     recommendation_detail: str | None
     recommendation_situation: RecommendationSituation | None
     status: RecommendationStatus | None

@@ -23,9 +23,6 @@ def upgrade() -> None:
         "recommendation", sa.Column("file_number", sa.String(), nullable=True)
     )
     op.add_column(
-        "recommendation", sa.Column("initial_content", sa.String(), nullable=True)
-    )
-    op.add_column(
         "recommendation", sa.Column("recommendation_detail", sa.String(), nullable=True)
     )
     # Batched: SQLite's `ALTER TABLE ADD COLUMN` can't attach a CHECK
@@ -78,5 +75,4 @@ def downgrade() -> None:
         batch_op.drop_column("status")
         batch_op.drop_column("recommendation_situation")
     op.drop_column("recommendation", "recommendation_detail")
-    op.drop_column("recommendation", "initial_content")
     op.drop_column("recommendation", "file_number")

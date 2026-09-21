@@ -274,7 +274,6 @@ def _recommendation_response(
         publishable_content=recommendation.publishable_content,
         recipients=[_recipient_detail_response(r, session) for r in recipients],
         file_number=recommendation.file_number,
-        initial_content=recommendation.initial_content,
         recommendation_detail=recommendation.recommendation_detail,
         recommendation_situation=recommendation.recommendation_situation,
         status=recommendation.status,

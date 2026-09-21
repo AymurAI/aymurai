@@ -96,7 +96,6 @@ def test_recomendaciones_columns_and_order(session):
     # tri-state/closed-catalog ones "" (unanswered), never "no".
     for unset_column in (
         "EXPEDIENTE",
-        "CONTENIDO_INICIAL",
         "DETALLE_DE_LA_RECOMENDACION",
         "SITUACION_DE_LA_RECOMENDACION",
         "ESTADO",
@@ -114,7 +113,6 @@ def test_recomendaciones_template_columns_export_populated_values(session):
         document_id=uuid.uuid4(),
         publishable_content="Contenido.",
         file_number="EXP-123/2024",
-        initial_content="Contenido inicial.",
         recommendation_detail="En trámite",
         recommendation_situation=RecommendationSituation.RESPUESTA_PARCIAL,
         status=RecommendationStatus.SOLUCIONADO,
@@ -127,7 +125,6 @@ def test_recomendaciones_template_columns_export_populated_values(session):
     row = build_recomendaciones_rows(session)[0]
 
     assert row["EXPEDIENTE"] == "EXP-123/2024"
-    assert row["CONTENIDO_INICIAL"] == "Contenido inicial."
     assert row["DETALLE_DE_LA_RECOMENDACION"] == "En trámite"
     assert row["SITUACION_DE_LA_RECOMENDACION"] == "Respuesta parcial"
     assert row["ESTADO"] == "Solucionado"
@@ -454,10 +451,6 @@ def test_write_xlsx_styles_the_header_and_sizes_columns():
         assert data_cell.alignment.wrap_text is True
         header_cell = sheet.cell(row=1, column=contenido_idx)
         assert header_cell.alignment.wrap_text is not True
-
-        # CONTENIDO_INICIAL wraps too, same as CONTENIDO_PARA_PUBLICAR.
-        inicial_idx = RECOMENDACIONES_COLUMNS.index("CONTENIDO_INICIAL") + 1
-        assert sheet.cell(row=2, column=inicial_idx).alignment.wrap_text is True
 
         expediente_idx = RECOMENDACIONES_COLUMNS.index("EXPEDIENTE") + 1
         expediente_letter = get_column_letter(expediente_idx)

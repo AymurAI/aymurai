@@ -62,7 +62,6 @@ class RecommendationBase(SQLModel):
     # the usual pydantic validation) -- any other value fails at
     # construction and at the DB layer, never silently stored.
     file_number: str | None = None
-    initial_content: str | None = None
     recommendation_detail: str | None = None
     recommendation_situation: RecommendationSituation | None = Field(
         default=None,
@@ -112,7 +111,6 @@ class RecommendationUpdate(SQLModel):
     # the comment there. Present here for schema symmetry only; nothing in
     # this task's write paths (`recommendation_upsert`) sets them.
     file_number: str | None = None
-    initial_content: str | None = None
     recommendation_detail: str | None = None
     recommendation_situation: RecommendationSituation | None = None
     status: RecommendationStatus | None = None
