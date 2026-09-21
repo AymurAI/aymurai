@@ -273,6 +273,13 @@ def _recommendation_response(
         personal_data=recommendation.personal_data,
         publishable_content=recommendation.publishable_content,
         recipients=[_recipient_detail_response(r, session) for r in recipients],
+        file_number=recommendation.file_number,
+        initial_content=recommendation.initial_content,
+        situation_status=recommendation.situation_status,
+        status=recommendation.status,
+        resolved_in_file=recommendation.resolved_in_file,
+        approved_for_publication=recommendation.approved_for_publication,
+        link=recommendation.link,
     )
 
 

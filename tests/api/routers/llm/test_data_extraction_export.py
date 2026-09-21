@@ -90,8 +90,9 @@ def test_recomendaciones_columns_and_order(session):
     assert row["TEMA"] == "SALUD"
     assert row["SUBTEMA"] == "Hospitales"
     assert row["DATOS_PERSONALES"] == ""  # tri-state: unanswered, not "no"
-    # Columns a human fills in by hand -- always blank coming out of here.
-    for manual_column in (
+    # Template columns left unset on this recommendation -- text ones blank,
+    # tri-state ones "" (unanswered), never "no".
+    for unset_column in (
         "EXPEDIENTE",
         "CONTENIDO_INICIAL",
         "ESTADO_DE_SITUACION",
@@ -100,7 +101,36 @@ def test_recomendaciones_columns_and_order(session):
         "PARA_PUBLICAR",
         "LINK",
     ):
-        assert row[manual_column] == ""
+        assert row[unset_column] == ""
+
+
+def test_recomendaciones_template_columns_export_populated_values(session):
+    dataset = get_or_create_default_dataset(session)
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        publishable_content="Contenido.",
+        file_number="EXP-123/2024",
+        initial_content="Contenido inicial.",
+        situation_status="En trámite",
+        status="Abierto",
+        resolved_in_file=True,
+        approved_for_publication=False,
+        link="https://example.org/expediente/123",
+    )
+    session.add(recommendation)
+    session.commit()
+
+    row = build_recomendaciones_rows(session)[0]
+
+    assert row["EXPEDIENTE"] == "EXP-123/2024"
+    assert row["CONTENIDO_INICIAL"] == "Contenido inicial."
+    assert row["ESTADO_DE_SITUACION"] == "En trámite"
+    assert row["ESTADO"] == "Abierto"
+    assert row["SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE"] == "si"
+    assert row["PARA_PUBLICAR"] == "no"
+    assert row["LINK"] == "https://example.org/expediente/123"
 
 
 def test_recomendaciones_destinatario_is_the_primary_recipients_unit(session):
@@ -344,6 +374,54 @@ def test_destinatarios_gcba_stays_blank_when_no_sector_validated(session):
 
     assert len(rows) == 1
     assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
+
+
+def test_destinatarios_gcba_unit_without_macro_sector_uses_unit_name(session):
+    """A validated `unit_id` with `macro_sector_id = NULL` should still use
+    the unit's name in CARGO, not the raw extracted position. The organigram
+    is GCBA-only, so a `unit_id` already implies GCBA."""
+    dataset = get_or_create_default_dataset(session)
+    ivc = OrganigramUnit(id=uuid.uuid4(), name="IVC", is_sector=False)
+    session.add(ivc)
+    session.commit()
+    session.refresh(ivc)
+
+    recommendation = Recommendation(
+        id=uuid.uuid4(),
+        dataset_id=dataset.id,
+        document_id=uuid.uuid4(),
+        recommendation_number="8/2024",
+        publishable_content="Contenido.",
+    )
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+
+    recipient = Recipient(
+        id=uuid.uuid4(),
+        recommendation_id=recommendation.id,
+        order=0,
+        raw_name="Alguien",
+        raw_position="Titular del IVC",
+        is_primary=True,
+        macro_sector_id=None,  # NULL macro_sector_id
+        unit_id=ivc.id,
+        sector_id=None,
+    )
+    session.add(recipient)
+    session.commit()
+
+    rows = build_destinatarios_rows(session)
+
+    assert len(rows) == 1
+    # CARGO should be the unit's name, not the raw position
+    assert rows[0]["CARGO"] == "IVC"
+    assert rows[0]["DESTINATARIO_POR_SECTOR"] == ""
+
+    # Same invariant on the `recomendaciones` sheet's DESTINATARIO column --
+    # the actual defect this fix wave targeted (see commit "fix(export): stop
+    # gating DESTINATARIO on macro_sector code").
+    assert build_recomendaciones_rows(session)[0]["DESTINATARIO"] == "IVC"
 
 
 def test_write_xlsx_styles_the_header_and_sizes_columns():

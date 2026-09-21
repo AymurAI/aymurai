@@ -41,3 +41,40 @@ def test_create_or_update_overwrites_existing_record(session):
     assert updated.prediction["topic"] == "VIVIENDA"
     assert updated.config["model"] == "b"
     assert llm_extraction_get(extraction_id, session).source_text == "v2"
+
+
+def test_create_or_update_preserves_file_name_when_none_passed(session):
+    """Test that re-extracting with file_name=None doesn't erase the original file name.
+
+    When re-running extraction on a document, the caller may not have the original file name
+    available (file_name=None). This should not destroy the previously-saved file_name, as
+    the schema has no way to express "clear the file name" — None only ever means
+    "caller doesn't know."
+    """
+    extraction_id = text_to_uuid("doc-3")
+    original_file_name = "Resolucion-1234-24.docx"
+
+    # Create with original file name
+    created = llm_extraction_create_or_update(
+        extraction_id,
+        file_name=original_file_name,
+        source_text="v1",
+        prediction={"topic": "SALUD"},
+        config={"model": "a"},
+        session=session,
+    )
+    assert created.file_name == original_file_name
+
+    # Re-extract with file_name=None (caller doesn't know it)
+    updated = llm_extraction_create_or_update(
+        extraction_id,
+        file_name=None,
+        source_text="v2",
+        prediction={"topic": "VIVIENDA"},
+        config={"model": "b"},
+        session=session,
+    )
+
+    # File name should survive (not be erased by None)
+    assert updated.file_name == original_file_name
+    assert llm_extraction_get(extraction_id, session).file_name == original_file_name

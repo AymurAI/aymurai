@@ -159,6 +159,7 @@ export default function RecommendationValidation() {
           (paragraph) => paragraph.value,
         ),
         useCache: false,
+        fileName: file?.data?.name,
       },
       {
         onSuccess: (prediction) => {

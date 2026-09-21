@@ -22,9 +22,6 @@ from aymurai.database.schema import (
 )
 from aymurai.settings import settings
 
-# EXPEDIENTE, CONTENIDO_INICIAL, ESTADO_DE_SITUACION, ESTADO,
-# SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE, PARA_PUBLICAR and LINK are filled
-# in by hand after export -- this pipeline only ever writes "" for them.
 RECOMENDACIONES_COLUMNS = (
     "EXPEDIENTE",
     "TEMA",
@@ -123,22 +120,27 @@ def _destinatario(
     raw_position: str | None,
 ) -> str:
     """
-    The validated organigram unit's name for a GCBA recipient, or the cargo
-    as extracted for everyone else -- and for a GCBA recipient with no
-    validated unit either, since there's nothing more specific to show.
+    The validated organigram unit's name when a unit is set, or the cargo as
+    extracted otherwise. A stored `unit_id` implies GCBA, but that's enforced
+    upstream, not merely assumed true by construction: `_reconcile_recipients`
+    (aymurai/database/crud/recommendation.py) nulls out `unit_id`/`sector_id`
+    at write time whenever an explicitly non-GCBA `macro_sector` is confirmed
+    for that recipient, so by the time a row gets here a non-null `unit_id`
+    can only ever be a GCBA one. No additional ámbito gate is needed here.
 
     Args:
         unit (OrganigramUnit | None): The recipient's validated `unit_id`
             row, if any.
-        macro_sector (MacroSector | None): The recipient's macro sector.
+        macro_sector (MacroSector | None): The recipient's macro sector (not
+            used for this logic; kept for call-site symmetry with the
+            sibling `_destinatario_por_sector`, which does use it).
         raw_position (str | None): The cargo as extracted, used as a
-            fallback whenever there's no validated GCBA unit to name.
+            fallback when there's no validated unit.
 
     Returns:
         str: The unit's name, the raw cargo, or "" if neither is available.
     """
-    is_gcba = macro_sector is not None and macro_sector.code == "GCBA"
-    if is_gcba and unit is not None:
+    if unit is not None:
         return unit.name
     return raw_position or ""
 
@@ -224,7 +226,7 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
 
         rows.append(
             {
-                "EXPEDIENTE": "",
+                "EXPEDIENTE": recommendation.file_number or "",
                 "TEMA": topic.name if topic else "",
                 "SUBTEMA": subtopic.name if subtopic else "",
                 "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
@@ -232,13 +234,17 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
                 "DESTINATARIO": destinatario,
                 "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "CONTENIDO_INICIAL": "",
-                "ESTADO_DE_SITUACION": "",
-                "ESTADO": "",
-                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": "",
-                "PARA_PUBLICAR": "",
+                "CONTENIDO_INICIAL": recommendation.initial_content or "",
+                "ESTADO_DE_SITUACION": recommendation.situation_status or "",
+                "ESTADO": recommendation.status or "",
+                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": _format_tri_state(
+                    recommendation.resolved_in_file
+                ),
+                "PARA_PUBLICAR": _format_tri_state(
+                    recommendation.approved_for_publication
+                ),
                 "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
-                "LINK": "",
+                "LINK": recommendation.link or "",
             }
         )
     return rows
