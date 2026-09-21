@@ -275,9 +275,9 @@ def _recommendation_response(
         recipients=[_recipient_detail_response(r, session) for r in recipients],
         file_number=recommendation.file_number,
         initial_content=recommendation.initial_content,
-        situation_status=recommendation.situation_status,
+        recommendation_detail=recommendation.recommendation_detail,
+        recommendation_situation=recommendation.recommendation_situation,
         status=recommendation.status,
-        resolved_in_file=recommendation.resolved_in_file,
         approved_for_publication=recommendation.approved_for_publication,
         link=recommendation.link,
     )

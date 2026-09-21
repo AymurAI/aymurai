@@ -17,6 +17,8 @@ from aymurai.database.schema import (
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationSituation,
+    RecommendationStatus,
     Subtopic,
     Topic,
 )
@@ -32,9 +34,9 @@ RECOMENDACIONES_COLUMNS = (
     "DESTINATARIO_POR_SECTOR",
     "CONTENIDO_PARA_PUBLICAR",
     "CONTENIDO_INICIAL",
-    "ESTADO_DE_SITUACION",
+    "DETALLE_DE_LA_RECOMENDACION",
+    "SITUACION_DE_LA_RECOMENDACION",
     "ESTADO",
-    "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE",
     "PARA_PUBLICAR",
     "DATOS_PERSONALES",
     "LINK",
@@ -66,6 +68,26 @@ def _format_tri_state(value: bool | None) -> str:
     if value is None:
         return ""
     return "si" if value else "no"
+
+
+def _format_closed_catalog(
+    value: RecommendationSituation | RecommendationStatus | None,
+) -> str:
+    """
+    Formats a closed-catalog field for a spreadsheet cell.
+
+    `None` ("unanswered") must render as an empty string, the same
+    "unanswered" distinction `_format_tri_state` protects for the boolean
+    fields.
+
+    Args:
+        value (RecommendationSituation | RecommendationStatus | None): The
+            stored enum member, or None.
+
+    Returns:
+        str: The member's value, or "" for None.
+    """
+    return value.value if value is not None else ""
 
 
 def _to_local_date(dt: datetime | None) -> str:
@@ -235,11 +257,12 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
                 "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
                 "CONTENIDO_INICIAL": recommendation.initial_content or "",
-                "ESTADO_DE_SITUACION": recommendation.situation_status or "",
-                "ESTADO": recommendation.status or "",
-                "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE": _format_tri_state(
-                    recommendation.resolved_in_file
+                "DETALLE_DE_LA_RECOMENDACION": recommendation.recommendation_detail
+                or "",
+                "SITUACION_DE_LA_RECOMENDACION": _format_closed_catalog(
+                    recommendation.recommendation_situation
                 ),
+                "ESTADO": _format_closed_catalog(recommendation.status),
                 "PARA_PUBLICAR": _format_tri_state(
                     recommendation.approved_for_publication
                 ),

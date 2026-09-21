@@ -4,6 +4,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aymurai.database.meta.recommendation import (
+    RecommendationSituation,
+    RecommendationStatus,
+)
+
 
 class OrganigramCandidateResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -133,9 +138,9 @@ class RecommendationResponse(BaseModel):
     # will let a human edit them.
     file_number: str | None
     initial_content: str | None
-    situation_status: str | None
-    status: str | None
-    resolved_in_file: bool | None
+    recommendation_detail: str | None
+    recommendation_situation: RecommendationSituation | None
+    status: RecommendationStatus | None
     approved_for_publication: bool | None
     link: str | None
 

@@ -19,6 +19,8 @@ from aymurai.database.schema import (
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationSituation,
+    RecommendationStatus,
     Subtopic,
     Topic,
 )
@@ -91,13 +93,13 @@ def test_recomendaciones_columns_and_order(session):
     assert row["SUBTEMA"] == "Hospitales"
     assert row["DATOS_PERSONALES"] == ""  # tri-state: unanswered, not "no"
     # Template columns left unset on this recommendation -- text ones blank,
-    # tri-state ones "" (unanswered), never "no".
+    # tri-state/closed-catalog ones "" (unanswered), never "no".
     for unset_column in (
         "EXPEDIENTE",
         "CONTENIDO_INICIAL",
-        "ESTADO_DE_SITUACION",
+        "DETALLE_DE_LA_RECOMENDACION",
+        "SITUACION_DE_LA_RECOMENDACION",
         "ESTADO",
-        "SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE",
         "PARA_PUBLICAR",
         "LINK",
     ):
@@ -113,9 +115,9 @@ def test_recomendaciones_template_columns_export_populated_values(session):
         publishable_content="Contenido.",
         file_number="EXP-123/2024",
         initial_content="Contenido inicial.",
-        situation_status="En trámite",
-        status="Abierto",
-        resolved_in_file=True,
+        recommendation_detail="En trámite",
+        recommendation_situation=RecommendationSituation.RESPUESTA_PARCIAL,
+        status=RecommendationStatus.SOLUCIONADO,
         approved_for_publication=False,
         link="https://example.org/expediente/123",
     )
@@ -126,9 +128,9 @@ def test_recomendaciones_template_columns_export_populated_values(session):
 
     assert row["EXPEDIENTE"] == "EXP-123/2024"
     assert row["CONTENIDO_INICIAL"] == "Contenido inicial."
-    assert row["ESTADO_DE_SITUACION"] == "En trámite"
-    assert row["ESTADO"] == "Abierto"
-    assert row["SE_RESOLVIO_LA_CUESTION_EN_EL_EXPEDIENTE"] == "si"
+    assert row["DETALLE_DE_LA_RECOMENDACION"] == "En trámite"
+    assert row["SITUACION_DE_LA_RECOMENDACION"] == "Respuesta parcial"
+    assert row["ESTADO"] == "Solucionado"
     assert row["PARA_PUBLICAR"] == "no"
     assert row["LINK"] == "https://example.org/expediente/123"
 
