@@ -517,3 +517,62 @@ describe("useRecommendationForm", () => {
     expect(added?.id).toBeUndefined();
   });
 });
+
+describe("useRecommendationForm — pendingFields", () => {
+  // `aPrediction()`'s `recommendation_date` is "22 de noviembre" (no year),
+  // which `parseSpanishProseDate` returns null for -- so there is no date
+  // suggestion to validate and `recommendationDate` is correctly absent here.
+  // Its recipient has no `unit_id` either, so `unit` is absent too.
+  it("reports every suggested field that is still blank on first render", () => {
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    expect(result.current.pendingFields).toEqual([
+      { labelKey: "recommendationNumber" },
+      { labelKey: "topic" },
+      { labelKey: "subtopic" },
+      { labelKey: "macroSector", recipientIndex: 0 },
+      { labelKey: "name", recipientIndex: 0 },
+      { labelKey: "position", recipientIndex: 0 },
+    ]);
+  });
+
+  it("includes the date once the model's prose actually parses", () => {
+    const { result } = renderHook(() =>
+      useRecommendationForm(
+        aPredictionWith({ recommendation_date: "22 de noviembre de 2025" }),
+        null,
+      ),
+    );
+
+    expect(result.current.pendingFields).toContainEqual({
+      labelKey: "recommendationDate",
+    });
+  });
+
+  it("drops a field as soon as the person validates it", () => {
+    const { result } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    act(() => result.current.setValue("topic", "Salud"));
+
+    expect(result.current.pendingFields).not.toContainEqual({
+      labelKey: "topic",
+    });
+  });
+
+  // Stability is what keeps the consuming effect (`recommendation-form.tsx`)
+  // from re-firing on every unrelated re-render.
+  it("keeps the same array reference while nothing changed", () => {
+    const { result, rerender } = renderHook(() =>
+      useRecommendationForm(aPrediction(), null),
+    );
+
+    const first = result.current.pendingFields;
+    rerender();
+
+    expect(result.current.pendingFields).toBe(first);
+  });
+});

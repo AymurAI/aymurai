@@ -13,6 +13,7 @@ import type {
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import { RecipientFields } from "./recipient-fields";
 import { ValidatedDateField } from "./validated-date-field";
 import { ValidatedSelectField } from "./validated-select-field";
@@ -30,6 +31,12 @@ export interface RecommendationFormProps {
    * identical `useEffect`.
    */
   onValuesChange?: (payload: RecommendationValidationInput) => void;
+  /**
+   * Reports which suggested fields are still blank, on the same beat as
+   * `onValuesChange` — the hosting screen warns about them by name before a
+   * save persists them empty (ADR-0013's enmienda 2026-09-18).
+   */
+  onPendingFieldsChange?: (fields: PendingValidationField[]) => void;
 }
 
 const removeRecipientButton = css({
@@ -83,6 +90,7 @@ export default function RecommendationForm({
   prediction,
   validation,
   onValuesChange,
+  onPendingFieldsChange,
 }: RecommendationFormProps) {
   const { t } = useTranslation("recommendations");
   const {
@@ -95,6 +103,7 @@ export default function RecommendationForm({
     topicOptions,
     subtopicOptions,
     macroSectorOptions,
+    pendingFields,
     toPayload,
   } = useRecommendationForm(prediction, validation);
 
@@ -105,6 +114,13 @@ export default function RecommendationForm({
   useEffect(() => {
     onValuesChange?.(toPayload());
   }, [toPayload, onValuesChange]);
+
+  // Its own effect rather than a second call inside the one above: the two
+  // props are independent, and a consumer that passes only one must not pay
+  // for the other.
+  useEffect(() => {
+    onPendingFieldsChange?.(pendingFields);
+  }, [pendingFields, onPendingFieldsChange]);
 
   const [selectedTab, setSelectedTab] = useState(0);
   const selectedIndex = Math.min(selectedTab, values.recipients.length - 1);

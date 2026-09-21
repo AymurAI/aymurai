@@ -73,6 +73,39 @@ precargados con lo que dijo el modelo.
   booleanos es una deuda: hoy no hay forma de distinguir "contestó que no" de "no lo miró", salvo por
   `personal_data`, que ya es tri-estado y arranca en `null` cuando el modelo tampoco respondió.
 
+### El formulario avisa antes de guardar en blanco *(enmienda 2026-09-18)*
+
+La consecuencia de más arriba —*se puede guardar una recomendación con TEMA en blanco*— se venía cumpliendo
+sin que nadie se enterara. Apretar Validar con la marca violeta todavía en pantalla guardaba ese campo vacío,
+sin ruido, exactamente igual que si la persona hubiera decidido dejarlo así. El dato quedaba bien; la
+decisión, no: no era una decisión, era un descuido.
+
+Ahora el primer Validar con campos pendientes **no guarda**: muestra un toast de warning que los nombra uno
+por uno ("Sin validar: Tema, Destinatario 1: Cargo") y el botón pasa a decir "Guardar de todos modos". El
+segundo Validar guarda igual, con esos campos vacíos. Cualquier edición en el medio recalcula la lista y
+vuelve a pedir la confirmación, porque el sí que se dio era por la lista anterior.
+
+**Esto no es la alternativa "bloquear el guardado hasta que todos los campos estén validados" que este ADR
+rechazó.** Aquella convertía cada recomendación en N clicks obligatorios y no dejaba salida; ésta cuesta un
+click, una sola vez, y deja pasar. Lo que cambia no es *qué* se puede guardar —sigue siendo todo— sino que
+guardar en blanco pasó a ser un gesto deliberado en vez de un silencio. El gate que sí bloquea sigue siendo
+uno solo, el de sector/unidad ([ADR-0009](0009-sector-id-validado-independiente-de-unit-id.md)), y tiene
+prioridad: un botón deshabilitado por esa inconsistencia nunca llega a este aviso.
+
+El aviso mira exactamente los campos que este ADR blanquea (`blankValidatedFields`) y con el mismo criterio
+que la marca en pantalla: `!value && !!suggestion`, o sea *el modelo contestó y todavía nadie tocó eso*. Un
+campo que el modelo dejó vacío no se reclama, porque no hay nada que validar — un blanco ahí es sólo un
+blanco. Los tres campos que este ADR deja precargados (`personal_data`, `is_primary`,
+`publishable_content`) siguen afuera, con la misma asimetría conocida: se guardan con la respuesta del modelo
+y el aviso no los menciona. `unit_id`/`sector_id` se nombran una sola vez, como el par que son.
+
+Hay un hueco conocido en ese mismo criterio para unidad/sector: `RecipientUnitCombobox`
+(`recipient-unit-combobox.tsx`) no sólo pinta la marca cuando el modelo sugirió algo, también la pinta
+cuando no sugirió nada pero la búsqueda del organigrama igual rankeó un candidato (`topRow`), y ese
+candidato no llega a esta función pura. En ese caso puntual la marca está en pantalla, Validar no avisa, y
+el campo se guarda vacío en silencio — exactamente el descuido que esta enmienda existe para cerrar, pero
+sin cerrar del todo para esta combinación.
+
 ## Alternativas consideradas
 
 - **Precargar el valor y marcar visualmente los campos no confirmados** (un borde, un ícono de pendiente).

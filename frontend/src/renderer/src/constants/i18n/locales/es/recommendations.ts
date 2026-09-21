@@ -109,6 +109,11 @@ const recommendations = {
     personalDataNo: "No",
     publishableContent: "Contenido para publicar",
     validate: "Validar documento",
+    validateAnyway: "Guardar de todos modos",
+    // ADR-0013: un campo que nadie validó se guarda vacío. El aviso los nombra
+    // antes de que eso pase; el segundo click guarda igual.
+    unvalidatedFieldsWarning:
+      "Sin validar: {{fields}}. Si guardás ahora esos campos quedan vacíos — apretá de nuevo para confirmar.",
     saveFailed:
       "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },

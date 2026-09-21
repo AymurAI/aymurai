@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   listMacroSectors,
   listSubtopics,
@@ -17,6 +17,10 @@ import type {
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
+import {
+  findPendingValidationFields,
+  type PendingValidationField,
+} from "@/utils/recommendations/pending-validation-fields";
 
 export interface UseRecommendationFormResult {
   /** Frozen at first render — see `useRecommendationForm`'s doc. */
@@ -32,6 +36,10 @@ export interface UseRecommendationFormResult {
   subtopicOptions: FormOption[];
   /** Active macro sectors + any out-of-catalog recipient macro_sector, deduped. */
   macroSectorOptions: FormOption[];
+  /** The suggested fields still blank right now — ADR-0013's enmienda: these
+   *  are exactly what a save would persist empty. Memoized, so a consumer can
+   *  safely depend on the reference. */
+  pendingFields: PendingValidationField[];
   toPayload: () => RecommendationValidationInput;
 }
 
@@ -390,6 +398,11 @@ export function useRecommendationForm(
   // list either omit `toPayload` (an exhaustive-deps false-negative) or,
   // if listed, re-fire on every unrelated re-render and risk a feedback
   // loop with the parent's own setState.
+  const pendingFields = useMemo(
+    () => findPendingValidationFields(values, suggestions),
+    [values, suggestions],
+  );
+
   const toPayload = useCallback(
     (): RecommendationValidationInput => ({
       recommendation_number: values.recommendation_number,
@@ -427,6 +440,7 @@ export function useRecommendationForm(
     topicOptions,
     subtopicOptions,
     macroSectorOptions,
+    pendingFields,
     toPayload,
   };
 }
