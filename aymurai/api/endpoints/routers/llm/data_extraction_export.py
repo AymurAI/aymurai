@@ -7,46 +7,46 @@ from zoneinfo import ZoneInfo
 
 import openpyxl
 import pandas as pd
+from openpyxl.styles import Alignment, Font
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlmodel import Session, select
 
-from aymurai.database.crud.organigram.unit import ruta_organigrama
 from aymurai.database.schema import (
     MacroSector,
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationSituation,
+    RecommendationStatus,
     Subtopic,
     Topic,
 )
 from aymurai.settings import settings
 
 RECOMENDACIONES_COLUMNS = (
-    "RECOMENDACION_ID",
-    "DOCUMENT_ID",
+    "EXPEDIENTE",
+    "TEMA",
+    "SUBTEMA",
     "NUMERO_RECOMENDACION",
     "FECHA_RECOMENDACION",
-    "TEMA",
-    "TEMA_CODIGO",
-    "SUBTEMA",
-    "SUBTEMA_CODIGO",
-    "DATOS_PERSONALES",
+    "DESTINATARIO",
+    "DESTINATARIO_POR_SECTOR",
     "CONTENIDO_PARA_PUBLICAR",
-    "CANTIDAD_DESTINATARIOS",
-    "FECHA_CREACION",
-    "FECHA_VALIDACION",
+    "DETALLE_DE_LA_RECOMENDACION",
+    "SITUACION_DE_LA_RECOMENDACION",
+    "ESTADO",
+    "PARA_PUBLICAR",
+    "DATOS_PERSONALES",
+    "LINK",
 )
 
 DESTINATARIOS_COLUMNS = (
-    "RECOMENDACION_ID",
-    "DOCUMENT_ID",
     "NUMERO_RECOMENDACION",
     "NOMBRE",
     "CARGO",
-    "CARGO_FINAL",
+    "DESTINATARIO_POR_SECTOR",
     "DESTINATARIO_PRINCIPAL",
-    "MACRO_SECTOR",
-    "SECTOR_FINAL",
-    "RUTA_ORGANIGRAMA",
 )
 
 
@@ -67,6 +67,26 @@ def _format_tri_state(value: bool | None) -> str:
     if value is None:
         return ""
     return "si" if value else "no"
+
+
+def _format_closed_catalog(
+    value: RecommendationSituation | RecommendationStatus | None,
+) -> str:
+    """
+    Formats a closed-catalog field for a spreadsheet cell.
+
+    `None` ("unanswered") must render as an empty string, the same
+    "unanswered" distinction `_format_tri_state` protects for the boolean
+    fields.
+
+    Args:
+        value (RecommendationSituation | RecommendationStatus | None): The
+            stored enum member, or None.
+
+    Returns:
+        str: The member's value, or "" for None.
+    """
+    return value.value if value is not None else ""
 
 
 def _to_local_date(dt: datetime | None) -> str:
@@ -90,10 +110,93 @@ def _to_local_date(dt: datetime | None) -> str:
     return local.strftime("%Y-%m-%d")
 
 
+def _destinatario_por_sector(
+    sector: OrganigramUnit | None, macro_sector: MacroSector | None
+) -> str:
+    """
+    The sector a human explicitly validated -- never derived from a plain
+    `unit_id`, and never falls back to it. A GCBA recipient with a unit but
+    no validated sector exports blank here on purpose: this column reports
+    what was confirmed as *the sector*, not the best available guess.
+
+    Args:
+        sector (OrganigramUnit | None): The recipient's validated `sector_id`
+            row, if any.
+        macro_sector (MacroSector | None): The recipient's macro sector.
+
+    Returns:
+        str: The sector's name (GCBA), the macro sector's name (non-GCBA),
+            or "" when neither is resolved.
+    """
+    if sector is not None:
+        return sector.name
+    if macro_sector is not None and macro_sector.code != "GCBA":
+        return macro_sector.name
+    return ""
+
+
+def _destinatario(
+    unit: OrganigramUnit | None,
+    macro_sector: MacroSector | None,
+    raw_position: str | None,
+) -> str:
+    """
+    The validated organigram unit's name when a unit is set, or the cargo as
+    extracted otherwise. A stored `unit_id` implies GCBA, but that's enforced
+    upstream, not merely assumed true by construction: `_reconcile_recipients`
+    (aymurai/database/crud/recommendation.py) nulls out `unit_id`/`sector_id`
+    at write time whenever an explicitly non-GCBA `macro_sector` is confirmed
+    for that recipient, so by the time a row gets here a non-null `unit_id`
+    can only ever be a GCBA one. No additional ámbito gate is needed here.
+
+    Args:
+        unit (OrganigramUnit | None): The recipient's validated `unit_id`
+            row, if any.
+        macro_sector (MacroSector | None): The recipient's macro sector (not
+            used for this logic; kept for call-site symmetry with the
+            sibling `_destinatario_por_sector`, which does use it).
+        raw_position (str | None): The cargo as extracted, used as a
+            fallback when there's no validated unit.
+
+    Returns:
+        str: The unit's name, the raw cargo, or "" if neither is available.
+    """
+    if unit is not None:
+        return unit.name
+    return raw_position or ""
+
+
+def _representative_recipient(session: Session, recommendation_id) -> Recipient | None:
+    """
+    The recipient that stands in for a recommendation on the one-row-per-
+    recommendation `recomendaciones` sheet: the one marked `is_primary`, or
+    (if none is) the first by `order` -- never an error when there are zero.
+
+    Args:
+        session (Session): Database session.
+        recommendation_id: The recommendation's id.
+
+    Returns:
+        Recipient | None: The representative recipient, or None if the
+            recommendation has no recipients at all.
+    """
+    recipients = session.exec(
+        select(Recipient)
+        .where(Recipient.recommendation_id == recommendation_id)
+        .order_by(Recipient.is_primary.desc(), Recipient.order)
+    ).all()
+    return recipients[0] if recipients else None
+
+
 def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
     """
     Builds one row per recommendation, ready to write to the `recomendaciones`
     sheet/CSV. Empty dataset -> empty list, never an error.
+
+    `DESTINATARIO`/`DESTINATARIO_POR_SECTOR` summarize the recommendation's
+    *representative* recipient (see `_representative_recipient`) -- a
+    recommendation with several recipients still gets exactly one row here;
+    the full per-recipient detail lives in the `destinatarios` sheet.
 
     Args:
         session (Session): Database session.
@@ -117,31 +220,52 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
             if recommendation.subtopic_id
             else None
         )
-        recipient_count = len(
-            session.exec(
-                select(Recipient).where(
-                    Recipient.recommendation_id == recommendation.id
-                )
-            ).all()
-        )
+
+        representative = _representative_recipient(session, recommendation.id)
+        destinatario = ""
+        destinatario_por_sector = ""
+        if representative is not None:
+            macro_sector = (
+                session.get(MacroSector, representative.macro_sector_id)
+                if representative.macro_sector_id
+                else None
+            )
+            unit = (
+                session.get(OrganigramUnit, representative.unit_id)
+                if representative.unit_id
+                else None
+            )
+            sector = (
+                session.get(OrganigramUnit, representative.sector_id)
+                if representative.sector_id
+                else None
+            )
+            destinatario = _destinatario(
+                unit, macro_sector, representative.raw_position
+            )
+            destinatario_por_sector = _destinatario_por_sector(sector, macro_sector)
 
         rows.append(
             {
-                "RECOMENDACION_ID": str(recommendation.id),
-                "DOCUMENT_ID": str(recommendation.document_id),
-                "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
-                "FECHA_RECOMENDACION": recommendation.recommendation_date_text or "",
+                "EXPEDIENTE": recommendation.file_number or "",
                 "TEMA": topic.name if topic else "",
-                "TEMA_CODIGO": (topic.code or "") if topic else "",
                 "SUBTEMA": subtopic.name if subtopic else "",
-                "SUBTEMA_CODIGO": (subtopic.code or "") if subtopic else "",
-                "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
+                "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
+                "FECHA_RECOMENDACION": recommendation.recommendation_date,
+                "DESTINATARIO": destinatario,
+                "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "CANTIDAD_DESTINATARIOS": recipient_count,
-                "FECHA_CREACION": _to_local_date(recommendation.created_at),
-                "FECHA_VALIDACION": _to_local_date(
-                    recommendation.updated_at or recommendation.created_at
+                "DETALLE_DE_LA_RECOMENDACION": recommendation.recommendation_detail
+                or "",
+                "SITUACION_DE_LA_RECOMENDACION": _format_closed_catalog(
+                    recommendation.recommendation_situation
                 ),
+                "ESTADO": _format_closed_catalog(recommendation.status),
+                "PARA_PUBLICAR": _format_tri_state(
+                    recommendation.approved_for_publication
+                ),
+                "DATOS_PERSONALES": _format_tri_state(recommendation.personal_data),
+                "LINK": recommendation.link or "",
             }
         )
     return rows
@@ -182,37 +306,60 @@ def build_destinatarios_rows(session: Session) -> list[dict[str, Any]]:
             else None
         )
 
-        # `sector_id` (a human-validated sector-level organigram reference)
-        # wins when present. `unit_id` (a leaf reference, or one picked via
-        # full-corpus search/creation that never got promoted to a sector)
-        # is the next best validated signal -- always preferred over the
-        # raw macro_sector label. Only a non-GCBA recipient with neither
-        # falls back to its macro_sector; a GCBA recipient with neither is
-        # genuinely unvalidated and exports blank.
-        if sector is not None:
-            sector_final = sector.name
-        elif unit is not None:
-            sector_final = unit.name
-        elif macro_sector is not None and macro_sector.code != "GCBA":
-            sector_final = macro_sector.name
-        else:
-            sector_final = ""
-
         rows.append(
             {
-                "RECOMENDACION_ID": str(recommendation.id),
-                "DOCUMENT_ID": str(recommendation.document_id),
                 "NUMERO_RECOMENDACION": recommendation.recommendation_number or "",
                 "NOMBRE": recipient.raw_name or "",
-                "CARGO": recipient.raw_position or "",
-                "CARGO_FINAL": unit.name if unit else "",
+                "CARGO": _destinatario(unit, macro_sector, recipient.raw_position),
+                "DESTINATARIO_POR_SECTOR": _destinatario_por_sector(
+                    sector, macro_sector
+                ),
                 "DESTINATARIO_PRINCIPAL": _format_tri_state(recipient.is_primary),
-                "MACRO_SECTOR": macro_sector.name if macro_sector else "",
-                "SECTOR_FINAL": sector_final,
-                "RUTA_ORGANIGRAMA": ruta_organigrama(unit, session) if unit else "",
             }
         )
     return rows
+
+
+_MIN_COLUMN_WIDTH = 10
+_MAX_COLUMN_WIDTH = 60
+
+
+def _style_sheet(
+    sheet: Worksheet, columns: tuple[str, ...], *, wrap_columns: tuple[str, ...] = ()
+) -> None:
+    """
+    Bolds the header row, freezes it so it stays visible while scrolling,
+    sizes each column to its widest cell (header or content) so the sheet
+    opens already readable instead of every column the same default width,
+    and wraps text in `wrap_columns` so a long value grows the row instead of
+    spilling past the column's (capped) width.
+
+    Args:
+        sheet (Worksheet): The sheet to style, header already written.
+        columns (tuple[str, ...]): Column names, in the order they were
+            written -- used to size each one independently.
+        wrap_columns (tuple[str, ...]): Columns whose data cells (never the
+            header) get `wrap_text` -- Excel/LibreOffice auto-fit the row
+            height for a wrapped cell on open, since no explicit row height
+            was set here to override that.
+    """
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    sheet.freeze_panes = "A2"
+
+    wrap_alignment = Alignment(wrap_text=True, vertical="top")
+    for col_idx, column in enumerate(columns, start=1):
+        widest = len(column)
+        wraps = column in wrap_columns
+        for (cell,) in sheet.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+            if wraps:
+                cell.alignment = wrap_alignment
+            if cell.value is not None:
+                widest = max(widest, len(str(cell.value)))
+        letter = get_column_letter(col_idx)
+        sheet.column_dimensions[letter].width = min(
+            max(widest + 2, _MIN_COLUMN_WIDTH), _MAX_COLUMN_WIDTH
+        )
 
 
 def write_xlsx(
@@ -220,6 +367,11 @@ def write_xlsx(
 ) -> Path:
     """
     Writes the two-sheet workbook to a fresh temp file.
+
+    `FECHA_RECOMENDACION` is written as a native `date` (never a string), so
+    the column opens in Excel as an actual, sortable/filterable date -- the
+    date-formatted cell is what `openpyxl` produces for a Python `date`
+    written directly, no explicit `number_format` needed.
 
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` sheet.
@@ -237,11 +389,17 @@ def write_xlsx(
         recomendaciones_sheet.append(
             [row[column] for column in RECOMENDACIONES_COLUMNS]
         )
+    _style_sheet(
+        recomendaciones_sheet,
+        RECOMENDACIONES_COLUMNS,
+        wrap_columns=("CONTENIDO_PARA_PUBLICAR",),
+    )
 
     destinatarios_sheet = workbook.create_sheet("destinatarios")
     destinatarios_sheet.append(DESTINATARIOS_COLUMNS)
     for row in destinatarios:
         destinatarios_sheet.append([row[column] for column in DESTINATARIOS_COLUMNS])
+    _style_sheet(destinatarios_sheet, DESTINATARIOS_COLUMNS)
 
     fd, path = tempfile.mkstemp(suffix=".xlsx")
     os.close(fd)
@@ -253,6 +411,9 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     """
     Writes just the `recomendaciones` rows to a fresh temp CSV file -- a CSV
     can't hold two sheets, so `destinatarios` isn't part of this format.
+
+    `FECHA_RECOMENDACION` (a `date`/`None` column) serializes through pandas
+    as plain ISO text in the CSV -- CSV has no native date type regardless.
 
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` table.

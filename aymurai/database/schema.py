@@ -84,9 +84,8 @@ from .meta.recipient import (
 )
 from .meta.recommendation import (
     Recommendation,
-    RecommendationCreate,
-    RecommendationRead,
-    RecommendationUpdate,
+    RecommendationSituation,
+    RecommendationStatus,
 )
 from .meta.summarization import (
     Summarization,

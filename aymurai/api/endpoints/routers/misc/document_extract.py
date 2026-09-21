@@ -143,4 +143,5 @@ def plain_text_extractor(file: UploadFile) -> Document:
         document=paragraphs,
         document_id=document_id,
         page_count=page_count,
+        file_name=file.filename,
     )

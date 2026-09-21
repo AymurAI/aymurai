@@ -209,7 +209,7 @@ async def api_data_extraction(
 
     record = llm_extraction_create_or_update(
         document_id,
-        None,
+        payload.document.file_name,
         document_text,
         raw_extraction.model_dump(),
         config,
@@ -273,6 +273,12 @@ def _recommendation_response(
         personal_data=recommendation.personal_data,
         publishable_content=recommendation.publishable_content,
         recipients=[_recipient_detail_response(r, session) for r in recipients],
+        file_number=recommendation.file_number,
+        recommendation_detail=recommendation.recommendation_detail,
+        recommendation_situation=recommendation.recommendation_situation,
+        status=recommendation.status,
+        approved_for_publication=recommendation.approved_for_publication,
+        link=recommendation.link,
     )
 
 

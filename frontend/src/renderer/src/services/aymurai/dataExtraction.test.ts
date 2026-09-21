@@ -77,11 +77,57 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
     expect(postSpy).toHaveBeenCalledWith(
       "/llm/data-extraction",
       {
-        document: { document_id: DOCUMENT_ID, document: ["hola"] },
+        document: {
+          document_id: DOCUMENT_ID,
+          document: ["hola"],
+          file_name: null,
+        },
       },
       { params: { use_cache: true }, signal: undefined },
     );
     expect(result).toEqual(prediction);
+  });
+
+  it("forwards the uploaded file's name as document.file_name", async () => {
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+      data: {
+        document_id: DOCUMENT_ID,
+        recommendation_number: null,
+        recommendation_date: null,
+        recipients: [],
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        config: { model: "m", options: {}, catalogs_hash: "h" },
+        catalogs_stale: false,
+      },
+    });
+
+    const { mutationFn } = dataExtraction.extractDocument();
+    await (
+      mutationFn as (i: {
+        documentId: string;
+        paragraphs: string[];
+        fileName?: string | null;
+      }) => Promise<unknown>
+    )({
+      documentId: DOCUMENT_ID,
+      paragraphs: ["hola"],
+      fileName: "Resolucion-1234-24.docx",
+    });
+
+    expect(postSpy).toHaveBeenCalledWith(
+      "/llm/data-extraction",
+      {
+        document: {
+          document_id: DOCUMENT_ID,
+          document: ["hola"],
+          file_name: "Resolucion-1234-24.docx",
+        },
+      },
+      { params: { use_cache: true }, signal: undefined },
+    );
   });
 
   it("defaults use_cache to true and forwards an explicit false", async () => {

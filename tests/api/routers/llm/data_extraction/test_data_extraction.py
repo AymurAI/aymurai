@@ -1,12 +1,18 @@
 import json
+import uuid
 
+from sqlmodel import Session
+
+from aymurai.database.crud.llm_extraction import llm_extraction_get
 from aymurai.database.utils import text_to_uuid
 
 from .conftest import FakeProvider, patched_provider
 
 
-def _document(text: str = "Texto del documento.") -> dict:
-    return {"document": [text], "document_id": str(text_to_uuid(text))}
+def _document(text: str = "Texto del documento.", **overrides) -> dict:
+    payload = {"document": [text], "document_id": str(text_to_uuid(text))}
+    payload.update(overrides)
+    return payload
 
 
 def _raw_json(**overrides) -> str:
@@ -44,6 +50,27 @@ def test_first_attempt_success(extraction_client, seeded_catalogs):
     assert body["recipients"][0]["name"] == "Juan Perez"
     assert body["config"]["catalogs_hash"]
     assert len(provider.sent_system_prompts) == 1
+
+
+def test_stores_the_uploaded_files_name_on_llm_extraction(
+    extraction_client, extraction_engine, seeded_catalogs
+):
+    """`Document.file_name` (set by /misc/document-extract from the upload)
+    must reach `llm_extraction.file_name` -- historically this was always
+    None, since the router hardcoded it instead of reading the payload."""
+    provider = FakeProvider([_raw_json()])
+    doc = _document(file_name="Resolucion-1234-24.docx")
+    with patched_provider(provider):
+        response = extraction_client.post(
+            "/llm/data-extraction", json={"document": doc}
+        )
+
+    assert response.status_code == 200
+    document_id = response.json()["document_id"]
+
+    with Session(extraction_engine) as session:
+        record = llm_extraction_get(uuid.UUID(document_id), session)
+        assert record.file_name == "Resolucion-1234-24.docx"
 
 
 def test_returns_cached_extraction_without_calling_llm(

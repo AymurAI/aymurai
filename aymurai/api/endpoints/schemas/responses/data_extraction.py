@@ -4,6 +4,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aymurai.database.meta.recommendation import (
+    RecommendationSituation,
+    RecommendationStatus,
+)
+
 
 class OrganigramCandidateResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -127,6 +132,16 @@ class RecommendationResponse(BaseModel):
     personal_data: bool | None
     publishable_content: str
     recipients: list[RecipientDetailResponse]
+    # Post-publication lifecycle fields from the legacy template -- read-only
+    # here (see `Recommendation` in `database/meta/recommendation.py`). Only
+    # the export writes them today; a future, partial-update endpoint (#58)
+    # will let a human edit them.
+    file_number: str | None
+    recommendation_detail: str | None
+    recommendation_situation: RecommendationSituation | None
+    status: RecommendationStatus | None
+    approved_for_publication: bool | None
+    link: str | None
 
 
 class RecommendationDetailResponse(RecommendationResponse):
