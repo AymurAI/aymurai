@@ -49,7 +49,7 @@ def run_backup() -> Path | None:
             sidecar.
     """
     if not SOURCE_DB.exists():
-        print(f"[backup] no hay base en {SOURCE_DB}, se salta esta corrida", flush=True)
+        print(f"[backup] no database at {SOURCE_DB}, skipping this run", flush=True)
         return None
 
     DEST_DIR.mkdir(parents=True, exist_ok=True)
@@ -70,12 +70,12 @@ def run_backup() -> Path | None:
         tmp_path.replace(dest_path)  # atomic: only a complete copy gets the real name
     except (sqlite3.Error, OSError) as exc:
         tmp_path.unlink(missing_ok=True)
-        print(f"[backup] FALLÓ el respaldo de {SOURCE_DB}: {exc}", flush=True)
+        print(f"[backup] FAILED to back up {SOURCE_DB}: {exc}", flush=True)
         if "--once" in sys.argv:
             raise  # a manual run must fail loudly, not report success
         return None  # the loop keeps running and pruning continues
 
-    print(f"[backup] escrito {dest_path}", flush=True)
+    print(f"[backup] wrote {dest_path}", flush=True)
     return dest_path
 
 
@@ -95,7 +95,7 @@ def prune_old_backups() -> None:
     backups = sorted(DEST_DIR.glob("database_*.db"))
     for path in backups[:-RETENTION]:
         path.unlink()
-        print(f"[backup] podado {path}", flush=True)
+        print(f"[backup] pruned {path}", flush=True)
 
 
 def main() -> None:
@@ -111,7 +111,7 @@ def main() -> None:
         prune_old_backups()
         if once:
             return
-        print(f"[backup] durmiendo {INTERVAL_SECONDS}s", flush=True)
+        print(f"[backup] sleeping {INTERVAL_SECONDS}s", flush=True)
         time.sleep(INTERVAL_SECONDS)
 
 
