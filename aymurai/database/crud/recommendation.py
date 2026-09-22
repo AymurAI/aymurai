@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlmodel import Session, select
 
@@ -44,6 +44,18 @@ _ORDER_COLUMNS: dict[str, InstrumentedAttribute] = {
     "recommendation_situation": Recommendation.recommendation_situation,
     "file_number": Recommendation.file_number,
 }
+
+# The columns the free-text search (`q`) spans. Kept to columns owned by
+# `Recommendation` itself so one search stays one table scan -- `topic`/
+# `sector` would each need a join, which issue #58 rules out for this tajada.
+# The frontend's mock (`mockDataExtraction.ts`) and the search box's
+# placeholder copy both mirror exactly this list.
+_SEARCH_COLUMNS: tuple[InstrumentedAttribute, ...] = (
+    Recommendation.recommendation_number,
+    Recommendation.file_number,
+    Recommendation.recommendation_detail,
+    Recommendation.publishable_content,
+)
 
 
 class InconsistentSectorError(Exception):
@@ -386,8 +398,8 @@ def recommendation_list(
             least one recipient resolved to this sector.
         date_from (date | None): Minimum `recommendation_date` (inclusive).
         date_to (date | None): Maximum `recommendation_date` (inclusive).
-        q (str | None): Case-insensitive substring search over
-            `publishable_content`.
+        q (str | None): Case-insensitive substring search, matched against
+            any of `_SEARCH_COLUMNS`.
         unparsed_dates (bool): Restrict to rows with prose
             (`recommendation_date_text`) but no successfully parsed
             `recommendation_date` -- exactly the rows that need human
@@ -416,9 +428,18 @@ def recommendation_list(
         # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
         # match themselves rather than being reinterpreted as wildcards.
         needle = _like_escape(q.lower())
+        pattern = f"%{needle}%"
+        # The four text columns that live directly on `Recommendation`: one
+        # search box, no joins. `tema`/`sector` are deliberately out (issue
+        # #58 keeps join-bound columns out of ordering, and filtering has the
+        # same cost). `func.lower(NULL)` and `NULL LIKE ...` are both NULL in
+        # SQL, so a nullable column simply never matches -- no null guard.
         statement = statement.where(
-            func.lower(Recommendation.publishable_content).like(
-                f"%{needle}%", escape="\\"
+            or_(
+                *(
+                    func.lower(column).like(pattern, escape="\\")
+                    for column in _SEARCH_COLUMNS
+                )
             )
         )
     if sector_id is not None:

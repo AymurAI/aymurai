@@ -25,9 +25,9 @@ import RecommendationsGridRow, {
 } from "./recommendations-grid-row";
 
 /**
- * The grilla de seguimiento: every recomendación in the shared base, with the
- * six post-publication fields editable in place. This is what replaces the
- * external spreadsheet three to five people edit by hand (issue #58).
+ * The grilla de seguimiento: every recomendación in the shared dataset, with
+ * the six post-publication fields editable in place. This is what replaces
+ * the external spreadsheet three to five people edit by hand (issue #58).
  *
  * The server paginates, filters and orders — there is no client-side table
  * engine here on purpose: with the page already coming back sorted and cut,
@@ -138,7 +138,8 @@ export default function RecommendationsGrid() {
 
   // Debounced rather than committed on Enter: the search is a narrowing
   // gesture people watch while typing, and the endpoint answers a substring
-  // match over four indexed columns.
+  // match over the four text columns that need no join (número, expediente,
+  // detalle, contenido -- `_SEARCH_COLUMNS` server-side).
   useEffect(() => {
     const timer = setTimeout(() => setQ(filters.search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -224,8 +225,8 @@ export default function RecommendationsGrid() {
   return (
     <Stack gap="6" width="full" flex="1" minH="0">
       <Stack gap="1">
-        <PageTitle>{t("grid.title")}</PageTitle>
-        <styled.p className={subtitle}>{t("grid.subtitle")}</styled.p>
+        <PageTitle>{t("grilla.title")}</PageTitle>
+        <styled.p className={subtitle}>{t("grilla.subtitle")}</styled.p>
       </Stack>
 
       <RecommendationsGridFilters
@@ -242,25 +243,37 @@ export default function RecommendationsGrid() {
           it disappears the moment a retry lands. The offending cells carry
           their own inline mark. */}
       {failedEdits.size > 0 && (
-        <Callout variant="error" role="alert" message={t("grid.saveFailed")} />
+        <Callout
+          variant="error"
+          role="alert"
+          message={t("grilla.saveFailed")}
+        />
       )}
 
       {/* Without this the two catalog dropdowns would be indistinguishable
           from empty catalogs -- and clearing one would erase a value with
           nothing left to restore it from. The cells lock while it shows. */}
       {enums.isError && (
-        <Callout variant="error" role="alert" message={t("grid.enumsFailed")} />
+        <Callout
+          variant="error"
+          role="alert"
+          message={t("grilla.enumsFailed")}
+        />
       )}
 
       {list.isError ? (
-        <Callout variant="error" role="alert" message={t("grid.loadFailed")} />
+        <Callout
+          variant="error"
+          role="alert"
+          message={t("grilla.loadFailed")}
+        />
       ) : list.isPending ? (
         <HStack justify="center" py="8">
           <Spinner />
         </HStack>
       ) : rows.length === 0 ? (
         <styled.p className={message}>
-          {isFiltered ? t("grid.emptyFiltered") : t("grid.empty")}
+          {isFiltered ? t("grilla.emptyFiltered") : t("grilla.empty")}
         </styled.p>
       ) : (
         <div className={tableWrap}>
@@ -290,7 +303,7 @@ export default function RecommendationsGrid() {
                             column.sortBy && toggleSort(column.sortBy)
                           }
                         >
-                          {t(`grid.columns.${column.id}`)}
+                          {t(`grilla.columns.${column.id}`)}
                           {active &&
                             (orderDir === "asc" ? (
                               <CaretUp size={12} aria-hidden="true" />
@@ -299,7 +312,7 @@ export default function RecommendationsGrid() {
                             ))}
                         </button>
                       ) : (
-                        t(`grid.columns.${column.id}`)
+                        t(`grilla.columns.${column.id}`)
                       )}
                     </th>
                   );
@@ -317,7 +330,7 @@ export default function RecommendationsGrid() {
                   hasFailed={(field: SeguimientoField) =>
                     failedEdits.has(`${row.id}:${field}`)
                   }
-                  saveFailedMessage={t("grid.cellSaveFailed")}
+                  saveFailedMessage={t("grilla.cellSaveFailed")}
                   onEdit={(payload) =>
                     save.mutate({ recommendationId: row.id, payload })
                   }
@@ -331,7 +344,7 @@ export default function RecommendationsGrid() {
       {total > PAGE_SIZE && (
         <HStack justify="flex-end" alignItems="center" gap="3">
           <styled.span className={subtitle}>
-            {t("grid.pagination.range", {
+            {t("grilla.pagination.range", {
               from: firstOnPage,
               to: lastOnPage,
               total,
@@ -340,7 +353,7 @@ export default function RecommendationsGrid() {
           <Button
             variant="tertiary"
             size="sm"
-            aria-label={t("grid.pagination.previous")}
+            aria-label={t("grilla.pagination.previous")}
             disabled={page <= 1}
             onClick={() => setPage((current) => Math.max(1, current - 1))}
           >
@@ -349,7 +362,7 @@ export default function RecommendationsGrid() {
           <Button
             variant="tertiary"
             size="sm"
-            aria-label={t("grid.pagination.next")}
+            aria-label={t("grilla.pagination.next")}
             disabled={lastOnPage >= total}
             onClick={() => setPage((current) => current + 1)}
           >

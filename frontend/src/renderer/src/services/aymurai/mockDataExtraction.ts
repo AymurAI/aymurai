@@ -296,8 +296,9 @@ const RECOMMENDATION_STATUSES = ["Solucionado", "No solucionado"];
 /**
  * Seed rows for the recommendations grilla (Task 5), keyed by `id`. Two rows
  * on purpose: one fully worked (a parsed date, a situation, no status yet)
- * and one still needing attention (no parsed date, no seguimiento fields
- * set), so `unparsedDates`/empty-state UI has something real to show against.
+ * and one still needing attention (date prose that did not parse, no
+ * seguimiento fields set), so `unparsedDates`/empty-state UI has something
+ * real to show against.
  */
 const recommendationRows = new Map<string, RecommendationRow>([
   [
@@ -330,7 +331,11 @@ const recommendationRows = new Map<string, RecommendationRow>([
       id: "recommendation-2",
       document_id: "document-2",
       recommendation_number: "456/2026",
-      recommendation_date_text: null,
+      // Prose the model read but could not parse -- what an "unparsed date"
+      // actually is, and what the `unparsedDates` filter looks for (text
+      // present, no parsed date). A row with neither was never a date to
+      // interpret and the real endpoint would not return it here.
+      recommendation_date_text: "durante el pasado mes",
       recommendation_date: null,
       topic: "Vivienda",
       subtopic: null,
@@ -373,16 +378,25 @@ export function mockRecommendationsList(params: {
   let rows = Array.from(recommendationRows.values());
 
   if (params.unparsedDates) {
-    rows = rows.filter((r) => r.recommendation_date === null);
+    // Both halves, exactly as the real filter does it: prose the model read
+    // but could not parse. A row with no date text at all was never a date
+    // to interpret, so it is not one a human has to correct.
+    rows = rows.filter(
+      (r) =>
+        r.recommendation_date_text !== null && r.recommendation_date === null,
+    );
   }
   if (params.q) {
     const q = params.q.toLowerCase();
+    // The same four columns the real endpoint ORs over (see `_SEARCH_COLUMNS`
+    // in `database/crud/recommendation.py`). `topic` is deliberately NOT one
+    // of them -- matching it server-side would need a join (issue #58).
     rows = rows.filter((r) =>
       [
         r.recommendation_number,
         r.file_number,
         r.recommendation_detail,
-        r.topic,
+        r.publishable_content,
       ].some((field) => field?.toLowerCase().includes(q)),
     );
   }

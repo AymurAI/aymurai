@@ -27,7 +27,9 @@ const SAMPLE_ROW = {
   status: null,
   approved_for_publication: null,
   link: null,
-  created_at: "2026-09-01T00:00:00Z",
+  // The real wire format: FastAPI serializes these naive, with no `Z` and
+  // no offset, even though the instant they carry is UTC.
+  created_at: "2026-09-01T00:00:00",
   updated_at: null,
 };
 

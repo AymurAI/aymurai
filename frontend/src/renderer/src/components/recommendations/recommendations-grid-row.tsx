@@ -4,7 +4,7 @@ import type {
   RecipientDetail,
   RecommendationRow,
 } from "@/types/dataExtraction";
-import { formatDisplayDate } from "@/utils/format-date";
+import { formatDisplayDate, formatDisplayTimestamp } from "@/utils/format-date";
 import {
   EditableSelectCell,
   EditableTextCell,
@@ -117,13 +117,17 @@ export default function RecommendationsGridRow({
   // recommendation number is data, not copy.
   const rowLabel = row.recommendation_number ?? row.id;
   const label = (column: ColumnId) =>
-    `${t(`grid.columns.${column}`)} · ${rowLabel}`;
+    `${t(`grilla.columns.${column}`)} · ${rowLabel}`;
 
   const recipient = primaryRecipient(row.recipients);
 
   // The grilla's "última edición": `updated_at` once anybody has touched the
-  // row, the moment it entered the base otherwise.
-  const lastEdited = formatDisplayDate(row.updated_at ?? row.created_at);
+  // row, the moment it was registered otherwise. `formatDisplayTimestamp`,
+  // not `formatDisplayDate`: these two come off the wire naive (no `Z`) and
+  // mean a UTC instant, so reading them as a calendar day in UTC would date
+  // any late-afternoon edit in Argentina to the following day — the export
+  // (`_to_local_date`) already gets this right, and the two must agree.
+  const lastEdited = formatDisplayTimestamp(row.updated_at ?? row.created_at);
 
   /** `undefined` (not `null`) so an unfailed cell passes no error at all. */
   const errorFor = (field: SeguimientoField) =>
@@ -213,8 +217,8 @@ export default function RecommendationsGridRow({
         <EditableSelectCell
           ariaLabel={label("approvedForPublication")}
           options={[
-            { id: APPROVED_YES, text: t("grid.approved.yes") },
-            { id: APPROVED_NO, text: t("grid.approved.no") },
+            { id: APPROVED_YES, text: t("grilla.approved.yes") },
+            { id: APPROVED_NO, text: t("grilla.approved.no") },
           ]}
           value={approvedValue}
           error={errorFor("approved_for_publication")}

@@ -74,18 +74,18 @@ export default function RecommendationsGridFilters({
     <HStack className={bar}>
       <div className={searchSlot}>
         <Search
-          aria-label={t("grid.filters.searchLabel")}
-          placeholder={t("grid.filters.searchPlaceholder")}
+          aria-label={t("grilla.filters.searchLabel")}
+          placeholder={t("grilla.filters.searchPlaceholder")}
           value={values.search}
           onChange={(event) => onChange({ search: event.target.value })}
           onClear={() => onChange({ search: "" })}
-          labels={{ clear: t("grid.filters.clearSearch") }}
+          labels={{ clear: t("grilla.filters.clearSearch") }}
         />
       </div>
 
       <Stack gap="1">
         <label className={dateLabel} htmlFor={fromId}>
-          {t("grid.filters.dateFrom")}
+          {t("grilla.filters.dateFrom")}
         </label>
         <input
           id={fromId}
@@ -98,7 +98,7 @@ export default function RecommendationsGridFilters({
 
       <Stack gap="1">
         <label className={dateLabel} htmlFor={toId}>
-          {t("grid.filters.dateTo")}
+          {t("grilla.filters.dateTo")}
         </label>
         <input
           id={toId}
@@ -113,7 +113,7 @@ export default function RecommendationsGridFilters({
         checked={values.unparsedDates}
         onChange={(checked) => onChange({ unparsedDates: checked })}
       >
-        {t("grid.filters.unparsedDates")}
+        {t("grilla.filters.unparsedDates")}
       </Checkbox>
 
       <Button
@@ -122,7 +122,7 @@ export default function RecommendationsGridFilters({
         onClick={onReset}
         disabled={!isFiltered}
       >
-        {t("grid.filters.reset")}
+        {t("grilla.filters.reset")}
       </Button>
     </HStack>
   );

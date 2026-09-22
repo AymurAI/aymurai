@@ -5,7 +5,7 @@
  * labels from the same ids.
  */
 
-/** Key under `grid.columns` in the `recommendations` i18n namespace. */
+/** Key under `grilla.columns` in the `recommendations` i18n namespace. */
 export type ColumnId =
   | "recommendationNumber"
   | "recommendationDate"

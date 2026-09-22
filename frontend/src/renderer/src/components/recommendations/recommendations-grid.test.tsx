@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecommendationRow } from "@/types/dataExtraction";
+import { formatDisplayTimestamp } from "@/utils/format-date";
 import RecommendationsGrid from "./recommendations-grid";
 
 vi.mock("react-i18next", () => ({
@@ -58,13 +59,13 @@ function aRow(overrides: Partial<RecommendationRow> = {}): RecommendationRow {
     status: "Abierta",
     approved_for_publication: null,
     link: null,
-    created_at: "2026-01-01T09:00:00Z",
-    updated_at: "2026-02-01T10:00:00Z",
+    created_at: "2026-01-01T09:00:00",
+    updated_at: "2026-02-01T10:00:00",
     ...overrides,
   };
 }
 
-// `updated_at: null` — never touched since it entered the base.
+// `updated_at: null` — never touched since it was registered.
 const NEVER_EDITED = aRow({
   id: "r2",
   recommendation_number: "REC-002",
@@ -84,7 +85,7 @@ const NEVER_EDITED = aRow({
   ],
   file_number: null,
   status: null,
-  created_at: "2026-03-15T12:00:00Z",
+  created_at: "2026-03-15T12:00:00",
   updated_at: null,
 });
 
@@ -137,7 +138,7 @@ async function openDropdown(trigger: HTMLElement) {
 
 /** The accessible name `RecommendationsGridRow` builds for one cell. */
 const cellLabel = (column: string, row: string) =>
-  `grid.columns.${column} · ${row}`;
+  `grilla.columns.${column} · ${row}`;
 
 describe("RecommendationsGrid", () => {
   beforeEach(() => {
@@ -273,12 +274,23 @@ describe("RecommendationsGrid", () => {
   it("marks the last edit with created_at when the row was never updated", async () => {
     renderGrid();
 
+    // Expected through `formatDisplayTimestamp` rather than as a literal:
+    // the fixtures carry the wire format (naive, no `Z`), which is rendered
+    // in the reader's own timezone — so a literal would only hold on a
+    // machine set to one particular one. `format-date.test.ts` is where the
+    // formatting itself is pinned down.
     // REC-002 has `updated_at: null`, so its mark is its `created_at`...
-    expect(await screen.findByText("15/03/2026")).toBeInTheDocument();
+    expect(
+      await screen.findByText(formatDisplayTimestamp("2026-03-15T12:00:00")),
+    ).toBeInTheDocument();
     // ...while REC-001, which has one, shows that instead of its own
-    // `created_at` (01/01/2026).
-    expect(screen.getByText("01/02/2026")).toBeInTheDocument();
-    expect(screen.queryByText("01/01/2026")).not.toBeInTheDocument();
+    // `created_at`.
+    expect(
+      screen.getByText(formatDisplayTimestamp("2026-02-01T10:00:00")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(formatDisplayTimestamp("2026-01-01T09:00:00")),
+    ).not.toBeInTheDocument();
   });
 
   it("orders by a whitelisted column when its header is clicked", async () => {
@@ -286,7 +298,7 @@ describe("RecommendationsGrid", () => {
 
     fireEvent.click(
       await screen.findByRole("button", {
-        name: /grid\.columns\.recommendationDate/,
+        name: /grilla\.columns\.recommendationDate/,
       }),
     );
 
@@ -303,7 +315,9 @@ describe("RecommendationsGrid", () => {
   it("asks the server for only the rows with an unparsed date", async () => {
     renderGrid();
 
-    fireEvent.click(await screen.findByLabelText("grid.filters.unparsedDates"));
+    fireEvent.click(
+      await screen.findByLabelText("grilla.filters.unparsedDates"),
+    );
 
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
@@ -322,7 +336,7 @@ describe("RecommendationsGrid", () => {
     fireEvent.change(cell, { target: { value: "EX-99" } });
     fireEvent.blur(cell);
 
-    expect(await screen.findByText("grid.saveFailed")).toBeInTheDocument();
+    expect(await screen.findByText("grilla.saveFailed")).toBeInTheDocument();
     // The draft still shows the text that was never saved, so the cell itself
     // has to say so — a banner alone would leave the value looking accepted.
     await waitFor(() => expect(cell).toBeInvalid());
@@ -350,7 +364,7 @@ describe("RecommendationsGrid", () => {
     fireEvent.blur(succeeding);
     await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(2));
 
-    expect(screen.getByText("grid.saveFailed")).toBeInTheDocument();
+    expect(screen.getByText("grilla.saveFailed")).toBeInTheDocument();
     expect(failing).toBeInvalid();
     expect(succeeding).not.toBeInvalid();
   });
@@ -370,14 +384,14 @@ describe("RecommendationsGrid", () => {
     fireEvent.blur(cell);
 
     await waitFor(() => expect(cell).not.toBeInvalid());
-    expect(screen.queryByText("grid.saveFailed")).not.toBeInTheDocument();
+    expect(screen.queryByText("grilla.saveFailed")).not.toBeInTheDocument();
   });
 
   it("surfaces a failure to load the base", async () => {
     mockList.mockRejectedValue(new Error("500"));
     renderGrid();
 
-    expect(await screen.findByText("grid.loadFailed")).toBeInTheDocument();
+    expect(await screen.findByText("grilla.loadFailed")).toBeInTheDocument();
   });
 
   // Without this the two catalog cells render as empty pickers indistinguishable
@@ -387,7 +401,7 @@ describe("RecommendationsGrid", () => {
     mockEnums.mockRejectedValue(new Error("500"));
     renderGrid();
 
-    expect(await screen.findByText("grid.enumsFailed")).toBeInTheDocument();
+    expect(await screen.findByText("grilla.enumsFailed")).toBeInTheDocument();
 
     const status = screen.getByLabelText(cellLabel("status", "REC-001"));
     const situation = screen.getByLabelText(
@@ -406,7 +420,7 @@ describe("RecommendationsGrid", () => {
     mockEnums.mockRejectedValue(new Error("500"));
     renderGrid();
 
-    await screen.findByText("grid.enumsFailed");
+    await screen.findByText("grilla.enumsFailed");
     const cell = screen.getByLabelText(cellLabel("fileNumber", "REC-002"));
     fireEvent.change(cell, { target: { value: "EX-99" } });
     fireEvent.blur(cell);
