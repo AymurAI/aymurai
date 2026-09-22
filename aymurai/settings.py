@@ -56,6 +56,13 @@ class Settings(BaseSettings):
 
     SQLALCHEMY_DATABASE_URI: str = "sqlite:////resources/cache/sqlite/database.db"
 
+    # Cuánto espera una conexión SQLite antes de lanzar "database is locked"
+    # cuando otra conexión tiene el escritor. Con WAL los lectores nunca
+    # bloquean al escritor, así que esto sólo importa entre escritores
+    # concurrentes -- decenas de documentos/mes con 3-5 personas hace esto
+    # infrecuente, pero sin timeout el error es inmediato en vez de esperar.
+    SQLITE_BUSY_TIMEOUT_MS: int = 5000
+
     RESOURCES_BASEPATH: str = "/resources"
     CACHE_BASEPATH: str = Field(
         default="/resources/cache",

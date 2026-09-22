@@ -9,7 +9,7 @@ from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
 from aymurai.api.endpoints.routers.defensoria import data_extraction
 from aymurai.database.schema import OrganigramUnit
-from aymurai.database.session import _enable_sqlite_foreign_keys, get_session
+from aymurai.database.session import _configure_sqlite_connection, get_session
 from aymurai.llm_providers import LLMResponse, ServedModel
 from aymurai.settings import settings
 
@@ -77,7 +77,7 @@ def extraction_engine():
     )
     from sqlalchemy import event
 
-    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    event.listen(engine, "connect", _configure_sqlite_connection)
     SQLModel.metadata.create_all(engine)
     yield engine
     engine.dispose()
