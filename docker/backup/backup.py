@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Sidecar de respaldo periódico para la SQLite interna de AymurAI.
+"""Periodic backup sidecar for AymurAI's internal SQLite database.
 
-Corre `sqlite3.Connection.backup()` en un intervalo -- el método correcto
-bajo WAL, a diferencia de copiar el archivo con `cp` (que puede capturar la
-base a mitad de un checkpoint y producir una copia corrupta). Escribe un
-archivo nuevo fechado en cada corrida y poda hasta la cantidad de retención
-configurada -- el más viejo primero, sin ninguna otra lógica (retención
-"tonta" a propósito: ver ADR-0014 y la sesión de diseño que la decidió).
+Runs `sqlite3.Connection.backup()` on an interval -- the correct method
+under WAL, unlike copying the file with `cp` (which can capture the
+database mid-checkpoint and produce a corrupt copy). Writes a new dated
+file on every run and prunes down to the configured retention count --
+oldest first, no other logic (deliberately "dumb" retention: see
+ADR-0014 and the design session that decided it).
 
-No es parte del paquete `aymurai`: corre como entrypoint standalone en su
-propia imagen liviana, por eso lee sus env vars directo con `os.environ` en
-vez de por `aymurai.settings` -- no tiene ese módulo disponible ni falta que
-lo tenga.
+Not part of the `aymurai` package: runs as a standalone entrypoint in its
+own lightweight image, which is why it reads its env vars directly via
+`os.environ` instead of through `aymurai.settings` -- that module isn't
+available here, and there's no need for it to be.
 
-Uso:
-    python backup.py            # loop infinito, un respaldo por BACKUP_INTERVAL_SECONDS
-    python backup.py --once     # un solo respaldo y termina (lo usa `make db-backup`)
+Usage:
+    python backup.py            # infinite loop, one backup per BACKUP_INTERVAL_SECONDS
+    python backup.py --once     # a single backup and exit (used by `make db-backup`)
 """
 
 import os
@@ -34,14 +34,20 @@ RETENTION = int(os.environ.get("BACKUP_RETENTION", "30"))
 
 
 def run_backup() -> Path | None:
-    """Escribe un respaldo fechado. None si todavía no hay base fuente --
-    una máquina que nunca corrió la API no tiene nada que respaldar, y eso
-    no es un error del sidecar.
+    """Writes one dated backup.
 
-    Escribe primero a un archivo temporal fuera del glob `database_*.db` y
-    lo renombra recién al terminar: así un respaldo que falla a mitad de
-    camino nunca deja un `.db` de 0 bytes con pinta de respaldo válido, ni
-    consume un lugar de retención ni aparece como candidato de restore."""
+    Writes to a temporary file outside the `database_*.db` glob first, and
+    only renames it once the copy finishes -- so a backup that fails
+    partway through never leaves a 0-byte `.db` file that looks like a
+    valid backup, never consumes a retention slot, and never shows up as a
+    restore candidate.
+
+    Returns:
+        Path | None: The written backup's path, or `None` if there was no
+            source database yet -- a machine that has never run the API
+            has nothing to back up, and that's not an error for the
+            sidecar.
+    """
     if not SOURCE_DB.exists():
         print(f"[backup] no hay base en {SOURCE_DB}, se salta esta corrida", flush=True)
         return None
@@ -74,14 +80,16 @@ def run_backup() -> Path | None:
 
 
 def prune_old_backups() -> None:
-    """Conserva las RETENTION copias fechadas más recientes, borra el resto.
-    Ordenar por nombre de archivo alcanza para ordenar cronológicamente: el
-    timestamp es de ancho fijo con ceros a la izquierda. Sin más lógica que
-    "las más viejas primero" -- ver el docstring del módulo.
+    """Keeps the RETENTION most recent dated copies, deletes the rest.
 
-    RETENTION <= 0 significa "no podar nada" -- la dirección segura, en vez
-    de interpretarlo como "podar todo" (que borraría el respaldo recién
-    escrito)."""
+    Sorting by filename is enough to sort chronologically: the timestamp
+    is fixed-width, zero-padded. No logic beyond "oldest first" -- see the
+    module docstring.
+
+    `RETENTION <= 0` means "don't prune anything" -- the safe direction,
+    rather than reading it as "prune everything" (which would delete the
+    backup just written).
+    """
     if RETENTION <= 0:
         return
     backups = sorted(DEST_DIR.glob("database_*.db"))
@@ -91,6 +99,12 @@ def prune_old_backups() -> None:
 
 
 def main() -> None:
+    """Entrypoint: runs one backup+prune cycle, or loops forever on an interval.
+
+    `--once` in `sys.argv` selects the single-cycle mode `make db-backup`
+    and `db-restore`'s pre-restore safety snapshot use; otherwise this
+    loops until the container is stopped.
+    """
     once = "--once" in sys.argv
     while True:
         run_backup()
