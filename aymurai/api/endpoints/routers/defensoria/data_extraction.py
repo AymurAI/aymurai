@@ -29,6 +29,7 @@ from aymurai.api.endpoints.routers.llm.summarization_engine import ContextTooSma
 from aymurai.api.exceptions import ConfigurationError, NotFoundError
 from aymurai.api.endpoints.schemas.requests.data_extraction import (
     DataExtractionRequest,
+    RecommendationSeguimientoUpdateRequest,
     ValidateRecommendationRequest,
 )
 from aymurai.api.endpoints.schemas.responses.data_extraction import (
@@ -58,6 +59,7 @@ from aymurai.database.crud.recommendation import (
     recommendation_get,
     recommendation_get_by_document,
     recommendation_list,
+    recommendation_update_seguimiento,
     recommendation_upsert,
 )
 from aymurai.database.schema import (
@@ -66,6 +68,7 @@ from aymurai.database.schema import (
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationUpdate,
     Subtopic,
     Topic,
 )
@@ -280,6 +283,8 @@ def _recommendation_response(
         status=recommendation.status,
         approved_for_publication=recommendation.approved_for_publication,
         link=recommendation.link,
+        created_at=recommendation.created_at,
+        updated_at=recommendation.updated_at,
     )
 
 
@@ -378,6 +383,26 @@ async def api_data_extraction_recommendation_detail(
 
     extraction = llm_extraction_get(recommendation.document_id, session)
     return _recommendation_detail_response(recommendation, extraction, session)
+
+
+@router.patch(
+    "/data-extraction/recommendations/{recommendation_id}",
+    response_model=RecommendationResponse,
+)
+async def api_data_extraction_recommendation_update_seguimiento(
+    recommendation_id: uuid.UUID,
+    payload: RecommendationSeguimientoUpdateRequest,
+    session: SessionDep,
+) -> RecommendationResponse:
+    try:
+        recommendation = recommendation_update_seguimiento(
+            recommendation_id,
+            RecommendationUpdate(**payload.model_dump(exclude_unset=True)),
+            session,
+        )
+    except ValueError as exc:
+        raise NotFoundError(detail=str(exc))
+    return _recommendation_response(recommendation, session)
 
 
 @router.get("/data-extraction/export")

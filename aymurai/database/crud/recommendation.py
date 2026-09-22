@@ -12,6 +12,7 @@ from aymurai.database.schema import (
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationUpdate,
     Subtopic,
     Topic,
 )
@@ -309,6 +310,32 @@ def recommendation_get_by_document(
         .where(Recommendation.dataset_id == dataset.id)
         .where(Recommendation.document_id == document_id)
     ).first()
+
+
+def recommendation_update_seguimiento(
+    recommendation_id: uuid.UUID, update: RecommendationUpdate, session: Session
+) -> Recommendation:
+    """
+    Actualiza sólo los seis campos de seguimiento de una recomendación existente.
+
+    Ausente en `update` = no toca ese campo (por `exclude_unset=True`); presente
+    en `None` = lo limpia. Nunca toca los campos que vienen del documento --
+    ésos son responsabilidad exclusiva de `recommendation_upsert`.
+
+    Raises:
+        ValueError: Si la recomendación no existe.
+    """
+    recommendation = session.get(Recommendation, recommendation_id)
+    if not recommendation:
+        raise ValueError(f"Recommendation not found: {recommendation_id}")
+
+    for field_name, value in update.model_dump(exclude_unset=True).items():
+        setattr(recommendation, field_name, value)
+
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+    return recommendation
 
 
 def recommendation_list(

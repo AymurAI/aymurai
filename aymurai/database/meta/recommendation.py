@@ -79,6 +79,18 @@ class RecommendationBase(SQLModel):
     link: str | None = None
 
 
+class RecommendationUpdate(SQLModel):
+    """Capa DB del PATCH de seguimiento -- todo opcional, `exclude_unset=True`
+    en el CRUD decide qué tocar. Nunca incluye campos de la extracción."""
+
+    file_number: str | None = None
+    recommendation_detail: str | None = None
+    recommendation_situation: RecommendationSituation | None = None
+    status: RecommendationStatus | None = None
+    approved_for_publication: bool | None = None
+    link: str | None = None
+
+
 class Recommendation(RecommendationBase, table=True):
     __tablename__ = "recommendation"
     __table_args__ = (
