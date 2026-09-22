@@ -31,6 +31,66 @@ The last four are the Defensoría del Pueblo (CABA) feature (see
 them. **These migrations always run**, independent of the `DEFENSORIA_ENABLED`
 feature flag, which only gates whether the corresponding routers are mounted.
 
+## Operations
+
+### Location and volume persistence
+Inside the container the database lives at
+`/resources/cache/sqlite/database.db`; on the host it's
+`./resources/cache/sqlite/database.db`, reachable via the
+`./resources/cache:/resources/cache` bind mount on every API variant
+(`aymurai-api`, `aymurai-api-gpu`, `aymurai-api-full`, `aymurai-api-full-gpu`).
+That mount has to stay a bind mount tied to the host, not to the container:
+if the database only lived in the container's writable layer, recreating the
+container (redeploy, `--force-recreate`, an image update) would silently
+wipe it. This was a real bug on the `api-full` profile, fixed as part of this
+Fase — the profile's compose definition was missing the mount entirely.
+
+### Automatic backups
+The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
+`sqlite3.Connection.backup()` — safe under WAL, unlike copying the file with
+`cp`, which can capture it mid-checkpoint — and writes dated snapshots
+`database_<timestamp>.db` to `./resources/backups` (mounted at `/backups`
+in the container). Configuration, with the defaults shipped in
+`docker-compose.yml`:
+- `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (one backup per hour)
+- `BACKUP_RETENTION` — default `30`; keeps the newest N dated backups and
+  deletes older ones. `BACKUP_RETENTION <= 0` disables pruning — it does
+  **not** mean "delete everything."
+
+For a manual, immediate backup outside the interval: `make db-backup`, which
+runs the same script once (`--once`) and exits.
+
+### Restoring a backup
+Stop the API before restoring — `make db-restore` does this itself, stopping
+every API variant plus `db-backup` and refusing to proceed if any of them is
+still reported running. Then:
+```
+make db-restore BACKUP_FILE=database_<timestamp>.db
+```
+As a safety net, if a live `database.db` exists when `db-restore` runs, it
+first takes an automatic snapshot by invoking the `db-backup` sidecar once
+(the same as `make db-backup`) before touching anything — the pre-restore
+state lands in `./resources/backups` as an ordinary dated backup, not a
+separate file. This runs in addition to whatever manual verification you did
+beforehand, not instead of it.
+
+### Verifying a backup
+An unverified backup is not a backup. Restore the file to a temporary path —
+never over the live database — and check that it holds real data, e.g. by
+counting rows in a known table:
+```
+sqlite3 ./resources/backups/database_<timestamp>.db "SELECT COUNT(*) FROM recommendation;"
+```
+A structurally valid, non-empty SQLite file with a plausible row count is
+what "verified" means here; a file that merely exists is not enough.
+
+### Exported workbooks are not backups
+The workbook the Defensoría del Pueblo feature exports is a read-only report
+generated from the database; it cannot be imported back and does not
+substitute for a database backup. See
+[ADR-0014](../adr/0014-workbook-exportado-de-solo-lectura.md).
+
 ## ER Diagram
 Rendered inline so it can never drift out of sync with a stale image.
 The same diagram lives standalone in [`schema.mmd`](schema.mmd).

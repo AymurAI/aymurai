@@ -32,6 +32,67 @@ keys hacia ellas. **Estas migraciones siempre corren**, independientemente del
 feature flag `DEFENSORIA_ENABLED`, que solo gatea si se montan los routers
 correspondientes.
 
+## Operación
+
+### Ubicación y persistencia del volumen
+Dentro del contenedor la base vive en `/resources/cache/sqlite/database.db`;
+en el host es `./resources/cache/sqlite/database.db`, accesible vía el bind
+mount `./resources/cache:/resources/cache` en cada variante de la API
+(`aymurai-api`, `aymurai-api-gpu`, `aymurai-api-full`, `aymurai-api-full-gpu`).
+Ese mount tiene que seguir siendo un bind mount atado al host, no al
+contenedor: si la base viviera solo en la capa escribible del contenedor,
+recrear el contenedor (redeploy, `--force-recreate`, una actualización de
+imagen) la borraría silenciosamente. Este fue un bug real en el perfil
+`api-full`, corregido en esta Fase — a la definición de compose de ese
+perfil directamente le faltaba el mount.
+
+### Respaldos automáticos
+El sidecar `db-backup` (`docker/backup/backup.py`) corre en loop, usando
+`sqlite3.Connection.backup()` — seguro bajo WAL, a diferencia de copiar el
+archivo con `cp`, que puede capturarlo a mitad de un checkpoint — y escribe
+snapshots fechados `database_<timestamp>.db` en `./resources/backups`
+(montado como `/backups` en el contenedor). Configuración, con los defaults
+que quedaron en `docker-compose.yml`:
+- `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (un respaldo por hora)
+- `BACKUP_RETENTION` — default `30`; conserva los N respaldos fechados más
+  recientes y borra los demás. `BACKUP_RETENTION <= 0` desactiva la poda —
+  **no** significa "borrar todo."
+
+Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
+que corre el mismo script una sola vez (`--once`) y termina.
+
+### Restaurar un respaldo
+Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
+parando cada variante de la API más `db-backup` y negándose a continuar si
+alguna sigue reportada como corriendo. Después:
+```
+make db-restore BACKUP_FILE=database_<timestamp>.db
+```
+Como red de seguridad, si existe un `database.db` vivo cuando corre
+`db-restore`, primero toma un snapshot automático invocando una vez el
+sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
+estado previo a la restauración queda en `./resources/backups` como un
+respaldo fechado más, no en un archivo aparte. Esto corre además de
+cualquier verificación manual que hayas hecho antes, no en su lugar.
+
+### Verificar un respaldo
+Un respaldo no verificado no es un respaldo. Restaurarlo a un path temporal
+— nunca sobre la base viva — y comprobar que tiene datos reales, por
+ejemplo contando filas de una tabla conocida:
+```
+sqlite3 ./resources/backups/database_<timestamp>.db "SELECT COUNT(*) FROM recommendation;"
+```
+Un archivo SQLite estructuralmente válido y no vacío, con un conteo de filas
+plausible, es lo que significa "verificado" acá; que el archivo exista no
+alcanza.
+
+### El workbook exportado no es un respaldo
+El workbook que exporta la feature de la Defensoría del Pueblo es un reporte
+de solo lectura generado a partir de la base; no se puede reimportar y no
+sustituye a un respaldo de la base de datos. Ver
+[ADR-0014](../../adr/0014-workbook-exportado-de-solo-lectura.md).
+
 ## Diagrama ER
 Se renderiza inline para que no pueda quedar desfasado respecto de una imagen
 vieja. El mismo diagrama vive suelto en [`schema.mmd`](../../database/schema.mmd).
