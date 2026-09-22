@@ -53,18 +53,31 @@ coro-pull:
 
 db-backup:
 	docker compose run --rm db-backup --once
-# db-restore replaces the live database file: it also removes the old
-# -wal/-shm sidecars, since leaving them next to the restored .db would make
-# SQLite replay WAL entries from the old database onto the new one,
-# corrupting it.
+# db-restore replaces the live database file: it stops every API variant
+# (CPU and GPU, lite and full) plus the backup sidecar and verifies none are
+# still running before touching anything -- docker compose stop on a
+# container that isn't running exits 0 silently, so stopping only the
+# CPU-default services would let a GPU variant keep writing to the database
+# while it's overwritten. It also removes the old -wal/-shm sidecars before
+# copying in the restored file, not after: leaving them around even briefly
+# next to a new/truncated database.db would make SQLite replay WAL entries
+# from the database being discarded onto the new one, corrupting it.
 db-restore:
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
 		exit 1; \
 	fi
-	docker compose stop $(API_SERVICE) $(API_FULL_SERVICE) || true
-	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db
+	docker compose stop aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup || true
+	@still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu)"; \
+	if [ -n "$$still" ]; then \
+		echo "refusing to restore: an API container is still running"; exit 1; \
+	fi
+	@if [ -f resources/cache/sqlite/database.db ]; then \
+		cp resources/cache/sqlite/database.db "resources/backups/pre-restore_$$(date -u +%Y%m%d%H%M%S).db"; \
+	fi
 	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
+	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring
+	mv resources/cache/sqlite/database.db.restoring resources/cache/sqlite/database.db
 	@echo "Restored $(BACKUP_FILE). Start the API again with 'make api-up' or 'make api-full-up'."
 
 stress-test:
