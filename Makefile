@@ -61,7 +61,11 @@ db-backup:
 # while it's overwritten. It also removes the old -wal/-shm sidecars before
 # copying in the restored file, not after: leaving them around even briefly
 # next to a new/truncated database.db would make SQLite replay WAL entries
-# from the database being discarded onto the new one, corrupting it.
+# from the database being discarded onto the new one, corrupting it. The
+# pre-restore safety snapshot reuses the db-backup sidecar's one-shot backup
+# instead of a plain `cp`, for the same WAL-safety reason backup.py itself
+# doesn't use `cp` -- it lands as an ordinary database_<timestamp>.db in the
+# normal backup set rather than a distinctly-named pre-restore_ file.
 db-restore:
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
@@ -73,7 +77,7 @@ db-restore:
 		echo "refusing to restore: an API container is still running"; exit 1; \
 	fi
 	@if [ -f resources/cache/sqlite/database.db ]; then \
-		cp resources/cache/sqlite/database.db "resources/backups/pre-restore_$$(date -u +%Y%m%d%H%M%S).db"; \
+		docker compose run --rm db-backup --once; \
 	fi
 	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
 	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring
