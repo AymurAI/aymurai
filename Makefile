@@ -51,6 +51,22 @@ coro-logs:
 coro-pull:
 	docker compose pull $(CORO_SERVICE)
 
+db-backup:
+	docker compose run --rm db-backup --once
+# db-restore replaces the live database file: it also removes the old
+# -wal/-shm sidecars, since leaving them next to the restored .db would make
+# SQLite replay WAL entries from the old database onto the new one,
+# corrupting it.
+db-restore:
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
+		exit 1; \
+	fi
+	docker compose stop $(API_SERVICE) $(API_FULL_SERVICE) || true
+	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db
+	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
+	@echo "Restored $(BACKUP_FILE). Start the API again with 'make api-up' or 'make api-full-up'."
+
 stress-test:
 	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899
 

@@ -167,5 +167,18 @@ services:
                           count: all
                           capabilities: [gpu]
 
+    db-backup:
+        build:
+            context: .
+            dockerfile: ./docker/backup/Dockerfile
+        container_name: aymurai-db-backup
+        volumes:
+            - ./resources/cache:/resources/cache
+            - ./resources/backups:/backups
+        environment:
+            BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
+            BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+        restart: always
+
 volumes:
     coro-hf-cache:
