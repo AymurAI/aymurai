@@ -18,6 +18,7 @@ import { Route as FeaturePreviewRouteImport } from './routes/$feature/preview'
 import { Route as FeatureProcessRouteImport } from './routes/$feature/process'
 import { Route as FeatureValidationRouteImport } from './routes/$feature/validation'
 import { Route as HomeIndexRouteImport } from './routes/home/index'
+import { Route as HomeDatasetRouteImport } from './routes/home/dataset'
 import { Route as HomeFeaturesRouteImport } from './routes/home/features'
 import { Route as HomeHostRouteImport } from './routes/home/host'
 import { Route as HomeSettingsIndexRouteImport } from './routes/home/settings/index'
@@ -70,6 +71,11 @@ const HomeIndexRoute = HomeIndexRouteImport.update({
   path: '/home/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeDatasetRoute = HomeDatasetRouteImport.update({
+  id: '/home/dataset',
+  path: '/home/dataset',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeFeaturesRoute = HomeFeaturesRouteImport.update({
   id: '/home/features',
   path: '/home/features',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature': typeof FeatureIndexRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature/'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature/'
@@ -208,6 +220,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FeatureRouteRoute: typeof FeatureRouteRouteWithChildren
+  HomeDatasetRoute: typeof HomeDatasetRoute
   HomeFeaturesRoute: typeof HomeFeaturesRoute
   HomeHostRoute: typeof HomeHostRoute
   HomeIndexRoute: typeof HomeIndexRoute
@@ -282,6 +295,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home/dataset': {
+      id: '/home/dataset'
+      path: '/home/dataset'
+      fullPath: '/home/dataset'
+      preLoaderRoute: typeof HomeDatasetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home/features': {
       id: '/home/features'
       path: '/home/features'
@@ -352,6 +372,7 @@ const FeatureRouteRouteWithChildren = FeatureRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FeatureRouteRoute: FeatureRouteRouteWithChildren,
+  HomeDatasetRoute: HomeDatasetRoute,
   HomeFeaturesRoute: HomeFeaturesRoute,
   HomeHostRoute: HomeHostRoute,
   HomeIndexRoute: HomeIndexRoute,

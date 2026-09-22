@@ -117,6 +117,56 @@ const recommendations = {
     saveFailed:
       "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },
+  // La grilla de seguimiento (`/home/dataset`): la pantalla compartida que
+  // reemplaza la planilla externa que hoy se edita a mano.
+  grid: {
+    title: "Base de recomendaciones",
+    subtitle:
+      "Seguimiento compartido de las recomendaciones ya registradas en la base",
+    filters: {
+      searchLabel: "Buscar recomendaciones",
+      searchPlaceholder: "Número, expediente, detalle o tema",
+      clearSearch: "Limpiar la búsqueda",
+      dateFrom: "Fecha desde",
+      dateTo: "Fecha hasta",
+      unparsedDates: "Sólo fechas sin interpretar",
+      reset: "Limpiar filtros",
+    },
+    columns: {
+      recommendationNumber: "Nº de recomendación",
+      recommendationDate: "Fecha",
+      topic: "Tema",
+      subtopic: "Subtema",
+      recipient: "Destinatario principal",
+      fileNumber: "Nº de expediente",
+      recommendationDetail: "Detalle del seguimiento",
+      recommendationSituation: "Situación",
+      status: "Estado",
+      approvedForPublication: "Aprobada para publicar",
+      link: "Enlace",
+      lastEdited: "Última edición",
+    },
+    sortAscending: "Ordenar por {{column}}, ascendente",
+    sortDescending: "Ordenar por {{column}}, descendente",
+    approved: {
+      yes: "Sí",
+      no: "No",
+    },
+    empty: "Todavía no hay recomendaciones en la base.",
+    emptyFiltered: "Ninguna recomendación coincide con los filtros aplicados.",
+    loadFailed:
+      "No se pudo cargar la base de recomendaciones. Revisá tu conexión e intentá nuevamente.",
+    saveFailed:
+      "Quedaron cambios sin guardar (marcados en rojo). Revisá tu conexión y volvé a editar esas celdas.",
+    cellSaveFailed: "Sin guardar",
+    enumsFailed:
+      "No se pudieron cargar las listas de Situación y Estado. Esas dos columnas quedan bloqueadas hasta que se recuperen.",
+    pagination: {
+      range: "{{from}}-{{to}} de {{total}}",
+      previous: "Página anterior",
+      next: "Página siguiente",
+    },
+  },
   finish: {
     sectionTitle: "4. Finalización",
     description:
