@@ -55,6 +55,7 @@ from aymurai.database.crud.recommendation import (
     InconsistentSectorError,
     OrganigramReferenceNotFoundError,
     RecipientValidationData,
+    RecommendationOrderColumn,
     RecommendationValidationData,
     recommendation_get,
     recommendation_get_by_document,
@@ -349,6 +350,9 @@ async def api_data_extraction_recommendations(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
+    unparsed_dates: bool = False,
+    order_by: RecommendationOrderColumn = "created_at",
+    order_dir: Literal["asc", "desc"] = "desc",
     page: int = 1,
     page_size: int = 20,
 ):
@@ -359,6 +363,9 @@ async def api_data_extraction_recommendations(
         date_from=date_from,
         date_to=date_to,
         q=q,
+        unparsed_dates=unparsed_dates,
+        order_by=order_by,
+        order_dir=order_dir,
         page=page,
         page_size=page_size,
     )

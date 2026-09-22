@@ -1,8 +1,10 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Literal
 
 from sqlalchemy import func
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlmodel import Session, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
@@ -20,6 +22,28 @@ from aymurai.text.matching import normalize_text
 from aymurai.transforms.datetime_formatter.recommendation_prose import (
     parse_recommendation_date,
 )
+
+# issue #58: columnas propias de la recomendación ordenables desde la grilla.
+# Los órdenes que exigen join (tema, sector) quedan fuera. `Literal` es lo que
+# hace que FastAPI devuelva 422 automáticamente ante cualquier valor fuera de
+# esta whitelist -- no hace falta validar a mano.
+RecommendationOrderColumn = Literal[
+    "created_at",
+    "recommendation_date",
+    "recommendation_number",
+    "status",
+    "recommendation_situation",
+    "file_number",
+]
+
+_ORDER_COLUMNS: dict[str, InstrumentedAttribute] = {
+    "created_at": Recommendation.created_at,
+    "recommendation_date": Recommendation.recommendation_date,
+    "recommendation_number": Recommendation.recommendation_number,
+    "status": Recommendation.status,
+    "recommendation_situation": Recommendation.recommendation_situation,
+    "file_number": Recommendation.file_number,
+}
 
 
 class InconsistentSectorError(Exception):
@@ -346,6 +370,9 @@ def recommendation_list(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
+    unparsed_dates: bool = False,
+    order_by: RecommendationOrderColumn = "created_at",
+    order_dir: Literal["asc", "desc"] = "desc",
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Recommendation], int]:
@@ -361,6 +388,14 @@ def recommendation_list(
         date_to (date | None): Maximum `recommendation_date` (inclusive).
         q (str | None): Case-insensitive substring search over
             `publishable_content`.
+        unparsed_dates (bool): Restrict to rows with prose
+            (`recommendation_date_text`) but no successfully parsed
+            `recommendation_date` -- exactly the rows that need human
+            correction.
+        order_by (RecommendationOrderColumn): Column to sort by, whitelisted
+            (issue #58) to columns that don't require a join.
+        order_dir (Literal["asc", "desc"]): Sort direction. Nulls always
+            sort last, in both directions.
         page (int): 1-indexed page number.
         page_size (int): Rows per page.
 
@@ -394,11 +429,18 @@ def recommendation_list(
                 )
             )
         )
+    if unparsed_dates:
+        statement = statement.where(
+            Recommendation.recommendation_date_text.is_not(None),
+            Recommendation.recommendation_date.is_(None),
+        )
 
-    total = len(session.exec(statement).all())
+    total = session.exec(select(func.count()).select_from(statement.subquery())).one()
 
+    column = _ORDER_COLUMNS[order_by]
+    order_clause = column.asc() if order_dir == "asc" else column.desc()
     statement = (
-        statement.order_by(Recommendation.created_at.desc())
+        statement.order_by(order_clause.nullslast())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
