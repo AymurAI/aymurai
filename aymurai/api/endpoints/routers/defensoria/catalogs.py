@@ -17,6 +17,7 @@ from aymurai.api.endpoints.schemas.requests.catalogs import (
 from aymurai.api.endpoints.schemas.responses.catalogs import (
     MacroSectorResponse,
     ReassignResponse,
+    RecommendationEnumsResponse,
     SubtopicResponse,
     TopicResponse,
     UsageResponse,
@@ -46,6 +47,8 @@ from aymurai.database.crud.catalogs.topic import (
 )
 from aymurai.database.schema import (
     MacroSectorUpdate,
+    RecommendationSituation,
+    RecommendationStatus,
     SubtopicCreate,
     SubtopicUpdate,
     TopicCreate,
@@ -276,3 +279,14 @@ async def api_macro_sector_delete(macro_sector_id: uuid.UUID, session: SessionDe
     except ValueError as exc:
         raise NotFoundError(detail=str(exc))
     return MacroSectorResponse(**macro_sector.model_dump())
+
+
+# -- Recommendation enums -----------------------------------------------
+
+
+@router.get("/recommendation-enums", response_model=RecommendationEnumsResponse)
+async def api_recommendation_enums_list() -> RecommendationEnumsResponse:
+    return RecommendationEnumsResponse(
+        situations=[s.value for s in RecommendationSituation],
+        statuses=[s.value for s in RecommendationStatus],
+    )

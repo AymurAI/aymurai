@@ -51,3 +51,10 @@ class ReassignResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reassigned: int
+
+
+class RecommendationEnumsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    situations: list[str]
+    statuses: list[str]
