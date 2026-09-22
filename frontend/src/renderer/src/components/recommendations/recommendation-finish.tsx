@@ -16,8 +16,6 @@ interface RecommendationFinishProps {
   onRestart: () => void;
 }
 
-const EXPORT_FILE_NAME = "recomendaciones.xlsx";
-
 // Spans every column of `FinishMainContent`'s 4-column FileCheck grid so the
 // error banner reads as a single full-width row instead of one more grid
 // item squeezed into a column.
@@ -57,8 +55,8 @@ export default function RecommendationFinish({
   const handleDownload = async () => {
     setDownloadFailed(false);
     try {
-      const blob = await downloadMutation.mutateAsync("xlsx");
-      downloadBlob(blob, EXPORT_FILE_NAME);
+      const { blob, fileName } = await downloadMutation.mutateAsync("xlsx");
+      downloadBlob(blob, fileName);
     } catch {
       setDownloadFailed(true);
     }

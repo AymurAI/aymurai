@@ -207,18 +207,27 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
 
   it("downloads the recommendations export as a blob via GET /llm/data-extraction/export", async () => {
     const blob = new Blob(["x"]);
-    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: blob });
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({
+      data: blob,
+      headers: {
+        "content-disposition":
+          'attachment; filename="recomendaciones_20260921231500.csv"',
+      },
+    });
 
     const { mutationFn } = dataExtraction.downloadRecommendationsExport();
     const result = await (
-      mutationFn as (format?: "xlsx" | "csv") => Promise<Blob>
+      mutationFn as (
+        format?: "xlsx" | "csv",
+      ) => Promise<{ blob: Blob; fileName: string }>
     )("csv");
 
     expect(getSpy).toHaveBeenCalledWith("/llm/data-extraction/export", {
       params: { format: "csv" },
       responseType: "blob",
     });
-    expect(result).toBe(blob);
+    expect(result.blob).toBe(blob);
+    expect(result.fileName).toBe("recomendaciones_20260921231500.csv");
   });
 });
 
@@ -245,11 +254,14 @@ describe("dataExtraction service — mock implementation", () => {
 
     const { mutationFn } = mockedDataExtraction.downloadRecommendationsExport();
     const result = await (
-      mutationFn as (format?: "xlsx" | "csv") => Promise<Blob>
+      mutationFn as (
+        format?: "xlsx" | "csv",
+      ) => Promise<{ blob: Blob; fileName: string }>
     )("csv");
 
     expect(getSpy).not.toHaveBeenCalled();
-    expect(result).toBeInstanceOf(Blob);
+    expect(result.blob).toBeInstanceOf(Blob);
+    expect(result.fileName).toMatch(/^recomendaciones_\d{14}\.csv$/);
   });
 });
 

@@ -6,6 +6,7 @@ import type {
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
+import type { RecommendationsExportResult } from "./dataExtraction";
 
 const now = "2026-08-28T00:00:00Z";
 
@@ -281,9 +282,18 @@ export function mockValidateRecommendation(input: {
  * Minimal placeholder file — enough for the download flow to exercise a real
  * `Blob` end to end without depending on a real xlsx/csv writer in the mock.
  */
+function mockTimestamp(): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const d = new Date();
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  );
+}
+
 export function mockDownloadRecommendationsExport(
   format: "xlsx" | "csv",
-): Promise<Blob> {
+): Promise<RecommendationsExportResult> {
   const type =
     format === "csv"
       ? "text/csv"
@@ -292,5 +302,7 @@ export function mockDownloadRecommendationsExport(
     format === "csv"
       ? "recommendation_number,topic,subtopic\n123/2026,Salud,Acceso a medicamentos\n"
       : "mock xlsx placeholder";
-  return delay(new Blob([placeholder], { type }));
+  const blob = new Blob([placeholder], { type });
+  const fileName = `recomendaciones_${mockTimestamp()}.${format}`;
+  return delay({ blob, fileName });
 }

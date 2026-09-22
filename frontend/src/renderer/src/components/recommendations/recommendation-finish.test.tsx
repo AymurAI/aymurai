@@ -53,7 +53,10 @@ function renderFinish(onRestart = vi.fn()) {
 describe("RecommendationFinish", () => {
   beforeEach(() => {
     mockDownload.mockReset();
-    mockDownload.mockResolvedValue(new Blob(["xlsx"]));
+    mockDownload.mockResolvedValue({
+      blob: new Blob(["xlsx"]),
+      fileName: "recomendaciones_20260921231500.xlsx",
+    });
     mockDownloadBlob.mockClear();
     // biome-ignore lint/performance/noDelete: restoring the browser shape
     delete (window as { filesystem?: unknown }).filesystem;
@@ -64,6 +67,10 @@ describe("RecommendationFinish", () => {
     fireEvent.click(screen.getByRole("button", { name: /descargar/i }));
     await waitFor(() => expect(mockDownloadBlob).toHaveBeenCalled());
     expect(mockDownload).toHaveBeenCalledWith("xlsx", expect.anything());
+    expect(mockDownloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "recomendaciones_20260921231500.xlsx",
+    );
   });
 
   it("never writes a local workbook", async () => {
