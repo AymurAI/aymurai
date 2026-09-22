@@ -10,7 +10,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { DotsNine, Gear } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
+import {
+  FEATURE_ICON,
+  GRILLA_ICON,
+  isDefensoriaEnabled,
+} from "@/constants/config";
 import { useFileDispatch } from "@/hooks/useFiles";
 import { removeAllFiles } from "@/reducers/file/actions";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
@@ -72,10 +76,6 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
     handleClearFiles();
   };
 
-  // Reuses the Set de Datos icon (same choice `routes/home/features.tsx`
-  // makes for the grilla card) -- there's no dedicated grilla icon.
-  const GrillaIcon = FEATURE_ICON[FeatureFlowEnum.Dataset];
-
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -113,7 +113,7 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
           })}
           {isDefensoriaEnabled() && (
             <FeaturesMenuItem
-              icon={<GrillaIcon size={24} />}
+              icon={<GRILLA_ICON size={24} />}
               label={t("grilla.title", { ns: "recommendations" })}
               onClick={goToDataset}
             />

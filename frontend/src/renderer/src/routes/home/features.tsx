@@ -9,7 +9,11 @@ import { useTranslation } from "react-i18next";
 import AppCredits from "@/components/brand/app-credits";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
-import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
+import {
+  FEATURE_ICON,
+  GRILLA_ICON,
+  isDefensoriaEnabled,
+} from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
 import { css, cx } from "@/styled/css";
 import { Grid, Stack, styled } from "@/styled/jsx";
@@ -152,7 +156,7 @@ function RouteComponent() {
                     to="/home/dataset"
                     title={t("recommendations:grilla.title")}
                     subtitle={t("recommendations:grilla.cardSubtitle")}
-                    icon={FEATURE_ICON.DATA_SET}
+                    icon={GRILLA_ICON}
                     className={css({ gridColumn: "1 / -1" })}
                   />
                 )}

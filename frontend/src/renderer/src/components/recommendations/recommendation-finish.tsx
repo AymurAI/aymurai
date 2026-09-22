@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import FileCheck from "@/components/file-check";
 import FinishMainContent from "@/components/finish/finish-main-content";
 import Footer from "@/components/layout/footer";
+import { isDefensoriaEnabled } from "@/constants/config";
 import { useFiles } from "@/hooks";
 import { downloadRecommendationsExport } from "@/services/aymurai/dataExtraction";
 import { downloadBlob } from "@/services/export/download-blob";
@@ -60,6 +61,13 @@ export default function RecommendationFinish({
   // make it *be* the anchor. This mirrors `handleBack` in
   // `summary-finish.tsx`/`finish-anonymizer.tsx`, the established pattern
   // for a Footer button that navigates.
+  //
+  // The button itself is still gated by `isDefensoriaEnabled()` below, even
+  // though this whole screen is already unreachable with the flag off (see
+  // `$feature/route.tsx`'s `beforeLoad`). That route guard is an implicit,
+  // transitive gate; the explicit check here matches the other two entry
+  // points (features-menu.tsx, routes/home/features.tsx) so this component
+  // stays correct on its own if it's ever reached a different way.
   const handleGoToGrilla = () => navigate({ to: "/home/dataset" });
 
   const handleDownload = async () => {
@@ -100,9 +108,11 @@ export default function RecommendationFinish({
           >
             {t("finish.download")}
           </Button>
-          <Button variant="secondary" onClick={handleGoToGrilla} size="md">
-            {t("finish.viewGrilla")}
-          </Button>
+          {isDefensoriaEnabled() && (
+            <Button variant="secondary" onClick={handleGoToGrilla} size="md">
+              {t("finish.viewGrilla")}
+            </Button>
+          )}
         </HStack>
       </Footer>
     </>
