@@ -20,6 +20,8 @@ Convención: ver [`../agents/domain.md`](../agents/domain.md).
 | [0011](0011-fecha-de-asuncion-del-titular.md) | La fecha de asunción del titular es distinta de `created_at` | Organigrama |
 | [0012](0012-ranking-en-el-backend-filtrado-en-el-cliente.md) | El ranking vive en el backend; el filtrado por sector, en el cliente | Organigrama |
 | [0013](0013-la-marca-de-sugerencia-es-el-acto-de-validar.md) | La marca de sugerencia es el acto de validar: un campo no validado queda vacío | Validación |
+| [0014](0014-workbook-exportado-de-solo-lectura.md) | El workbook exportado es un reporte de sólo lectura | Export |
+| [0015](0015-catalogos-cerrados-de-seguimiento-como-enums.md) | Situación y estado son catálogos cerrados en el código, no ABM | Persistencia |
 
 0001–0007 surgieron del análisis en [`../defensoria/`](../defensoria/); 0008–0009 surgieron de testear la API
 real con documentos reales (ver la conversación de esa sesión para el detalle completo); 0010–0011 surgieron
@@ -30,3 +32,8 @@ síntoma durante el QA del formulario de validación, sin quedar declaradas en n
 En esa misma pasada se enmendaron 0001, 0008 y 0009. Las enmiendas van fechadas dentro de cada documento, con
 la decisión original intacta: lo que se agrega es lo que se aprendió después, no una reescritura de lo que se
 había decidido.
+
+0014–0015 salieron de una sesión de `/grill-with-docs` sobre la Fase 9 y la estrategia de
+persistencia/exportación: ratificaron el rol del workbook exportado, que ADR-0004 dejaba implícito, y dejaron
+por escrito por qué dos catálogos de seguimiento no siguen el patrón administrable de los demás. El vocabulario
+que esa sesión fijó está en [`CONTEXT.md`](../../CONTEXT.md).
