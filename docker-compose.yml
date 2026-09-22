@@ -22,6 +22,11 @@ x-api-full: &api-full
     shm_size: "2gb"
     ports:
         - "8899:8899"
+    volumes:
+        - ./resources/cache:/resources/cache
+    env_file:
+        - .env
+        - .env.common
     restart: always
     deploy:
         resources:
