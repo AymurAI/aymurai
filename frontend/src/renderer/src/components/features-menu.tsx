@@ -62,6 +62,20 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
     handleClearFiles();
   };
 
+  // Same pattern as `goToSettings` above, not `goToFeature`: the grilla is a
+  // `/home/*` route (not a `/$feature/onboarding` wizard entry), reached the
+  // same way Configuración is. This still clears in-progress files on
+  // navigation -- issue #58 confirms that's expected, the same known
+  // property the four feature items and Configuración already have.
+  const goToDataset = async () => {
+    await navigate({ to: "/home/dataset", viewTransition: false });
+    handleClearFiles();
+  };
+
+  // Reuses the Set de Datos icon (same choice `routes/home/features.tsx`
+  // makes for the grilla card) -- there's no dedicated grilla icon.
+  const GrillaIcon = FEATURE_ICON[FeatureFlowEnum.Dataset];
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -97,6 +111,13 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
               />
             );
           })}
+          {isDefensoriaEnabled() && (
+            <FeaturesMenuItem
+              icon={<GrillaIcon size={24} />}
+              label={t("grilla.title", { ns: "recommendations" })}
+              onClick={goToDataset}
+            />
+          )}
           <FeaturesMenuItem
             icon={<Gear size={24} />}
             label={t("settings")}

@@ -176,6 +176,17 @@ const recommendations = {
     download: "Descargar la base de recomendaciones",
     downloadFailed:
       "No se pudo descargar el archivo. Revisá tu conexión e intentá nuevamente.",
+    viewGrilla: "Ir a seguimiento",
+  },
+  // Copy for the entry points INTO the grilla (menu item, home card, finish
+  // button) -- distinct from `grid.title`/`grid.subtitle` above, which label
+  // the grilla screen itself once you're already on it. Deliberately not
+  // `dataset:title`: that key is already live for the Set de
+  // Datos/Recomendaciones card and menu item (see features-menu.tsx and
+  // routes/home/features.tsx).
+  grilla: {
+    title: "Seguimiento",
+    cardSubtitle: "Completá el seguimiento de las recomendaciones publicadas",
   },
 };
 

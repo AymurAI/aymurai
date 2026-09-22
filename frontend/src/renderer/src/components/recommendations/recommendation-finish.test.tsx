@@ -3,19 +3,25 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RecommendationFinish from "./recommendation-finish";
 
-// Real (but scoped) strings for the two keys the tests assert against by
+// Real (but scoped) strings for the three keys the tests assert against by
 // visible/accessible text, identity fallback for the rest -- same pattern
 // `file-preview/index.test.tsx` uses, needed here because the brief's tests
-// match the download button by a `/descargar/i` name rather than the raw key.
+// match buttons by name rather than the raw key.
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       if (key === "finish.download")
         return "Descargar la base de recomendaciones";
       if (key === "finish.restart") return "Procesar otro documento";
+      if (key === "finish.viewGrilla") return "Ir a seguimiento";
       return key;
     },
   }),
+}));
+
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => navigate,
 }));
 
 const mockFiles = [
@@ -58,6 +64,7 @@ describe("RecommendationFinish", () => {
       fileName: "recomendaciones_20260921231500.xlsx",
     });
     mockDownloadBlob.mockClear();
+    navigate.mockClear();
     // biome-ignore lint/performance/noDelete: restoring the browser shape
     delete (window as { filesystem?: unknown }).filesystem;
   });
@@ -106,5 +113,11 @@ describe("RecommendationFinish", () => {
     expect(
       screen.getByRole("button", { name: /descargar/i }),
     ).not.toBeDisabled();
+  });
+
+  it("navigates to the grilla when 'Ir a seguimiento' is clicked", () => {
+    renderFinish();
+    fireEvent.click(screen.getByRole("button", { name: "Ir a seguimiento" }));
+    expect(navigate).toHaveBeenCalledWith({ to: "/home/dataset" });
   });
 });

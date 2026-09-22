@@ -1,5 +1,6 @@
 import { Button, Callout } from "@aymurai/ui";
 import { useMutation } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import FileCheck from "@/components/file-check";
@@ -48,9 +49,18 @@ export default function RecommendationFinish({
   const feature = FeatureFlowEnum.Recommendations;
   const { t } = useTranslation(featureNamespace[feature]);
   const files = useFiles();
+  const navigate = useNavigate();
 
   const [downloadFailed, setDownloadFailed] = useState(false);
   const downloadMutation = useMutation(downloadRecommendationsExport());
+
+  // A plain navigate, not a `<Link>`: `Button` from `@aymurai/ui` renders a
+  // real `<button>` (`ButtonHTMLAttributes`) and has no `asChild` escape
+  // hatch the way Radix primitives in this repo do, so there's no way to
+  // make it *be* the anchor. This mirrors `handleBack` in
+  // `summary-finish.tsx`/`finish-anonymizer.tsx`, the established pattern
+  // for a Footer button that navigates.
+  const handleGoToGrilla = () => navigate({ to: "/home/dataset" });
 
   const handleDownload = async () => {
     setDownloadFailed(false);
@@ -89,6 +99,9 @@ export default function RecommendationFinish({
             isLoading={downloadMutation.isPending}
           >
             {t("finish.download")}
+          </Button>
+          <Button variant="secondary" onClick={handleGoToGrilla} size="md">
+            {t("finish.viewGrilla")}
           </Button>
         </HStack>
       </Footer>
