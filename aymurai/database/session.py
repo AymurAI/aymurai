@@ -10,13 +10,13 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     del connection_record
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
-    # WAL deja que los lectores nunca bloqueen al escritor (ni viceversa) --
-    # sin esto, cualquier lectura concurrente con una escritura puede
-    # devolver "database is locked" incluso para un SELECT.
+    # WAL lets readers never block the writer (or vice versa) -- without
+    # this, any read concurrent with a write could return "database is
+    # locked" even for a SELECT.
     cursor.execute("PRAGMA journal_mode=WAL")
-    # Con WAL, "database is locked" sólo puede pasar entre dos escritores
-    # concurrentes. Este timeout hace que el segundo espere en vez de
-    # fallar inmediatamente.
+    # With WAL, "database is locked" can only happen between two concurrent
+    # writers. This timeout makes the second one wait instead of failing
+    # immediately.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
 

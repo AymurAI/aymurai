@@ -79,7 +79,13 @@ function filenameFromContentDisposition(
   fallback: string,
 ): string {
   const match = header?.match(/filename="?([^"]+)"?/);
-  return match?.[1] ?? fallback;
+  if (!match?.[1]) {
+    console.warn(
+      "Content-Disposition header missing or unparseable; falling back to a generic export filename. Check CORS_ORIGINS.",
+    );
+    return fallback;
+  }
+  return match[1];
 }
 
 export interface RecommendationsExportResult {

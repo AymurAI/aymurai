@@ -61,6 +61,11 @@ in the container). Configuration, with the defaults shipped in
 For a manual, immediate backup outside the interval: `make db-backup`, which
 runs the same script once (`--once`) and exits.
 
+The loop itself does not start on its own — start it once with
+`make db-backup-up`; from then on `restart: always` keeps it running across
+host reboots and container restarts (`make db-backup-stop` stops it,
+`make db-backup-logs` tails its output).
+
 ### Restoring a backup
 Stop the API before restoring — `make db-restore` does this itself, stopping
 every API variant plus `db-backup` and refusing to proceed if any of them is
@@ -74,6 +79,12 @@ first takes an automatic snapshot by invoking the `db-backup` sidecar once
 state lands in `./resources/backups` as an ordinary dated backup, not a
 separate file. This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
+
+On a fresh deployment, the bind-mounted directories (`resources/cache/`,
+`resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side
+file operations (the `cp`/`mv`/`rm` steps) need permission to write there, so
+you may need to adjust ownership or run those steps with sufficient
+privileges before restoring.
 
 ### Verifying a backup
 An unverified backup is not a backup. Restore the file to a temporary path —

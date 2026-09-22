@@ -53,6 +53,12 @@ coro-pull:
 
 db-backup:
 	docker compose run --rm db-backup --once
+db-backup-up:
+	docker compose up -d db-backup
+db-backup-stop:
+	docker compose stop db-backup
+db-backup-logs:
+	docker compose logs -f db-backup
 # db-restore replaces the live database file: it stops every API variant
 # (CPU and GPU, lite and full) plus the backup sidecar and verifies none are
 # still running before touching anything -- docker compose stop on a
@@ -65,19 +71,27 @@ db-backup:
 # pre-restore safety snapshot reuses the db-backup sidecar's one-shot backup
 # instead of a plain `cp`, for the same WAL-safety reason backup.py itself
 # doesn't use `cp` -- it lands as an ordinary database_<timestamp>.db in the
-# normal backup set rather than a distinctly-named pre-restore_ file.
+# normal backup set rather than a distinctly-named pre-restore_ file. That
+# snapshot overrides BACKUP_RETENTION=0 for this one invocation only: at
+# steady state the backup set is already at the retention cap, so taking one
+# more snapshot without disabling pruning would make the sidecar's own prune
+# step delete the oldest file -- which can be the exact backup being restored.
 db-restore:
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
 		exit 1; \
 	fi
+	@if [ ! -f resources/backups/$(BACKUP_FILE) ]; then \
+		echo "no such backup: resources/backups/$(BACKUP_FILE)"; \
+		exit 1; \
+	fi
 	docker compose stop aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup || true
-	@still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu)"; \
+	@still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup)"; \
 	if [ -n "$$still" ]; then \
 		echo "refusing to restore: an API container is still running"; exit 1; \
 	fi
 	@if [ -f resources/cache/sqlite/database.db ]; then \
-		docker compose run --rm db-backup --once; \
+		docker compose run --rm -e BACKUP_RETENTION=0 db-backup --once; \
 	fi
 	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
 	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring

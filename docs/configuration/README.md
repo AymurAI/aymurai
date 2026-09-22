@@ -31,6 +31,13 @@ listed separately in [Variables read outside `Settings`](#variables-read-outside
 `http://localhost,https://localhost,http://localhost:8080,http://localhost:3000,0.0.0.0:8899,0.0.0.0:3000`
 and is split on commas.
 
+> `CORS_ORIGINS` must also permit the desktop app's origin: Chromium sends
+> `Origin: null` when the Electron renderer loads a page via `file://`. Without
+> `null` in the allow-list, cross-origin response headers — including
+> `Content-Disposition` for the export filename feature, and any future one —
+> silently fail to reach the desktop client, and the app falls back to a
+> generic filename instead of erroring.
+
 > `LOG_LEVEL` is looked up once at import time and indexes a fixed map. A value
 > outside the four listed keys raises `KeyError` on the first `get_logger` call
 > rather than falling back.
@@ -40,6 +47,7 @@ and is split on commas.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SQLALCHEMY_DATABASE_URI` | `sqlite:////resources/cache/sqlite/database.db` | Database URI; Alembic migrates it to head on startup |
+| `SQLITE_BUSY_TIMEOUT_MS` | `5000` | How long a write waits for another writer before "database is locked" |
 | `RESOURCES_BASEPATH` | `/resources` | Root for bundled resources (pipelines, prompts, samples) |
 | `CACHE_BASEPATH` | `/resources/cache` | Model/artifact cache root. Also accepts `AYMURAI_CACHE_BASEPATH` |
 | `FRONTEND_DIST_DIR` | `frontend-dist` | Directory served at `GET /`. Also accepts `AYMURAI_FRONTEND_DIST_DIR` |
@@ -48,6 +56,18 @@ and is split on commas.
 
 Mount a host volume at `/resources/cache` to keep the database and caches across
 container restarts.
+
+## Backups
+
+### Variables consumed by Compose, not by the API
+These configure the `db-backup` sidecar service and never reach the Python process. Unlike `env_file`-sourced variables, Compose interpolation reads these from a `.env` file in the project directory only — setting them in `.env.common` has no effect.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BACKUP_SOURCE_DB` | `/resources/cache/sqlite/database.db` | Path to the SQLite database inside the `db-backup` container |
+| `BACKUP_DEST_DIR` | `/backups` | Where dated backup files are written inside the container |
+| `BACKUP_INTERVAL_SECONDS` | `3600` | Seconds between automatic backups when the sidecar is running (see `make db-backup-up`) |
+| `BACKUP_RETENTION` | `30` | How many dated backups to keep; `0` or negative disables pruning |
 
 ## Inference
 

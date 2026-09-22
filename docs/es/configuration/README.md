@@ -32,6 +32,14 @@ listadas aparte en [Variables leídas fuera de `Settings`](#variables-leídas-fu
 `http://localhost,https://localhost,http://localhost:8080,http://localhost:3000,0.0.0.0:8899,0.0.0.0:3000`
 y se parte por comas.
 
+> `CORS_ORIGINS` también tiene que permitir el origen de la app de escritorio:
+> Chromium manda `Origin: null` cuando el renderer de Electron carga la página
+> vía `file://`. Sin `null` en la lista permitida, los headers de respuesta
+> cross-origin — incluido `Content-Disposition` para la feature del nombre de
+> archivo exportado, y cualquier otro a futuro — no llegan silenciosamente al
+> cliente de escritorio, y la app cae a un nombre de archivo genérico en vez
+> de fallar con un error.
+
 > `LOG_LEVEL` se resuelve una sola vez al importar e indexa un mapa fijo. Un valor
 > fuera de esas cuatro claves lanza `KeyError` en la primera llamada a
 > `get_logger` en lugar de caer a un default.
@@ -41,6 +49,7 @@ y se parte por comas.
 | Variable | Default | Propósito |
 |---|---|---|
 | `SQLALCHEMY_DATABASE_URI` | `sqlite:////resources/cache/sqlite/database.db` | URI de la base; Alembic migra a head al iniciar |
+| `SQLITE_BUSY_TIMEOUT_MS` | `5000` | Cuánto espera una escritura a otro escritor antes de "database is locked" |
 | `RESOURCES_BASEPATH` | `/resources` | Raíz de recursos embebidos (pipelines, prompts, muestras) |
 | `CACHE_BASEPATH` | `/resources/cache` | Raíz de cache de modelos/artefactos. También acepta `AYMURAI_CACHE_BASEPATH` |
 | `FRONTEND_DIST_DIR` | `frontend-dist` | Directorio servido en `GET /`. También acepta `AYMURAI_FRONTEND_DIST_DIR` |
@@ -49,6 +58,18 @@ y se parte por comas.
 
 Montá un volumen del host en `/resources/cache` para conservar la base y los
 caches entre reinicios del container.
+
+## Backups
+
+### Variables que consume Compose, no la API
+Configuran el servicio sidecar `db-backup` y nunca llegan al proceso Python. A diferencia de las variables que vienen de `env_file`, la interpolación de Compose las lee solo de un archivo `.env` en el directorio del proyecto — setearlas en `.env.common` no tiene efecto.
+
+| Variable | Default | Propósito |
+|---|---|---|
+| `BACKUP_SOURCE_DB` | `/resources/cache/sqlite/database.db` | Path a la base SQLite dentro del container `db-backup` |
+| `BACKUP_DEST_DIR` | `/backups` | Dónde se escriben los backups fechados dentro del container |
+| `BACKUP_INTERVAL_SECONDS` | `3600` | Segundos entre backups automáticos mientras el sidecar está corriendo (ver `make db-backup-up`) |
+| `BACKUP_RETENTION` | `30` | Cuántos backups fechados conservar; `0` o negativo desactiva la poda |
 
 ## Inferencia
 

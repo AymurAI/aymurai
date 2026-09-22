@@ -177,6 +177,7 @@ services:
             - ./resources/backups:/backups
         environment:
             BACKUP_SOURCE_DB: ${BACKUP_SOURCE_DB:-/resources/cache/sqlite/database.db}
+            BACKUP_DEST_DIR: ${BACKUP_DEST_DIR:-/backups}
             BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
             BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
         restart: always

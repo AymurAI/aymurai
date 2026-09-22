@@ -62,6 +62,11 @@ que quedaron en `docker-compose.yml`:
 Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
 que corre el mismo script una sola vez (`--once`) y termina.
 
+El loop en sí no arranca solo — hay que iniciarlo una vez con
+`make db-backup-up`; de ahí en más `restart: always` lo mantiene corriendo
+entre reinicios del host y del container (`make db-backup-stop` lo para,
+`make db-backup-logs` sigue su output).
+
 ### Restaurar un respaldo
 Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
 parando cada variante de la API más `db-backup` y negándose a continuar si
@@ -75,6 +80,13 @@ sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
 estado previo a la restauración queda en `./resources/backups` como un
 respaldo fechado más, no en un archivo aparte. Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
+
+En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
+`resources/backups/`) pueden quedar con dueño root por Docker; las
+operaciones sobre archivos del lado del host que hace `db-restore`
+(los pasos `cp`/`mv`/`rm`) necesitan permiso para escribir ahí, así que puede
+hacer falta ajustar el dueño de esos directorios o correr esos pasos con
+privilegios suficientes antes de restaurar.
 
 ### Verificar un respaldo
 Un respaldo no verificado no es un respaldo. Restaurarlo a un path temporal
