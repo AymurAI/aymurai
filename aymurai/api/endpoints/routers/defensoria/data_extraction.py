@@ -305,18 +305,25 @@ def _recommendation_detail_response(
     )
 
 
-@router.put(
-    "/data-extraction/{document_id}/validate",
-    response_model=RecommendationDetailResponse,
-)
-async def api_data_extraction_validate(
-    document_id: uuid.UUID, payload: ValidateRecommendationRequest, session: SessionDep
-):
-    extraction = llm_extraction_get(document_id, session)
-    if not extraction:
-        raise NotFoundError(detail=f"Extraction not found: {document_id}")
+def _validation_data(
+    payload: ValidateRecommendationRequest,
+) -> RecommendationValidationData:
+    """
+    Translates a validation payload into the CRUD layer's own input shape.
 
-    data = RecommendationValidationData(
+    Shared by `/validate` and the correction `PUT`: `CorrectRecommendationRequest`
+    IS a `ValidateRecommendationRequest` (it inherits with no added fields), so
+    both handlers need exactly this translation and had it duplicated
+    character-for-character.
+
+    Args:
+        payload (ValidateRecommendationRequest): The request body.
+
+    Returns:
+        RecommendationValidationData: The CRUD-layer input for
+            `recommendation_upsert`.
+    """
+    return RecommendationValidationData(
         recommendation_number=payload.recommendation_number,
         recommendation_date_text=payload.recommendation_date_text,
         recommendation_date=payload.recommendation_date,
@@ -338,6 +345,20 @@ async def api_data_extraction_validate(
             for r in payload.recipients
         ],
     )
+
+
+@router.put(
+    "/data-extraction/{document_id}/validate",
+    response_model=RecommendationDetailResponse,
+)
+async def api_data_extraction_validate(
+    document_id: uuid.UUID, payload: ValidateRecommendationRequest, session: SessionDep
+):
+    extraction = llm_extraction_get(document_id, session)
+    if not extraction:
+        raise NotFoundError(detail=f"Extraction not found: {document_id}")
+
+    data = _validation_data(payload)
     try:
         recommendation = recommendation_upsert(document_id, data, session)
     except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
@@ -427,10 +448,40 @@ async def api_data_extraction_recommendation_correct(
     session: SessionDep,
     if_match: Annotated[str, Header(alias="If-Match")],
 ) -> RecommendationDetailResponse:
+    """
+    Corrects the document-derived fields of an already-validated recommendation.
+
+    Unlike `/validate`, this is keyed on the recommendation rather than the
+    document and needs no re-upload: the row already exists, and the client is
+    fixing what the extraction got wrong (tema, subtema, destinatarios,
+    contenido publicable, número y fecha).
+
+    `If-Match` is required, not optional: the correction screen can only send a
+    whole replacement body, so a save built on a snapshot somebody else has
+    already replaced would silently undo their work. Making the header
+    mandatory means a client cannot opt out of the check by omitting it.
+
+    Args:
+        recommendation_id (uuid.UUID): The row to correct.
+        payload (CorrectRecommendationRequest): The full replacement body.
+        session (Session): Database session.
+        if_match (str): The `updated_at`/`created_at` etag the client last read.
+
+    Returns:
+        RecommendationDetailResponse: The corrected row, with a fresh etag.
+    """
     recommendation = recommendation_get(recommendation_id, session)
     if not recommendation:
         raise NotFoundError(detail=f"Recommendation not found: {recommendation_id}")
 
+    # Parsed to a `datetime` and compared as one, NEVER string-compared: the
+    # same instant has several equally valid ISO-8601 spellings (trailing `Z`
+    # vs. `+00:00`, microseconds present or truncated, a `T` vs. a space
+    # separator). This exact drift already bit the same two columns once --
+    # b84d8ace fixed a grilla date rendered a day off because the API
+    # serializes these timestamps NAIVE while the client fixtures carried a
+    # fabricated `Z`. Under a string comparison that mismatch becomes a
+    # spurious 412 on a save nobody else raced.
     try:
         expected = datetime.fromisoformat(if_match)
     except ValueError as exc:
@@ -438,34 +489,25 @@ async def api_data_extraction_recommendation_correct(
             status_code=400, detail=f"Malformed If-Match header: {if_match}"
         ) from exc
 
+    # `updated_at` is `onupdate`-only with no `server_default`, so it stays
+    # NULL until the row's first edit -- a never-corrected recommendation has
+    # only `created_at` to identify its version by. Same fallback the client
+    # applies when it picks the etag to send, so the two always agree.
     current = recommendation.updated_at or recommendation.created_at
     if expected != current:
+        # 412, per RFC 7232: a failed `If-Match` precondition is exactly what
+        # this status means. Not 409 (which says the request conflicts with
+        # the resource's state, when the request itself is fine and only its
+        # precondition failed) and not 404 (the row is right here). The client
+        # keys its "recargá los datos" branch off this status.
         raise PreconditionFailedError(
             detail="Recommendation was modified since it was last read"
         )
 
-    data = RecommendationValidationData(
-        recommendation_number=payload.recommendation_number,
-        recommendation_date_text=payload.recommendation_date_text,
-        recommendation_date=payload.recommendation_date,
-        topic=payload.topic,
-        subtopic=payload.subtopic,
-        personal_data=payload.personal_data,
-        publishable_content=payload.publishable_content,
-        recipients=[
-            RecipientValidationData(
-                id=r.id,
-                name=r.name,
-                position=r.position,
-                is_primary=r.is_primary,
-                macro_sector=r.macro_sector,
-                unit_id=r.unit_id,
-                sector_id=r.sector_id,
-                source_index=r.source_index,
-            )
-            for r in payload.recipients
-        ],
-    )
+    # Upsert by `document_id`, not by `recommendation_id`: one document has at
+    # most one recommendation, so this reuses `/validate`'s single write path
+    # rather than growing a second, divergent one.
+    data = _validation_data(payload)
     try:
         recommendation = recommendation_upsert(
             recommendation.document_id, data, session
