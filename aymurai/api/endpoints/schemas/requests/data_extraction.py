@@ -57,6 +57,12 @@ class ValidateRecommendationRequest(BaseModel):
     recipients: list[RecipientValidationRequest] = Field(default_factory=list)
 
 
+class CorrectRecommendationRequest(ValidateRecommendationRequest):
+    """Mismo cuerpo que `ValidateRecommendationRequest` -- corregir y validar escriben
+    exactamente los mismos campos que vienen del documento. Nombre propio para que la
+    documentación de la API describa lo que este endpoint hace, no de dónde viene el shape."""
+
+
 class RecommendationSeguimientoUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

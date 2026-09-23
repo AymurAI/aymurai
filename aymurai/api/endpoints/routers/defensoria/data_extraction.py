@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRouter
 from sqlmodel import Session, select
@@ -26,8 +26,13 @@ from aymurai.api.endpoints.routers.llm.data_extraction_export import (
 )
 from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_recipient_unit
 from aymurai.api.endpoints.routers.llm.summarization_engine import ContextTooSmallError
-from aymurai.api.exceptions import ConfigurationError, NotFoundError
+from aymurai.api.exceptions import (
+    ConfigurationError,
+    NotFoundError,
+    PreconditionFailedError,
+)
 from aymurai.api.endpoints.schemas.requests.data_extraction import (
+    CorrectRecommendationRequest,
     DataExtractionRequest,
     RecommendationSeguimientoUpdateRequest,
     ValidateRecommendationRequest,
@@ -410,6 +415,66 @@ async def api_data_extraction_recommendation_update_seguimiento(
     except ValueError as exc:
         raise NotFoundError(detail=str(exc))
     return _recommendation_response(recommendation, session)
+
+
+@router.put(
+    "/data-extraction/recommendations/{recommendation_id}",
+    response_model=RecommendationDetailResponse,
+)
+async def api_data_extraction_recommendation_correct(
+    recommendation_id: uuid.UUID,
+    payload: CorrectRecommendationRequest,
+    session: SessionDep,
+    if_match: Annotated[str, Header(alias="If-Match")],
+) -> RecommendationDetailResponse:
+    recommendation = recommendation_get(recommendation_id, session)
+    if not recommendation:
+        raise NotFoundError(detail=f"Recommendation not found: {recommendation_id}")
+
+    try:
+        expected = datetime.fromisoformat(if_match)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Malformed If-Match header: {if_match}"
+        ) from exc
+
+    current = recommendation.updated_at or recommendation.created_at
+    if expected != current:
+        raise PreconditionFailedError(
+            detail="Recommendation was modified since it was last read"
+        )
+
+    data = RecommendationValidationData(
+        recommendation_number=payload.recommendation_number,
+        recommendation_date_text=payload.recommendation_date_text,
+        recommendation_date=payload.recommendation_date,
+        topic=payload.topic,
+        subtopic=payload.subtopic,
+        personal_data=payload.personal_data,
+        publishable_content=payload.publishable_content,
+        recipients=[
+            RecipientValidationData(
+                id=r.id,
+                name=r.name,
+                position=r.position,
+                is_primary=r.is_primary,
+                macro_sector=r.macro_sector,
+                unit_id=r.unit_id,
+                sector_id=r.sector_id,
+                source_index=r.source_index,
+            )
+            for r in payload.recipients
+        ],
+    )
+    try:
+        recommendation = recommendation_upsert(
+            recommendation.document_id, data, session
+        )
+    except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    extraction = llm_extraction_get(recommendation.document_id, session)
+    return _recommendation_detail_response(recommendation, extraction, session)
 
 
 @router.get("/data-extraction/export")
