@@ -1,0 +1,403 @@
+import { Button, Callout, PageTitle, Spinner } from "@aymurai/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { AxiosError } from "axios";
+import { type Dispatch, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import FileAnnotator from "@/components/file-annotator";
+import { FileContext, FileDispatchContext } from "@/context/File";
+import { showToast } from "@/features/showToast";
+import { SectionTitle } from "@/layout/section-title";
+import type { Action } from "@/reducers/file";
+import {
+  correctRecommendation,
+  recommendationDetail,
+  recommendationsList,
+} from "@/services/aymurai/dataExtraction";
+import { css } from "@/styled/css";
+import { Flex, Grid, HStack, Stack, styled } from "@/styled/jsx";
+import type {
+  RecommendationDetail,
+  RecommendationValidationInput,
+} from "@/types/dataExtraction";
+import type { DocFile } from "@/types/file";
+import { buildAnnotations } from "@/utils/recommendations/build-annotations";
+import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
+import { predictionFromDetail } from "@/utils/recommendations/prediction-from-detail";
+import RecommendationForm from "./recommendation-form";
+
+const subtitle = css({
+  textStyle: "paragraph.sm.default",
+  color: "text.lighter",
+});
+
+const panes = css({
+  flex: "1",
+  minH: "0",
+  overflow: "hidden",
+  bg: "bg.secondary",
+  border: "card",
+  borderRadius: "lg",
+});
+
+// Same reason as `recommendation-validation.tsx`'s `validationPane`: a grid
+// item stretches to the row height but its content still overflows that
+// stretched box unless min-height is pinned to 0, which is what makes each
+// pane scroll internally instead of pushing the screen taller.
+const documentPane = css({
+  height: "full",
+  minHeight: "[0]",
+  overflow: "hidden",
+});
+
+/**
+ * This screen's `<FileContext.Provider>` is read-only on purpose: the only
+ * file in it is synthetic, `<FileAnnotator>` mounts here with annotation
+ * disabled, and the global store keys files by `data.name` — a dispatch
+ * escaping into it could collide with a real upload in flight elsewhere.
+ */
+const NOOP_DISPATCH: Dispatch<Action> = () => {};
+
+/**
+ * Rebuilds the `DocFile` the annotator needs from what the server stored,
+ * with no re-upload and no trip through the global file store.
+ *
+ * `data` is a real (if synthetic) `File`, never `undefined`:
+ * `AnnotationProvider` dereferences `file.data.name` unconditionally inside
+ * seven `useCallback`s on every render — regardless of `isAnnotable` — so a
+ * missing `data` crashes the whole screen synchronously on mount.
+ *
+ * The paragraph split is the exact inverse of how the backend composed
+ * `source_text` in the first place (`"\n".join(payload.document.document)`,
+ * `routers/defensoria/data_extraction.py`), so it round-trips exactly —
+ * except for the one documented case where a paragraph contained its own
+ * newline, which the join made indistinguishable from a paragraph boundary
+ * and no split can recover (issue #58). See this component's test suite,
+ * which pins both halves of that statement.
+ */
+function syntheticDocFile(detail: RecommendationDetail): DocFile {
+  return {
+    data: new File([detail.source_text], `recomendacion-${detail.id}.txt`, {
+      type: "text/plain",
+    }),
+    // Deterministic ids: the annotator keys paragraphs (and the highlight map
+    // from `buildAnnotations`) by them, so they must be stable across renders
+    // and across a refetch of the same recommendation.
+    paragraphs: detail.source_text.split("\n").map((value, index) => ({
+      value,
+      id: `${detail.id}-p${index}`,
+      document_id: detail.document_id,
+    })),
+    selected: true,
+    validationObject: {},
+  };
+}
+
+interface Props {
+  recommendationId: string;
+}
+
+/**
+ * The correction screen (`/home/dataset/$recommendationId`): the one place a
+ * field that came from the original document — tema, subtema, destinatarios,
+ * contenido publicable, número y fecha — can be fixed on an already-saved
+ * recommendation, without re-uploading the file (issue #58).
+ *
+ * It reuses the wizard's two validation-step components as independent
+ * blocks: `<FileAnnotator>` fed a reconstructed `DocFile`, and
+ * `<RecommendationForm>` fed a reconstructed prediction plus the saved
+ * validation. It does NOT reuse the wizard's flow — no `RecommendationState`
+ * context, no global `FileContext`, no stepper: this is not a step of
+ * anything, it is a single edit of one stored row.
+ *
+ * ADR-0013 inverted: `validation` is never null here (the row exists by
+ * definition), so `useRecommendationForm`'s `buildInitial` seeds every field
+ * with the SAVED validated value instead of blanking it behind a suggestion
+ * mark. Blanking is for a first validation pass, where the model's guess is
+ * the only answer on offer; on a correction the person is editing their own
+ * earlier answer and must see it.
+ */
+export default function RecommendationCorrection({ recommendationId }: Props) {
+  const { t } = useTranslation("recommendations");
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const detailQuery = useQuery(recommendationDetail(recommendationId));
+  const save = useMutation(correctRecommendation());
+
+  const [payload, setPayload] = useState<RecommendationValidationInput | null>(
+    null,
+  );
+  const [pendingFields, setPendingFields] = useState<PendingValidationField[]>(
+    [],
+  );
+  const [confirmUnvalidated, setConfirmUnvalidated] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [reloadFailed, setReloadFailed] = useState(false);
+
+  const detail = detailQuery.data;
+
+  // A confirmation belongs to the exact list the person was shown — same
+  // reasoning as `recommendation-validation.tsx`, where every edit recomputes
+  // the list into a new array so a stale "yes" can't wave through fields that
+  // were still pending when it was given.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pendingFields is used only as an identity signal, not read in the body
+  useEffect(() => {
+    setConfirmUnvalidated(false);
+  }, [pendingFields]);
+
+  // `predictionFromDetail` parses the stored blob rather than casting it, so
+  // a row written by an older extraction shape throws here. That is a missing
+  // suggestion overlay, not a broken screen — but the form needs a prediction
+  // to render at all, so it is reported instead of crashing the route.
+  const prediction = useMemo(() => {
+    if (!detail) return null;
+    try {
+      return predictionFromDetail(detail);
+    } catch {
+      return null;
+    }
+  }, [detail]);
+
+  const docFile = useMemo(
+    () => (detail ? syntheticDocFile(detail) : null),
+    [detail],
+  );
+  const localFiles = useMemo(() => (docFile ? [docFile] : []), [docFile]);
+
+  // Same "where does this value come from" highlight the wizard shows, tracking
+  // whatever the person currently has on screen (`payload`) and falling back to
+  // the model's own suggestion while a field is still blank.
+  const annotations = useMemo(
+    () =>
+      prediction
+        ? buildAnnotations(prediction, docFile?.paragraphs ?? [], payload)
+        : new Map(),
+    [prediction, docFile?.paragraphs, payload],
+  );
+
+  const goBack = () => navigate({ to: "/home/dataset" });
+
+  // The backend's own `_etag` convention: `updated_at` when set, else
+  // `created_at`. Sent as `If-Match` so a save against a snapshot somebody
+  // else has already replaced is refused (412) rather than silently
+  // overwriting their work.
+  const etag = detail ? (detail.updated_at ?? detail.created_at) : null;
+
+  const labelByField: Record<PendingValidationField["labelKey"], string> = {
+    recommendationNumber: t("validation.recommendationNumber"),
+    recommendationDate: t("validation.recommendationDate"),
+    topic: t("validation.topic"),
+    subtopic: t("validation.subtopic"),
+    macroSector: t("validation.macroSector"),
+    name: t("validation.name"),
+    position: t("validation.position"),
+    unit: t("validation.unit"),
+  };
+  const pendingLabels = pendingFields.map(({ labelKey, recipientIndex }) =>
+    recipientIndex === undefined
+      ? labelByField[labelKey]
+      : `${t("validation.recipientLabel")} ${recipientIndex + 1}: ${labelByField[labelKey]}`,
+  );
+
+  const handleSave = async () => {
+    if (!payload || !etag || conflict) return;
+    // ADR-0013 (enmienda 2026-09-18): a field the person cleared is about to
+    // be persisted empty. Name those fields once; the next press goes through.
+    if (pendingFields.length > 0 && !confirmUnvalidated) {
+      showToast(
+        t("validation.unvalidatedFieldsWarning", {
+          fields: pendingLabels.join(", "),
+        }),
+        "warning",
+      );
+      setConfirmUnvalidated(true);
+      return;
+    }
+    setSaveFailed(false);
+    try {
+      await save.mutateAsync({ recommendationId, ifMatch: etag, payload });
+      // Every page/filter combination of the grilla is its own cache entry
+      // (the factory keys on the whole params object), so the corrected row
+      // only shows up on return if the whole prefix is invalidated — read off
+      // the factory, the same reflex as the grilla's own PATCH.
+      queryClient.invalidateQueries({
+        queryKey: [recommendationsList({}).queryKey[0]],
+      });
+      queryClient.invalidateQueries({
+        queryKey: recommendationDetail(recommendationId).queryKey,
+      });
+      goBack();
+    } catch (error) {
+      // A 412 is NOT a transient failure to retry — retrying is exactly what
+      // `If-Match` exists to prevent, since the second attempt would carry the
+      // same stale etag and clobber a save this screen never saw. The person
+      // reloads the detail (remounting the form on the fresh values via a
+      // changed `key`) and decides again.
+      if (error instanceof AxiosError && error.response?.status === 412) {
+        setConflict(true);
+        return;
+      }
+      setSaveFailed(true);
+    }
+  };
+
+  const handleReload = async () => {
+    setReloadFailed(false);
+    const result = await detailQuery.refetch();
+    if (result.error) {
+      setReloadFailed(true);
+      return;
+    }
+    setConflict(false);
+    setSaveFailed(false);
+  };
+
+  if (detailQuery.isPending) {
+    return (
+      <HStack justify="center" py="8" width="full">
+        <Spinner />
+      </HStack>
+    );
+  }
+
+  if (detailQuery.isError || !detail || !prediction || !docFile) {
+    return (
+      <Stack gap="4" width="full">
+        <PageTitle>{t("correction.title")}</PageTitle>
+        <Callout
+          variant="error"
+          role="alert"
+          message={
+            detail && !prediction
+              ? t("correction.predictionUnavailable")
+              : t("correction.loadFailed")
+          }
+        />
+        <HStack>
+          <Button variant="secondary" onClick={goBack}>
+            {t("correction.back")}
+          </Button>
+        </HStack>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap="6" width="full" flex="1" minH="0">
+      {/* `HStack` (the Panda pattern) takes no `wrap` prop — `Flex` is the one
+          that does (see `.claude/rules/panda-css.md`'s Stack-vs-Flex trap), and
+          the title/actions row has to wrap on a narrow window rather than
+          squeeze the buttons. */}
+      <Flex justify="space-between" alignItems="flex-start" gap="4" wrap="wrap">
+        <Stack gap="1">
+          <PageTitle>{t("correction.title")}</PageTitle>
+          <styled.p className={subtitle}>{t("correction.subtitle")}</styled.p>
+        </Stack>
+        {/* Top-right, beside the title, rather than in a footer: this screen
+            lives under `HomeLayout` (the Configuración/grilla chrome), which
+            has no footer slot — the wizard's `<Footer>` belongs to the
+            `/$feature/...` step layout and would be borrowed chrome here. */}
+        <HStack gap="3">
+          <Button variant="secondary" onClick={goBack}>
+            {t("correction.cancel")}
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={save.isPending || conflict || !payload}
+          >
+            {confirmUnvalidated
+              ? t("correction.saveAnyway")
+              : t("correction.save")}
+          </Button>
+        </HStack>
+      </Flex>
+
+      {conflict && (
+        <Stack gap="3" alignItems="flex-start">
+          <Callout
+            variant="warning"
+            role="alert"
+            message={t("correction.conflict")}
+          />
+          <Button
+            variant="secondary"
+            onClick={handleReload}
+            disabled={detailQuery.isFetching}
+          >
+            {t("correction.reload")}
+          </Button>
+          {reloadFailed && (
+            <Callout
+              variant="error"
+              role="alert"
+              message={t("correction.reloadFailed")}
+            />
+          )}
+        </Stack>
+      )}
+
+      {saveFailed && (
+        <Callout
+          variant="error"
+          role="alert"
+          message={t("correction.saveFailed")}
+        />
+      )}
+
+      <Grid
+        className={panes}
+        // Same responsive split as the wizard's validation step: stacked below
+        // `lg` (no room for two panes), side by side above it. Both panes
+        // scroll internally, so neither needs a taller share when stacked.
+        gridTemplateColumns={{
+          base: "[minmax(0, 1fr)]",
+          lg: "[repeat(2, minmax(0, 1fr))]",
+        }}
+        gridTemplateRows={{
+          base: "[minmax(0, 1fr) minmax(0, 1fr)]",
+          lg: "[minmax(0, 1fr)]",
+        }}
+        gap="0"
+        flex="1"
+        minHeight="0"
+        justifyContent="stretch"
+        alignItems="stretch"
+      >
+        <section
+          className={documentPane}
+          aria-label={t("correction.originalDocumentLabel")}
+        >
+          <FileContext.Provider value={localFiles}>
+            <FileDispatchContext.Provider value={NOOP_DISPATCH}>
+              <FileAnnotator file={docFile} extraAnnotations={annotations} />
+            </FileDispatchContext.Provider>
+          </FileContext.Provider>
+        </section>
+        <Stack
+          px={{ base: "6", xl: "10" }}
+          py={{ base: "6", xl: "10" }}
+          overflowY="auto"
+          overflowX="hidden"
+          gap="8"
+          minHeight="0"
+          minWidth="0"
+        >
+          <SectionTitle>{t("correction.sectionTitle")}</SectionTitle>
+          <RecommendationForm
+            // A reload after a conflict returns a row with a new etag, and
+            // `useRecommendationForm` freezes its initial values on first
+            // render — without a changing key React would keep the same
+            // instance and go on showing the values that just lost the race.
+            key={`${detail.id}:${etag}`}
+            prediction={prediction}
+            validation={detail}
+            onValuesChange={setPayload}
+            onPendingFieldsChange={setPendingFields}
+          />
+        </Stack>
+      </Grid>
+    </Stack>
+  );
+}

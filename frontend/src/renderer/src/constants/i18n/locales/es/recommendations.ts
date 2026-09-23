@@ -175,6 +175,36 @@ const recommendations = {
       next: "Página siguiente",
     },
   },
+  // La pantalla de corrección (`/home/dataset/:id`): corregir los datos que
+  // salieron del documento original sobre una recomendación ya guardada, sin
+  // volver a subir el archivo. Namespace propio y no `validation.*`: aquélla
+  // es el paso 3 del asistente (numerado, con stepper) y ésta no es un paso de
+  // nada. Las etiquetas de los campos sí se reusan desde `validation.*`, para
+  // que el formulario diga las mismas palabras en las dos pantallas.
+  correction: {
+    title: "Corregir recomendación",
+    subtitle:
+      "Corregí los datos extraídos del documento original sin volver a subirlo",
+    sectionTitle: "Datos de la recomendación",
+    originalDocumentLabel: "Documento original",
+    save: "Guardar corrección",
+    saveAnyway: "Guardar de todos modos",
+    cancel: "Cancelar",
+    back: "Volver a seguimiento",
+    loadFailed:
+      "No se pudo cargar la recomendación. Revisá tu conexión e intentá nuevamente.",
+    predictionUnavailable:
+      "No se pudo reconstruir la extracción original de esta recomendación, así que no se puede corregir desde acá.",
+    saveFailed:
+      "No se pudo guardar la corrección. Revisá tu conexión e intentá nuevamente.",
+    // 412: el `If-Match` viajó con una versión que ya quedó vieja. Reintentar
+    // solo pisaría el guardado de la otra persona, así que hay que recargar.
+    conflict:
+      "Este registro fue modificado por otra persona mientras lo corregías. Recargá los datos para ver la versión más reciente antes de volver a guardar.",
+    reload: "Recargar datos",
+    reloadFailed:
+      "No se pudieron recargar los datos. Revisá tu conexión e intentá nuevamente.",
+  },
   finish: {
     sectionTitle: "4. Finalización",
     description:

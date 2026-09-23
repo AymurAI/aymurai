@@ -21,6 +21,7 @@ import { Route as HomeIndexRouteImport } from './routes/home/index'
 import { Route as HomeDatasetRouteImport } from './routes/home/dataset'
 import { Route as HomeFeaturesRouteImport } from './routes/home/features'
 import { Route as HomeHostRouteImport } from './routes/home/host'
+import { Route as HomeDatasetRecommendationIdRouteImport } from './routes/home/dataset_.$recommendationId'
 import { Route as HomeSettingsIndexRouteImport } from './routes/home/settings/index'
 import { Route as HomeSettingsOrganigramRouteImport } from './routes/home/settings/organigram'
 import { Route as HomeSettingsServerRouteImport } from './routes/home/settings/server'
@@ -86,6 +87,12 @@ const HomeHostRoute = HomeHostRouteImport.update({
   path: '/home/host',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeDatasetRecommendationIdRoute =
+  HomeDatasetRecommendationIdRouteImport.update({
+    id: '/home/dataset_/$recommendationId',
+    path: '/home/dataset/$recommendationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const HomeSettingsIndexRoute = HomeSettingsIndexRouteImport.update({
   id: '/home/settings/',
   path: '/home/settings/',
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/dataset/$recommendationId': typeof HomeDatasetRecommendationIdRoute
   '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
   '/home/settings/server': typeof HomeSettingsServerRoute
   '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
@@ -137,6 +145,7 @@ export interface FileRoutesByTo {
   '/home/host': typeof HomeHostRoute
   '/$feature': typeof FeatureIndexRoute
   '/home': typeof HomeIndexRoute
+  '/home/dataset/$recommendationId': typeof HomeDatasetRecommendationIdRoute
   '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
   '/home/settings/server': typeof HomeSettingsServerRoute
   '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
@@ -156,6 +165,7 @@ export interface FileRoutesById {
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/dataset_/$recommendationId': typeof HomeDatasetRecommendationIdRoute
   '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
   '/home/settings/server': typeof HomeSettingsServerRoute
   '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/dataset/$recommendationId'
     | '/home/settings/organigram'
     | '/home/settings/server'
     | '/home/settings/taxonomy'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature'
     | '/home'
+    | '/home/dataset/$recommendationId'
     | '/home/settings/organigram'
     | '/home/settings/server'
     | '/home/settings/taxonomy'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/dataset_/$recommendationId'
     | '/home/settings/organigram'
     | '/home/settings/server'
     | '/home/settings/taxonomy'
@@ -224,6 +237,7 @@ export interface RootRouteChildren {
   HomeFeaturesRoute: typeof HomeFeaturesRoute
   HomeHostRoute: typeof HomeHostRoute
   HomeIndexRoute: typeof HomeIndexRoute
+  HomeDatasetRecommendationIdRoute: typeof HomeDatasetRecommendationIdRoute
   HomeSettingsOrganigramRoute: typeof HomeSettingsOrganigramRoute
   HomeSettingsServerRoute: typeof HomeSettingsServerRoute
   HomeSettingsTaxonomyRoute: typeof HomeSettingsTaxonomyRoute
@@ -316,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeHostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home/dataset_/$recommendationId': {
+      id: '/home/dataset_/$recommendationId'
+      path: '/home/dataset/$recommendationId'
+      fullPath: '/home/dataset/$recommendationId'
+      preLoaderRoute: typeof HomeDatasetRecommendationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home/settings/': {
       id: '/home/settings/'
       path: '/home/settings'
@@ -376,6 +397,7 @@ const rootRouteChildren: RootRouteChildren = {
   HomeFeaturesRoute: HomeFeaturesRoute,
   HomeHostRoute: HomeHostRoute,
   HomeIndexRoute: HomeIndexRoute,
+  HomeDatasetRecommendationIdRoute: HomeDatasetRecommendationIdRoute,
   HomeSettingsOrganigramRoute: HomeSettingsOrganigramRoute,
   HomeSettingsServerRoute: HomeSettingsServerRoute,
   HomeSettingsTaxonomyRoute: HomeSettingsTaxonomyRoute,
