@@ -1,3 +1,4 @@
+import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -15,6 +16,7 @@ import type {
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
 import type { DocFile } from "@/types/file";
+import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import RecommendationCorrection from "./recommendation-correction";
 
 vi.mock("react-i18next", () => ({
@@ -82,8 +84,77 @@ vi.mock("@/components/file-annotator", async (importOriginal) => {
   };
 });
 
+// Only reached by the real-`<RecommendationForm>` describe at the bottom; the
+// stub needs none of it. Same convention as `recommendation-form.test.tsx`:
+// mock the catalog/organigram service modules rather than driving `api`.
+const CATALOG_ENTRY = {
+  active: true,
+  order: 1,
+  created_at: "x",
+  updated_at: "x",
+};
+vi.mock("@/services/aymurai/catalogs", () => ({
+  listTopics: () => ({
+    queryKey: ["topics"],
+    queryFn: async () => [
+      { id: "t1", code: null, name: "Salud", ...CATALOG_ENTRY },
+    ],
+  }),
+  listSubtopics: (topicId: string) => ({
+    queryKey: ["subtopics", topicId],
+    queryFn: async () => [
+      { id: "s1", code: null, name: "Medicamentos", ...CATALOG_ENTRY },
+    ],
+  }),
+  listMacroSectors: () => ({
+    queryKey: ["macro-sectors"],
+    queryFn: async () => [
+      { id: "m1", code: "GCBA", name: "GCBA", ...CATALOG_ENTRY },
+    ],
+  }),
+}));
+
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({
+    queryKey: ["organigram-units"],
+    queryFn: async () => [
+      {
+        id: "sector-1",
+        parent_id: null,
+        name: "Ministerio de Salud",
+        acronym: null,
+        short_name: null,
+        is_sector: true,
+        ...CATALOG_ENTRY,
+      },
+      {
+        id: "unit-1",
+        parent_id: "sector-1",
+        name: "Dirección de Medicamentos",
+        acronym: null,
+        short_name: null,
+        is_sector: false,
+        ...CATALOG_ENTRY,
+      },
+    ],
+  }),
+  createUnit: () => ({ mutationFn: vi.fn() }),
+}));
+
+// Radix Tooltip positioning measures its trigger with ResizeObserver, which
+// jsdom doesn't implement — stubbed exactly as `recommendation-form.test.tsx`
+// does, for the same reason.
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
+
 /** What the stubbed form reports as still-unvalidated; set per test. */
-let mockPendingFields: { labelKey: string; recipientIndex?: number }[] = [];
+let mockPendingFields: PendingValidationField[] = [];
 /** What the stubbed form reports as the current payload; set per test. */
 let mockPayloadOverride: Partial<RecommendationValidationInput> = {};
 
@@ -95,46 +166,63 @@ let formProps: {
   validation: unknown;
 } | null = null;
 
-vi.mock("./recommendation-form", () => ({
-  default: ({
-    prediction,
-    validation,
-    onValuesChange,
-    onPendingFieldsChange,
-  }: {
-    prediction: DataExtractionPrediction;
-    validation: unknown;
-    onValuesChange?: (payload: RecommendationValidationInput) => void;
-    onPendingFieldsChange?: (
-      fields: { labelKey: string; recipientIndex?: number }[],
-    ) => void;
-  }) => {
-    formProps = { prediction, validation };
-    // Memoized so the mount effect fires once instead of looping against the
-    // parent's `setPayload`, same guard as `recommendation-validation.test.tsx`.
-    const seeded: RecommendationValidationInput = useMemo(
-      () => ({
-        recommendation_number: prediction.recommendation_number,
-        recommendation_date_text: prediction.recommendation_date,
-        recommendation_date: null,
-        topic: prediction.topic,
-        subtopic: prediction.subtopic,
-        personal_data: prediction.personal_data,
-        publishable_content: prediction.publishable_content,
-        recipients: [],
-        ...mockPayloadOverride,
-      }),
-      [prediction],
-    );
-    useEffect(() => {
-      onValuesChange?.(seeded);
-    }, [seeded, onValuesChange]);
-    useEffect(() => {
-      onPendingFieldsChange?.(mockPendingFields);
-    }, [onPendingFieldsChange]);
-    return <div data-testid="recommendation-form" />;
-  },
-}));
+/**
+ * Flips the stub below to the REAL `<RecommendationForm>`, same device as
+ * `useRealAnnotator`. The stub is what every behavioural test wants (the form
+ * has its own suite), but two of this screen's guarantees only actually
+ * happen inside `useRecommendationForm` and are invisible at the prop seam:
+ * ADR-0013's non-blanking (`buildInitial` seeding from `validation`) and a
+ * saved recipient's `id` surviving into the PUT body. See the last describe.
+ */
+let useRealForm = false;
+
+vi.mock("./recommendation-form", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./recommendation-form")>();
+  return {
+    default: (props: React.ComponentProps<typeof actual.default>) => {
+      formProps = {
+        prediction: props.prediction,
+        validation: props.validation,
+      };
+      if (useRealForm) return <actual.default {...props} />;
+      return <FormStub {...props} />;
+    },
+  };
+});
+
+function FormStub({
+  prediction,
+  onValuesChange,
+  onPendingFieldsChange,
+}: {
+  prediction: DataExtractionPrediction;
+  onValuesChange?: (payload: RecommendationValidationInput) => void;
+  onPendingFieldsChange?: (fields: PendingValidationField[]) => void;
+}) {
+  // Memoized so the mount effect fires once instead of looping against the
+  // parent's `setPayload`, same guard as `recommendation-validation.test.tsx`.
+  const seeded: RecommendationValidationInput = useMemo(
+    () => ({
+      recommendation_number: prediction.recommendation_number,
+      recommendation_date_text: prediction.recommendation_date,
+      recommendation_date: null,
+      topic: prediction.topic,
+      subtopic: prediction.subtopic,
+      personal_data: prediction.personal_data,
+      publishable_content: prediction.publishable_content,
+      recipients: [],
+      ...mockPayloadOverride,
+    }),
+    [prediction],
+  );
+  useEffect(() => {
+    onValuesChange?.(seeded);
+  }, [seeded, onValuesChange]);
+  useEffect(() => {
+    onPendingFieldsChange?.(mockPendingFields);
+  }, [onPendingFieldsChange]);
+  return <div data-testid="recommendation-form" />;
+}
 
 /**
  * A realistic multi-paragraph recomendación body. Not a one-line invention:
@@ -222,8 +310,13 @@ function renderCorrection(recommendationId = "rec-1") {
     defaultOptions: { queries: { retry: false } },
   });
   const utils = render(
+    // `TooltipProvider`, as `app.tsx` wraps for real: the real
+    // `<RecommendationForm>`'s `Select` options carry Radix Tooltips that
+    // throw without a provider ancestor. Harmless for the stubbed tests.
     <QueryClientProvider client={client}>
-      <RecommendationCorrection recommendationId={recommendationId} />
+      <TooltipProvider>
+        <RecommendationCorrection recommendationId={recommendationId} />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
   return { ...utils, client };
@@ -580,5 +673,79 @@ describe("RecommendationCorrection — the synthetic DocFile", () => {
     // And the reason it got past it: a real `File`, never `undefined`.
     expect(annotatorFile?.data).toBeInstanceOf(File);
     expect(annotatorFile?.data.name).toBe("recomendacion-rec-1.txt");
+  });
+});
+
+/**
+ * Two guarantees that only actually happen INSIDE `useRecommendationForm`, so
+ * a stubbed form can never prove them from this screen — both are
+ * data-loss-shaped if they regress, and this screen is the first (and for the
+ * recipient id, the only) caller where either matters.
+ *
+ * Renders the REAL `<RecommendationForm>` via `useRealForm`, the same device
+ * the annotator describe above uses.
+ */
+describe("RecommendationCorrection — through the real RecommendationForm", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockDetail.mockReset();
+    mockDetail.mockResolvedValue(aDetail());
+    mockCorrect.mockReset();
+    mockCorrect.mockResolvedValue(aDetail());
+    formProps = null;
+    useRealForm = true;
+  });
+
+  afterEach(() => {
+    useRealForm = false;
+  });
+
+  // ADR-0013's inversion, end to end rather than at the prop seam: with a
+  // non-null `validation`, `buildInitial` seeds from the SAVED row, so the
+  // field on screen holds the person's own validated text — not a blank
+  // waiting behind a suggestion mark, and not the model's different guess.
+  it("shows the saved validated value in the form, not a blank field", async () => {
+    renderCorrection();
+
+    const field = await screen.findByLabelText(
+      "recommendations:validation.publishableContent",
+    );
+    expect(field).toHaveValue("Contenido publicable validado.");
+    // The fixture's prediction deliberately says something else, so this
+    // cannot pass by accident if the seeding ever flipped to the prediction.
+    expect(field).not.toHaveValue(
+      "Contenido publicable sugerido por el modelo.",
+    );
+
+    // The free-text field that ADR-0013 blanks on a FIRST validation pass. If
+    // `buildInitial` ever started blanking here too, this is what would go
+    // empty and quietly overwrite a saved número on the next save.
+    expect(
+      screen.getByLabelText("recommendations:validation.recommendationNumber"),
+    ).toHaveValue("123/2026");
+  });
+
+  // This screen is the first caller that corrects EXISTING recipients (the
+  // wizard always creates them fresh), so `id` reaching the PUT body is what
+  // stops every correction from delete-and-recreating them server-side.
+  it("carries a saved recipient's id into the PUT payload", async () => {
+    renderCorrection();
+    await screen.findByLabelText(
+      "recommendations:validation.publishableContent",
+    );
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(mockCorrect).toHaveBeenCalledTimes(1));
+    const { payload } = mockCorrect.mock.calls[0][0];
+    expect(payload.recipients).toHaveLength(1);
+    expect(payload.recipients[0]).toMatchObject({
+      id: "recipient-1",
+      source_index: 0,
+      name: "Ana Pérez",
+      position: "Ministra de Salud",
+      unit_id: "unit-1",
+      sector_id: "sector-1",
+    });
   });
 });
