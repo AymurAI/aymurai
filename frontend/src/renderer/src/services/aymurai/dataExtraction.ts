@@ -3,6 +3,7 @@ import { USE_MOCK_DATA_EXTRACTION } from "@/constants/config";
 import {
   dataExtractionPredictionSchema,
   documentExtractionEnvelopeSchema,
+  recommendationDetailSchema,
   recommendationEnumsSchema,
   recommendationPageSchema,
   recommendationRowSchema,
@@ -122,6 +123,54 @@ export const recommendationEnums = () =>
         ? await mock.mockRecommendationEnums()
         : (await api.get("/catalogs/recommendation-enums")).data;
       return recommendationEnumsSchema.parse(data);
+    },
+  });
+
+/** Single-recommendation detail (source text + raw prediction) for the correction screen. */
+export const recommendationDetail = (recommendationId: string) =>
+  queryOptions({
+    queryKey: ["recommendation-detail", recommendationId, api.defaults.baseURL],
+    // Same rationale as documentExtractionEnvelope: a stale cache here would
+    // let the correction screen silently edit against an outdated snapshot,
+    // and a failure must surface rather than resolve to a missing detail.
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    queryFn: async () => {
+      const data = USE_MOCK_DATA_EXTRACTION
+        ? await mock.mockRecommendationDetail(recommendationId)
+        : (
+            await api.get(
+              `/llm/data-extraction/recommendations/${recommendationId}`,
+            )
+          ).data;
+      return recommendationDetailSchema.parse(data);
+    },
+  });
+
+/**
+ * Saves a correction to an existing recommendation, with an `If-Match` header
+ * for optimistic concurrency -- the caller supplies the etag it last read
+ * (`updated_at` falling back to `created_at`, mirroring the backend's own
+ * `_etag` convention), and a stale value is rejected (412) rather than
+ * silently overwriting a newer save.
+ */
+export const correctRecommendation = () =>
+  mutationOptions({
+    mutationFn: async (input: {
+      recommendationId: string;
+      ifMatch: string;
+      payload: RecommendationValidationInput;
+    }) => {
+      const data = USE_MOCK_DATA_EXTRACTION
+        ? await mock.mockCorrectRecommendation(input)
+        : (
+            await api.put(
+              `/llm/data-extraction/recommendations/${input.recommendationId}`,
+              input.payload,
+              { headers: { "If-Match": input.ifMatch } },
+            )
+          ).data;
+      return recommendationDetailSchema.parse(data);
     },
   });
 

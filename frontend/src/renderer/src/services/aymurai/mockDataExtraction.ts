@@ -1,7 +1,9 @@
+import { AxiosError } from "axios";
 import type {
   DataExtractionPrediction,
   DocumentExtractionEnvelope,
   RecipientDetail,
+  RecommendationDetail,
   RecommendationEnums,
   RecommendationPage,
   RecommendationRow,
@@ -300,7 +302,7 @@ const RECOMMENDATION_STATUSES = ["Solucionado", "No solucionado"];
  * seguimiento fields set), so `unparsedDates`/empty-state UI has something
  * real to show against.
  */
-const recommendationRows = new Map<string, RecommendationRow>([
+const recommendationRows = new Map<string, RecommendationDetail>([
   [
     "recommendation-1",
     {
@@ -323,6 +325,26 @@ const recommendationRows = new Map<string, RecommendationRow>([
       link: null,
       created_at: now,
       updated_at: null,
+      source_text:
+        "El organismo destinatario deberá arbitrar los medios necesarios para garantizar el acceso a medicamentos esenciales a la población afectada.",
+      // Deliberately the RAW extraction shape (`RawExtraction.model_dump()`
+      // in `aymurai/api/endpoints/routers/llm/data_extraction_engine.py`),
+      // NOT `DataExtractionPrediction` -- the backend stores this narrower
+      // dict (no `document_id`/`config`/`catalogs_stale`, and recipients
+      // without the resolved organigram fields), confirmed empirically
+      // against a real extract→validate→correct cycle. See task-2-report.md
+      // for why `predictionFromDetail` (Task 2 item 5) was not implemented
+      // against `dataExtractionPredictionSchema`.
+      prediction: {
+        recommendation_number: "123/2026",
+        recommendation_date: "22 de noviembre",
+        recipients: [],
+        topic: "Salud",
+        subtopic: "Acceso a medicamentos",
+        personal_data: false,
+        publishable_content:
+          "La Defensoría recomienda al organismo destinatario que arbitre los medios necesarios para garantizar el acceso a medicamentos esenciales.",
+      },
     },
   ],
   [
@@ -351,6 +373,18 @@ const recommendationRows = new Map<string, RecommendationRow>([
       link: "https://example.org/recomendacion-456",
       created_at: now,
       updated_at: now,
+      source_text:
+        "Durante el pasado mes se recibieron reclamos por demoras en el trámite de solicitudes de vivienda social.",
+      prediction: {
+        recommendation_number: "456/2026",
+        recommendation_date: "durante el pasado mes",
+        recipients: [],
+        topic: "Vivienda",
+        subtopic: null,
+        personal_data: null,
+        publishable_content:
+          "La Defensoría recomienda al organismo destinatario que agilice el trámite de la solicitud de vivienda.",
+      },
     },
   ],
 ]);
@@ -456,10 +490,96 @@ export function mockPatchRecommendationSeguimiento(input: {
   // Object spread only copies keys `payload` actually has, same
   // absent-vs-null semantics as the real PATCH -- an omitted field here
   // leaves `existing`'s value untouched, exactly as `exclude_unset` does
-  // server-side.
-  const updated: RecommendationRow = {
+  // server-side. `existing` carries `source_text`/`prediction` too (the map
+  // now stores the full detail, per mockRecommendationDetail below), so this
+  // preserves them even though the PATCH response itself only needs the row.
+  const updated: RecommendationDetail = {
     ...existing,
     ...input.payload,
+    updated_at: now,
+  };
+  recommendationRows.set(input.recommendationId, updated);
+  return delay(updated);
+}
+
+/**
+ * Single-recommendation detail (source text + raw prediction) for the
+ * correction screen -- mirrors `GET /llm/data-extraction/recommendations/{id}`.
+ */
+export function mockRecommendationDetail(
+  recommendationId: string,
+): Promise<RecommendationDetail> {
+  const existing = recommendationRows.get(recommendationId);
+  if (!existing) {
+    throw new Error(`Recommendation not found: ${recommendationId}`);
+  }
+  return delay(existing);
+}
+
+/**
+ * Saves a correction, simulating the real endpoint's `If-Match` optimistic
+ * concurrency check (mirrors `_etag` in
+ * `tests/api/routers/llm/data_extraction/test_recommendation_correction.py`:
+ * `updated_at` when set, else `created_at`). A mismatch rejects with an
+ * `AxiosError` shaped like the real 412 response
+ * (`error.response?.status === 412`), the same check the real branch's PUT
+ * would surface, so the Task 3 conflict UI has something to exercise here too.
+ */
+export function mockCorrectRecommendation(input: {
+  recommendationId: string;
+  ifMatch: string;
+  payload: RecommendationValidationInput;
+}): Promise<RecommendationDetail> {
+  const existing = recommendationRows.get(input.recommendationId);
+  if (!existing) {
+    throw new Error(`Recommendation not found: ${input.recommendationId}`);
+  }
+
+  const currentEtag = existing.updated_at ?? existing.created_at;
+  if (input.ifMatch !== currentEtag) {
+    return Promise.reject(
+      new AxiosError(
+        "Precondition Failed: the recommendation was modified since it was last read.",
+        "ERR_BAD_REQUEST",
+        undefined,
+        undefined,
+        {
+          status: 412,
+          statusText: "Precondition Failed",
+          data: { detail: "Precondition Failed" },
+          headers: {},
+          config: {},
+        } as never,
+      ),
+    );
+  }
+
+  const recipients: RecipientDetail[] = input.payload.recipients.map((r) => ({
+    id: r.id ?? makeId("recipient"),
+    source_index: r.source_index ?? null,
+    name: r.name,
+    position: r.position,
+    is_primary: r.is_primary,
+    macro_sector: r.macro_sector,
+    unit_id: r.unit_id,
+    unit_name: r.unit_id ? (UNIT_NAMES[r.unit_id] ?? null) : null,
+    sector_id: r.sector_id,
+    sector_name: r.sector_id ? (SECTOR_NAMES[r.sector_id] ?? null) : null,
+  }));
+
+  const updated: RecommendationDetail = {
+    ...existing,
+    recommendation_number: input.payload.recommendation_number,
+    recommendation_date_text: input.payload.recommendation_date_text,
+    // Same re-derive-unless-overridden rule as mockValidateRecommendation.
+    recommendation_date:
+      input.payload.recommendation_date ??
+      parseSpanishProseDate(input.payload.recommendation_date_text),
+    topic: input.payload.topic,
+    subtopic: input.payload.subtopic,
+    personal_data: input.payload.personal_data,
+    publishable_content: input.payload.publishable_content,
+    recipients,
     updated_at: now,
   };
   recommendationRows.set(input.recommendationId, updated);
