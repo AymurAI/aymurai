@@ -400,6 +400,32 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
     expect(result).toEqual(SAMPLE_DETAIL);
   });
 
+  /**
+   * The detail read doubles as the source of the `If-Match` etag, so a cache
+   * entry that never revalidates hands the correction screen an etag the
+   * server has already moved past. That is reachable with ONE user and zero
+   * concurrency: open "Corregir", go back, edit an inline seguimiento cell on
+   * the same row (the PATCH bumps `updated_at`), open "Corregir" again — the
+   * save then 412s and the screen blames "otra persona".
+   *
+   * Asserted on the options object rather than by driving two mounts: React
+   * Query's refetch-on-mount decision is read straight off `staleTime`, and
+   * `Infinity` is the one value that makes a second `useQuery` with the same
+   * key skip the fetch entirely.
+   */
+  it("lets the recommendation detail revalidate on a later mount", () => {
+    const options = dataExtraction.recommendationDetail("recommendation-1");
+
+    expect(options.staleTime).not.toBe(Number.POSITIVE_INFINITY);
+    expect(options.staleTime ?? 0).toBe(0);
+    // The wizard's frozen-extraction envelope is a different read with a real
+    // reason to never revalidate — pinned here so the two can't be conflated
+    // again in either direction.
+    expect(
+      dataExtraction.documentExtractionEnvelope("document-1").staleTime,
+    ).toBe(Number.POSITIVE_INFINITY);
+  });
+
   it("saves a correction via PUT /llm/data-extraction/recommendations/{id} with the If-Match header", async () => {
     const putSpy = vi
       .spyOn(api, "put")

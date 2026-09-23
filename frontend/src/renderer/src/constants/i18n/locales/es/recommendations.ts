@@ -188,6 +188,9 @@ const recommendations = {
       "Corregí los datos extraídos del documento original sin volver a subirlo",
     sectionTitle: "Datos de la recomendación",
     originalDocumentLabel: "Documento original",
+    // El `<Spinner />` es un gráfico decorativo sin nombre accesible: sin este
+    // texto la pantalla de carga no anuncia nada.
+    loading: "Cargando la recomendación…",
     save: "Guardar corrección",
     saveAnyway: "Guardar de todos modos",
     cancel: "Cancelar",
@@ -196,8 +199,15 @@ const recommendations = {
       "No se pudo cargar la recomendación. Revisá tu conexión e intentá nuevamente.",
     predictionUnavailable:
       "No se pudo reconstruir la extracción original de esta recomendación, así que no se puede corregir desde acá.",
+    // Dos mensajes, no uno: `saveFailed` es el caso en que la petición ni
+    // llegó a destino (sin `response`), donde hablar de la conexión ayuda;
+    // `saveRejected` es cuando el servidor SÍ respondió con un error (422,
+    // 500, 404 porque la fila se borró en otra ventana), donde culpar a la
+    // conexión manda a revisar lo único que seguro está bien.
     saveFailed:
       "No se pudo guardar la corrección. Revisá tu conexión e intentá nuevamente.",
+    saveRejected:
+      "No se pudo guardar la corrección. Revisá los datos e intentá nuevamente.",
     // 412: el `If-Match` viajó con una versión que ya quedó vieja. Reintentar
     // solo pisaría el guardado de la otra persona, así que hay que recargar.
     conflict:

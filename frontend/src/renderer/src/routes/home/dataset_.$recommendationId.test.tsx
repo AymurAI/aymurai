@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Route } from "./dataset_.$recommendationId";
 
 // Same shape as `routes/home/dataset.test.tsx`: the route module is exercised
@@ -40,6 +40,23 @@ vi.mock("@/hooks/useConnectedHost", () => ({
   useConnectedHost: () => "http://localhost:8899",
 }));
 
+/**
+ * `HomeLayout` is mocked purely to capture the props it was handed. The
+ * `variant` is what this route has to get right, and asserting it at the prop
+ * seam is what keeps the test from depending on the Panda class name the
+ * variant happens to compile to today — a restyle would break that assertion
+ * with a failure that says nothing about the layout choice.
+ */
+const { homeLayoutProps } = vi.hoisted(() => ({
+  homeLayoutProps: [] as { variant?: string }[],
+}));
+vi.mock("@/layout/home", () => ({
+  default: (props: { variant?: string; children: React.ReactNode }) => {
+    homeLayoutProps.push({ variant: props.variant });
+    return <div data-testid="home-layout">{props.children}</div>;
+  },
+}));
+
 function renderRoute() {
   const RouteComponent = Route.options.component;
   if (!RouteComponent) {
@@ -49,8 +66,12 @@ function renderRoute() {
 }
 
 describe("/home/dataset/$recommendationId — the correction route", () => {
+  beforeEach(() => {
+    homeLayoutProps.length = 0;
+  });
+
   it("passes the id from the URL down to the correction screen", () => {
-    const { container } = renderRoute();
+    renderRoute();
 
     expect(screen.getByTestId("recommendation-correction")).toHaveTextContent(
       "rec-1",
@@ -58,7 +79,7 @@ describe("/home/dataset/$recommendationId — the correction route", () => {
     expect(screen.queryByTestId("navigate-away")).not.toBeInTheDocument();
     // `HomeLayout variant="wide"`, same chrome as the grilla it returns to —
     // not the wizard's stepper layout, since a correction is not a step.
-    expect(container.innerHTML).toContain("ai_stretch");
+    expect(homeLayoutProps).toEqual([{ variant: "wide" }]);
   });
 
   // Same criterion as `/home/dataset`: the Defensoría flag gates the entry

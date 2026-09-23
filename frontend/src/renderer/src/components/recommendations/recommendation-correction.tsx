@@ -132,7 +132,13 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
     [],
   );
   const [confirmUnvalidated, setConfirmUnvalidated] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  // Which KIND of save failure, not just "one happened": a request that never
+  // got an answer ("network") is a connection problem worth naming as one; a
+  // request the server answered with an error ("server": 422, 500, 404 because
+  // the row was deleted elsewhere) is not, and telling the person to check
+  // their connection sends them to look at the one thing that demonstrably
+  // works.
+  const [saveError, setSaveError] = useState<"network" | "server" | null>(null);
   const [conflict, setConflict] = useState(false);
   const [reloadFailed, setReloadFailed] = useState(false);
 
@@ -215,7 +221,7 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
       setConfirmUnvalidated(true);
       return;
     }
-    setSaveFailed(false);
+    setSaveError(null);
     try {
       await save.mutateAsync({ recommendationId, ifMatch: etag, payload });
       // Every page/filter combination of the grilla is its own cache entry
@@ -239,7 +245,14 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
         setConflict(true);
         return;
       }
-      setSaveFailed(true);
+      // An `AxiosError` WITH a `response` means the request reached the server
+      // and came back refused (same narrowing `settings/subtopics-panel.tsx`
+      // uses); anything else -- no `response` at all, or a non-Axios throw --
+      // is a request that never got an answer, which is the only case where
+      // "revisá tu conexión" is actually the right advice.
+      setSaveError(
+        error instanceof AxiosError && error.response ? "server" : "network",
+      );
     }
   };
 
@@ -251,13 +264,25 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
       return;
     }
     setConflict(false);
-    setSaveFailed(false);
+    setSaveError(null);
   };
 
   if (detailQuery.isPending) {
+    // Announced, not just drawn: `<Spinner />` is a decorative graphic with no
+    // accessible name, so without this a screen reader gets an empty screen
+    // with nothing to say about it. `aria-live="polite"` matches the three
+    // error states below, which announce through `role="alert"`.
     return (
-      <HStack justify="center" py="8" width="full">
+      <HStack
+        justify="center"
+        gap="3"
+        py="8"
+        width="full"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <Spinner />
+        <styled.p className={subtitle}>{t("correction.loading")}</styled.p>
       </HStack>
     );
   }
@@ -338,11 +363,15 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
         </Stack>
       )}
 
-      {saveFailed && (
+      {saveError && (
         <Callout
           variant="error"
           role="alert"
-          message={t("correction.saveFailed")}
+          message={
+            saveError === "server"
+              ? t("correction.saveRejected")
+              : t("correction.saveFailed")
+          }
         />
       )}
 

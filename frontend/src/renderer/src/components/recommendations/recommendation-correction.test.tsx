@@ -51,7 +51,10 @@ vi.mock("@/services/aymurai/dataExtraction", () => ({
     queryKey: ["recommendation-detail", recommendationId],
     queryFn: () => mockDetail(recommendationId),
     retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
+    // Mirrors the real factory: this read revalidates on mount, because its
+    // value is also the `If-Match` etag. `dataExtraction.test.ts` is where
+    // that is asserted against the real options object.
+    staleTime: 0,
   }),
   correctRecommendation: () => ({ mutationFn: mockCorrect }),
   recommendationsList: () => ({ queryKey: ["recommendations-list", {}] }),
@@ -548,7 +551,9 @@ describe("RecommendationCorrection", () => {
     expect(mockCorrect.mock.calls[1][0].ifMatch).toBe("2026-11-24T11:00:00Z");
   });
 
-  it("shows a generic error (not the conflict notice) on any other failure", async () => {
+  // A throw with no `response` at all — the request never got an answer, so
+  // "revisá tu conexión" is the accurate advice.
+  it("blames the connection only when the request got no response", async () => {
     mockCorrect.mockRejectedValue(new Error("network down"));
     renderCorrection();
     await screen.findByTestId("recommendation-form");
@@ -559,9 +564,60 @@ describe("RecommendationCorrection", () => {
       await screen.findByText("recommendations:correction.saveFailed"),
     ).toBeInTheDocument();
     expect(
+      screen.queryByText("recommendations:correction.saveRejected"),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByText("recommendations:correction.conflict"),
     ).not.toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // An `AxiosError` that DOES carry a response reached the server and came
+  // back refused, so the connection is demonstrably fine — sending the person
+  // to check it is the one thing that cannot help.
+  it.each([422, 500, 404])(
+    "reports a server-side refusal (%i) as a data problem, not a connection one",
+    async (status) => {
+      mockCorrect.mockRejectedValue(
+        new AxiosError("Rejected", "ERR_BAD_REQUEST", undefined, undefined, {
+          status,
+          statusText: "Rejected",
+          data: { detail: "nope" },
+          headers: {},
+          config: {},
+        } as never),
+      );
+      renderCorrection();
+      await screen.findByTestId("recommendation-form");
+
+      fireEvent.click(saveButton());
+
+      expect(
+        await screen.findByText("recommendations:correction.saveRejected"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("recommendations:correction.saveFailed"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("recommendations:correction.conflict"),
+      ).not.toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    },
+  );
+
+  // `<Spinner />` alone is a decorative graphic with no accessible name, so
+  // the loading state announced nothing at all — unlike this screen's three
+  // error states, which all carry `role="alert"`.
+  it("announces the loading state instead of showing a nameless spinner", async () => {
+    // Never resolves: the screen stays in `isPending` for the assertion.
+    mockDetail.mockReturnValue(new Promise(() => {}));
+    renderCorrection();
+
+    const label = await screen.findByText("recommendations:correction.loading");
+    const live = label.closest("[aria-live]");
+    expect(live).not.toBeNull();
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveAttribute("aria-busy", "true");
   });
 
   // ADR-0013's enmienda: a field the person cleared is about to be persisted

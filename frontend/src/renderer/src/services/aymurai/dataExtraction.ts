@@ -130,10 +130,17 @@ export const recommendationEnums = () =>
 export const recommendationDetail = (recommendationId: string) =>
   queryOptions({
     queryKey: ["recommendation-detail", recommendationId, api.defaults.baseURL],
-    // Same rationale as documentExtractionEnvelope: a stale cache here would
-    // let the correction screen silently edit against an outdated snapshot,
-    // and a failure must surface rather than resolve to a missing detail.
-    staleTime: Number.POSITIVE_INFINITY,
+    // Deliberately NOT `staleTime: Infinity` (which documentExtractionEnvelope
+    // does use, for its own frozen-extraction reasons): this is a point-in-time
+    // editing read whose value doubles as the `If-Match` etag, so it has to
+    // revalidate on every mount. Holding a cached snapshot let an ordinary
+    // single-user sequence -- open "Corregir", go back, edit an inline
+    // seguimiento cell on the same row (which bumps `updated_at`), open
+    // "Corregir" again -- serve the old etag and earn a 412 reported as
+    // "modificado por otra persona" when nobody else had touched it. Refetching
+    // on mount is self-healing against ANY future writer of this row, which
+    // adding a second invalidation target to that one mutation would not be.
+    staleTime: 0,
     retry: false,
     queryFn: async () => {
       const data = USE_MOCK_DATA_EXTRACTION
