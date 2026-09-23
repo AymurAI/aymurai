@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecommendationRow } from "@/types/dataExtraction";
 import { formatDisplayTimestamp } from "@/utils/format-date";
@@ -7,6 +8,29 @@ import RecommendationsGrid from "./recommendations-grid";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+// Mock the Link component to capture navigation parameters in tests
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    params,
+    children,
+    className,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    children?: ReactNode;
+    className?: string;
+  }) => (
+    <a
+      href={`${to}?params=${JSON.stringify(params)}`}
+      data-testid={`link-to-${params?.recommendationId}`}
+      className={className}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 // Radix's Select trigger opens on `pointerdown` and its content measures
@@ -426,5 +450,26 @@ describe("RecommendationsGrid", () => {
     fireEvent.blur(cell);
 
     await waitFor(() => expect(mockPatch).toHaveBeenCalledTimes(1));
+  });
+
+  it("links the correction button to the correct recommendation's correction route", async () => {
+    renderGrid();
+
+    // Verify REC-001 has a link to its own correction route
+    const link1 = await screen.findByTestId("link-to-r1");
+    expect(link1).toHaveAttribute(
+      "href",
+      '/home/dataset/$recommendationId?params={"recommendationId":"r1"}',
+    );
+
+    // Verify REC-002 has a link to its own correction route, not REC-001's
+    const link2 = screen.getByTestId("link-to-r2");
+    expect(link2).toHaveAttribute(
+      "href",
+      '/home/dataset/$recommendationId?params={"recommendationId":"r2"}',
+    );
+
+    // Ensure the two links are different
+    expect(link1.getAttribute("href")).not.toEqual(link2.getAttribute("href"));
   });
 });

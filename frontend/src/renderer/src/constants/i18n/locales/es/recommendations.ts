@@ -155,6 +155,7 @@ const recommendations = {
       approvedForPublication: "Aprobada para publicar",
       link: "Enlace",
       lastEdited: "Última edición",
+      correct: "Corregir",
     },
     approved: {
       yes: "Sí",

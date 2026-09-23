@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { css, cx } from "@/styled/css";
 import type {
@@ -48,6 +49,24 @@ const secondaryLine = css({
   display: "block",
   textStyle: "paragraph.xsm.default",
   color: "text.lighter",
+});
+
+const correctButton = css({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  px: "2",
+  py: "1",
+  borderRadius: "sm",
+  textStyle: "cta.sm.strong",
+  color: "text.onbutton-default",
+  bg: "action.default",
+  textDecoration: "none",
+  border: "none",
+  cursor: "pointer",
+  transition: "[background-color 200ms]",
+  _hover: { bg: "action.hover" },
+  _focusVisible: { outline: "[2px solid token(colors.action.focus)]" },
 });
 
 const EMPTY = "—";
@@ -239,6 +258,15 @@ export default function RecommendationsGridRow({
         />
       </td>
       <td className={cx(cell, noWrap, muted)}>{lastEdited}</td>
+      <td className={cell}>
+        <Link
+          to="/home/dataset/$recommendationId"
+          params={{ recommendationId: row.id }}
+          className={correctButton}
+        >
+          {t("grilla.columns.correct")}
+        </Link>
+      </td>
     </tr>
   );
 }

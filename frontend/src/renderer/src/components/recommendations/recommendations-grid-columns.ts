@@ -18,7 +18,8 @@ export type ColumnId =
   | "status"
   | "approvedForPublication"
   | "link"
-  | "lastEdited";
+  | "lastEdited"
+  | "correct";
 
 /**
  * The columns the backend will order by — whitelisted there (issue #58) to
@@ -57,4 +58,5 @@ export const COLUMNS: ColumnSpec[] = [
   { id: "approvedForPublication" },
   { id: "link" },
   { id: "lastEdited", sortBy: "created_at" },
+  { id: "correct" },
 ];
