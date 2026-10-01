@@ -50,13 +50,40 @@ The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
 `sqlite3.Connection.backup()` — safe under WAL, unlike copying the file with
 `cp`, which can capture it mid-checkpoint — and writes dated snapshots
 `database_<timestamp>.db` to `./resources/backups` (mounted at `/backups`
-in the container). Configuration, with the defaults shipped in
+in the container). The `<timestamp>` is `YYYYMMDDHHMMSS` in **UTC** — unlike
+the exported workbook's filename, which uses `EXPORT_TIMEZONE` (Buenos Aires
+time by default), so a backup taken at 14:00 local time is named `…170000`.
+Configuration, with the defaults shipped in
 `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
-- `BACKUP_INTERVAL_SECONDS` — default `3600` (one backup per hour)
-- `BACKUP_RETENTION` — default `30`; keeps the newest N dated backups and
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
+- `BACKUP_RETENTION` — default `336`; keeps the newest N dated backups and
   deletes older ones. `BACKUP_RETENTION <= 0` disables pruning — it does
   **not** mean "delete everything."
+
+A run whose copy is byte-identical (sha256) to the most recent backup is
+discarded instead of written (the sidecar logs `unchanged since …, skipped`),
+so backups only accumulate in hours when the database actually changed.
+With the hourly default, `336` retained backups therefore cover:
+- **at least 14 days** even if the database changed every single hour, day
+  and night;
+- **about 7 weeks** at a realistic pace — grid edits during working hours
+  only (~9 changed hours a day, 5 days a week ≈ 45 backups a week);
+- longer still across idle stretches (holidays, weekends), which no longer
+  consume slots.
+
+Disk use is roughly `BACKUP_RETENTION × database size`: a few-MB database
+(a development database holding a handful of documents and transcriptions
+is ~4.5 MB) costs ~1.5 GB at the cap. Lower `BACKUP_RETENTION` if the
+database grows much larger than that, or raise it for a longer history.
+
+`./resources/backups` lives on the **same disk** as the database: it
+protects against bad edits, accidental deletes and a corrupted database
+file, not against losing the disk or the machine. Copying backups off the
+host (another disk, a network share, offline media) on a schedule is the
+administrator's responsibility; any completed `database_*.db` file can be
+copied safely with plain `cp`/`rsync` (only the hidden `.partial` file is
+ever being written).
 
 For a manual, immediate backup outside the interval: `make db-backup`, which
 runs the same script once (`--once`) and exits.
@@ -65,6 +92,14 @@ The loop itself does not start on its own — start it once with
 `make db-backup-up`; from then on `restart: always` keeps it running across
 host reboots and container restarts (`make db-backup-stop` stops it,
 `make db-backup-logs` tails its output).
+
+Stopping is graceful: the service runs under `init: true` and the script
+handles SIGTERM by finishing any backup in progress and exiting before the
+next one, so `make db-backup-stop` returns within about a second instead of
+waiting out Docker's 10s grace period. A copy is written as a hidden
+`.database_<timestamp>.db.partial` file and only renamed once complete; if a
+run is ever killed outright, the leftover `.partial` is never a restore
+candidate, and the loop deletes any such file when it next starts.
 
 ### Restoring a backup
 Stop the API before restoring — `make db-restore` does this itself, stopping
@@ -77,8 +112,15 @@ As a safety net, if a live `database.db` exists when `db-restore` runs, it
 first takes an automatic snapshot by invoking the `db-backup` sidecar once
 (the same as `make db-backup`) before touching anything — the pre-restore
 state lands in `./resources/backups` as an ordinary dated backup, not a
-separate file. This runs in addition to whatever manual verification you did
+separate file (or, if nothing changed since the latest backup, the snapshot
+is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
+
+Once the restored file is in place, `db-restore` starts the `db-backup`
+sidecar again (`docker compose up -d db-backup`, the same as
+`make db-backup-up`), so automatic backups resume — the first run backs up
+the restored database. The API is left stopped on purpose: start it yourself
+with `make api-up` or `make api-full-up` after checking the restore.
 
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,
 `resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side
@@ -87,12 +129,20 @@ you may need to adjust ownership or run those steps with sufficient
 privileges before restoring.
 
 ### Verifying a backup
-An unverified backup is not a backup. Restore the file to a temporary path —
+An unverified backup is not a backup. Copy the file to a temporary path —
 never over the live database — and check that it holds real data, e.g. by
 counting rows in a known table:
 ```
-sqlite3 ./resources/backups/database_<timestamp>.db "SELECT COUNT(*) FROM recommendation;"
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
 ```
+Query the copy, not the file in `./resources/backups`: backups keep the live
+database's WAL journal mode, so opening one makes SQLite create
+`-wal`/`-shm` files next to it. Without write permission on the directory
+(the usual case for a root-owned Docker bind mount) even a `SELECT` fails,
+e.g. with "attempt to write a readonly database"; with it, you risk leaving
+stray files in the backup directory.
 A structurally valid, non-empty SQLite file with a plausible row count is
 what "verified" means here; a file that merely exists is not enough.
 

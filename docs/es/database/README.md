@@ -51,13 +51,43 @@ El sidecar `db-backup` (`docker/backup/backup.py`) corre en loop, usando
 `sqlite3.Connection.backup()` — seguro bajo WAL, a diferencia de copiar el
 archivo con `cp`, que puede capturarlo a mitad de un checkpoint — y escribe
 snapshots fechados `database_<timestamp>.db` en `./resources/backups`
-(montado como `/backups` en el contenedor). Configuración, con los defaults
+(montado como `/backups` en el contenedor). El `<timestamp>` es
+`YYYYMMDDHHMMSS` en **UTC** — a diferencia del nombre del workbook exportado,
+que usa `EXPORT_TIMEZONE` (hora de Buenos Aires por default), así que un
+respaldo tomado a las 14:00 hora local se llama `…170000`. Configuración, con los defaults
 que quedaron en `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
-- `BACKUP_INTERVAL_SECONDS` — default `3600` (un respaldo por hora)
-- `BACKUP_RETENTION` — default `30`; conserva los N respaldos fechados más
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
+- `BACKUP_RETENTION` — default `336`; conserva los N respaldos fechados más
   recientes y borra los demás. `BACKUP_RETENTION <= 0` desactiva la poda —
   **no** significa "borrar todo."
+
+Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
+reciente se descarta en vez de escribirse (el sidecar loguea
+`unchanged since …, skipped`), así que los respaldos solo se acumulan en las
+horas en que la base efectivamente cambió. Con el intervalo horario por
+default, los `336` respaldos conservados cubren:
+- **al menos 14 días** aunque la base cambiara todas las horas, de día y de
+  noche;
+- **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
+  horario laboral (~9 horas con cambios por día, 5 días por semana ≈ 45
+  respaldos por semana);
+- todavía más a través de períodos sin actividad (feriados, fines de
+  semana), que ya no consumen lugares.
+
+El uso de disco es aproximadamente `BACKUP_RETENTION × tamaño de la base`:
+una base de pocos MB (una base de desarrollo con un puñado de documentos y
+transcripciones pesa ~4,5 MB) ocupa ~1,5 GB con la retención completa. Bajar
+`BACKUP_RETENTION` si la base crece mucho más que eso, o subirlo para tener
+más historia.
+
+`./resources/backups` vive en el **mismo disco** que la base: protege contra
+ediciones erróneas, borrados accidentales y un archivo de base corrupto, no
+contra perder el disco o la máquina. Copiar los respaldos fuera del host
+(otro disco, un recurso compartido de red, medios offline) periódicamente es
+responsabilidad de quien administra el sistema; cualquier archivo
+`database_*.db` completo se puede copiar sin riesgo con `cp`/`rsync` común
+(el único que se está escribiendo es el `.partial` oculto).
 
 Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
 que corre el mismo script una sola vez (`--once`) y termina.
@@ -66,6 +96,15 @@ El loop en sí no arranca solo — hay que iniciarlo una vez con
 `make db-backup-up`; de ahí en más `restart: always` lo mantiene corriendo
 entre reinicios del host y del container (`make db-backup-stop` lo para,
 `make db-backup-logs` sigue su output).
+
+La parada es ordenada: el servicio corre con `init: true` y el script maneja
+SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
+siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
+vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
+como un archivo oculto `.database_<timestamp>.db.partial` y solo se renombra
+cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
+así la próxima vez que arranca.
 
 ### Restaurar un respaldo
 Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
@@ -78,8 +117,17 @@ Como red de seguridad, si existe un `database.db` vivo cuando corre
 `db-restore`, primero toma un snapshot automático invocando una vez el
 sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
 estado previo a la restauración queda en `./resources/backups` como un
-respaldo fechado más, no en un archivo aparte. Esto corre además de
+respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
+último respaldo, el snapshot se saltea porque ese último respaldo ya tiene
+exactamente los mismos bytes). Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
+
+Una vez que el archivo restaurado está en su lugar, `db-restore` vuelve a
+levantar el sidecar `db-backup` (`docker compose up -d db-backup`, lo mismo
+que `make db-backup-up`), así que los respaldos automáticos se reanudan — la
+primera corrida respalda la base restaurada. La API queda parada a
+propósito: levantala vos con `make api-up` o `make api-full-up` después de
+revisar la restauración.
 
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
 `resources/backups/`) pueden quedar con dueño root por Docker; las
@@ -89,12 +137,21 @@ hacer falta ajustar el dueño de esos directorios o correr esos pasos con
 privilegios suficientes antes de restaurar.
 
 ### Verificar un respaldo
-Un respaldo no verificado no es un respaldo. Restaurarlo a un path temporal
+Un respaldo no verificado no es un respaldo. Copiarlo a un path temporal
 — nunca sobre la base viva — y comprobar que tiene datos reales, por
 ejemplo contando filas de una tabla conocida:
 ```
-sqlite3 ./resources/backups/database_<timestamp>.db "SELECT COUNT(*) FROM recommendation;"
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
 ```
+Consultar la copia, no el archivo en `./resources/backups`: los respaldos
+conservan el modo de journal WAL de la base viva, así que abrir uno hace que
+SQLite cree archivos `-wal`/`-shm` al lado. Sin permiso de escritura sobre
+el directorio (lo habitual en un bind mount de Docker con dueño root) hasta
+un `SELECT` falla, por ejemplo con "attempt to write a readonly database";
+con permiso, se corre el riesgo de dejar archivos sueltos en el directorio
+de respaldos.
 Un archivo SQLite estructuralmente válido y no vacío, con un conteo de filas
 plausible, es lo que significa "verificado" acá; que el archivo exista no
 alcanza.

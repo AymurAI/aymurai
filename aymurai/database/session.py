@@ -41,8 +41,9 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     # locked" even for a SELECT.
     cursor.execute("PRAGMA journal_mode=WAL")
     # With WAL, "database is locked" can only happen between two concurrent
-    # writers. This timeout makes the second one wait instead of failing
-    # immediately.
+    # writers, and the second one waits up to busy_timeout before failing.
+    # sqlite3.connect() already sets a 5s timeout by default; this pragma
+    # makes the wait configurable via SQLITE_BUSY_TIMEOUT_MS.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
     # Deterministic: same input, same output -- lets SQLite use it anywhere a
