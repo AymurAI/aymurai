@@ -66,7 +66,7 @@ export const USE_MOCK_ORGANIGRAM =
 export const USE_MOCK_DATA_EXTRACTION =
   import.meta.env.VITE_USE_MOCK_DATA_EXTRACTION === "true";
 
-// Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → taxonomía/organigrama
+// Fase 7 (docs/defensoria/PLAN.md): gates the whole Configuración → Nomenclador/Organigrama
 // surface per ADR-0007. `server` (the pre-existing host-connection screen) is never gated —
 // only the two Defensoría-specific screens and their nav entries are.
 //
