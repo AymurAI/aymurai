@@ -4,6 +4,7 @@ from datetime import date
 
 from sqlmodel import Session, select
 
+from aymurai.database.clock import utc_now
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.crud.organigram.sector import is_sector_ancestor_of
 from aymurai.database.crud.recommendation_listing import (
@@ -247,6 +248,13 @@ def recommendation_upsert(
     else:
         for field_name, value in values.items():
             setattr(recommendation, field_name, value)
+        # Explicit, not left to the column's `onupdate`: that only fires when
+        # one of the fields above actually changed, and a correction that
+        # touches nothing but recipients (another table) would leave the
+        # version -- the `If-Match` etag and the grilla's "última edición" --
+        # where it was. Every pass through here is an edit, `/validate`
+        # re-runs included.
+        recommendation.updated_at = utc_now()
         session.add(recommendation)
 
     # Flush, don't commit: `_reconcile_recipients` still has to validate every

@@ -1,5 +1,4 @@
 import json
-import time
 import uuid
 
 from aymurai.database.utils import text_to_uuid
@@ -101,13 +100,6 @@ def test_put_correction_stale_if_match_returns_412(extraction_client, seeded_cat
         extraction_client, "Documento de corrección dos."
     )
     recommendation_id = validated["id"]
-
-    # `Recommendation.created_at`/`updated_at` are both backed by SQLite's
-    # `CURRENT_TIMESTAMP`, which only has whole-second resolution -- without
-    # this sleep, `first`'s `updated_at` can land in the same second as
-    # `validated`'s `created_at`, making the two timestamps compare equal and
-    # this test flake (the "stale" etag wouldn't actually be stale).
-    time.sleep(1.1)
 
     first = extraction_client.put(
         f"/llm/data-extraction/recommendations/{recommendation_id}",
@@ -266,3 +258,77 @@ def test_put_correction_reconciles_recipients(
     ids = {r["id"] for r in body["recipients"]}
     assert names == {"Se mantiene", "Se agrega"}
     assert kept_id in ids
+
+
+RECIPIENT = {"position": "Cargo A", "is_primary": True, "macro_sector": None}
+
+
+def test_put_correction_changing_only_recipients_bumps_the_etag(
+    extraction_client, seeded_catalogs
+):
+    # Recipients live in their own table: a correction that touches nothing
+    # else must still move the recommendation's version, or `If-Match` stops
+    # protecting the very edit it exists for.
+    document_id = _extract(extraction_client, "Documento de corrección ocho.")
+    validated = extraction_client.put(
+        f"/llm/data-extraction/{document_id}/validate",
+        json=_validate_payload(recipients=[{**RECIPIENT, "name": "Nombre original"}]),
+    ).json()
+    recommendation_id = validated["id"]
+    recipient_id = validated["recipients"][0]["id"]
+    stale_etag = _etag(validated)
+
+    first = extraction_client.put(
+        f"/llm/data-extraction/recommendations/{recommendation_id}",
+        json=_validate_payload(
+            recipients=[{**RECIPIENT, "name": "Nombre corregido", "id": recipient_id}]
+        ),
+        headers={"If-Match": stale_etag},
+    )
+    assert first.status_code == 200
+    assert first.json()["updated_at"] is not None
+    assert _etag(first.json()) != stale_etag
+
+    # The grilla's "última edición" reads the same column.
+    listed = extraction_client.get("/llm/data-extraction/recommendations").json()
+    assert listed["items"][0]["updated_at"] == first.json()["updated_at"]
+
+    second = extraction_client.put(
+        f"/llm/data-extraction/recommendations/{recommendation_id}",
+        json=_validate_payload(recipients=[{**RECIPIENT, "name": "Pisa al anterior"}]),
+        headers={"If-Match": stale_etag},
+    )
+    assert second.status_code == 412
+
+
+def test_put_corrections_in_quick_succession_get_distinct_etags(
+    extraction_client, seeded_catalogs
+):
+    # No sleep on purpose: whole-second timestamps made two writes within the
+    # same second share an etag, so the second one's stale etag still matched.
+    validated = _validated_recommendation(
+        extraction_client, "Documento de corrección nueve."
+    )
+    recommendation_id = validated["id"]
+    url = f"/llm/data-extraction/recommendations/{recommendation_id}"
+
+    first = extraction_client.put(
+        url,
+        json=_validate_payload(publishable_content="Uno."),
+        headers={"If-Match": _etag(validated)},
+    )
+    assert first.status_code == 200
+    second = extraction_client.put(
+        url,
+        json=_validate_payload(publishable_content="Dos."),
+        headers={"If-Match": _etag(first.json())},
+    )
+    assert second.status_code == 200
+    assert len({_etag(validated), _etag(first.json()), _etag(second.json())}) == 3
+
+    replay = extraction_client.put(
+        url,
+        json=_validate_payload(publishable_content="Tres."),
+        headers={"If-Match": _etag(first.json())},
+    )
+    assert replay.status_code == 412
