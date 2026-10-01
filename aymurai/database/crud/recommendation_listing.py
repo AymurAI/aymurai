@@ -41,13 +41,20 @@ RecommendationOrderColumn = Literal[
 
 # What the grilla's "Última edición" column shows: `updated_at` once anybody
 # touched the row, `created_at` otherwise (`updated_at` stays NULL until the
-# first update after creation). Wrapped in `datetime()` because stored values
-# mix the legacy `CURRENT_TIMESTAMP` spelling (no fraction) with SQLAlchemy's
-# `.ffffff` one, and the two don't order correctly as raw text -- so both the
-# "editado desde/hasta" filter and the `last_edited` sort go through it.
-_LAST_EDITED = func.datetime(
-    func.coalesce(Recommendation.updated_at, Recommendation.created_at)
-)
+# first update after creation). Stored values mix the legacy
+# `CURRENT_TIMESTAMP` spelling (no fraction) with SQLAlchemy's `.ffffff` one,
+# and the two don't order correctly as raw text, so it is always read through
+# an SQLite date function -- a different one for filtering and for sorting.
+_LAST_EDITED_RAW = func.coalesce(Recommendation.updated_at, Recommendation.created_at)
+
+# For the "editado desde/hasta" filter: `datetime()` drops the fraction, which
+# is harmless against the whole-second day bounds it is compared with.
+_LAST_EDITED = func.datetime(_LAST_EDITED_RAW)
+
+# For the `last_edited` sort: `julianday()` reads both spellings too but keeps
+# the fraction, so two edits within the same second don't tie (and fall to
+# the `id` tie-breaker, which knows nothing about time).
+_LAST_EDITED_ORDER = func.julianday(_LAST_EDITED_RAW)
 
 _ORDER_COLUMNS: dict[str, InstrumentedAttribute | ColumnElement] = {
     "created_at": Recommendation.created_at,
@@ -56,7 +63,7 @@ _ORDER_COLUMNS: dict[str, InstrumentedAttribute | ColumnElement] = {
     "status": Recommendation.status,
     "recommendation_situation": Recommendation.recommendation_situation,
     "file_number": Recommendation.file_number,
-    "last_edited": _LAST_EDITED,
+    "last_edited": _LAST_EDITED_ORDER,
 }
 
 _SEARCH_COLUMNS: tuple[InstrumentedAttribute, ...] = (
