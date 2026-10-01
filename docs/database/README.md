@@ -50,7 +50,10 @@ The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
 `sqlite3.Connection.backup()` — safe under WAL, unlike copying the file with
 `cp`, which can capture it mid-checkpoint — and writes dated snapshots
 `database_<timestamp>.db` to `./resources/backups` (mounted at `/backups`
-in the container). Configuration, with the defaults shipped in
+in the container). The `<timestamp>` is `YYYYMMDDHHMMSS` in **UTC** — unlike
+the exported workbook's filename, which uses `EXPORT_TIMEZONE` (Buenos Aires
+time by default), so a backup taken at 14:00 local time is named `…170000`.
+Configuration, with the defaults shipped in
 `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
 - `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
@@ -73,6 +76,14 @@ Disk use is roughly `BACKUP_RETENTION × database size`: a few-MB database
 (a development database holding a handful of documents and transcriptions
 is ~4.5 MB) costs ~1.5 GB at the cap. Lower `BACKUP_RETENTION` if the
 database grows much larger than that, or raise it for a longer history.
+
+`./resources/backups` lives on the **same disk** as the database: it
+protects against bad edits, accidental deletes and a corrupted database
+file, not against losing the disk or the machine. Copying backups off the
+host (another disk, a network share, offline media) on a schedule is the
+administrator's responsibility; any completed `database_*.db` file can be
+copied safely with plain `cp`/`rsync` (only the hidden `.partial` file is
+ever being written).
 
 For a manual, immediate backup outside the interval: `make db-backup`, which
 runs the same script once (`--once`) and exits.
@@ -118,12 +129,20 @@ you may need to adjust ownership or run those steps with sufficient
 privileges before restoring.
 
 ### Verifying a backup
-An unverified backup is not a backup. Restore the file to a temporary path —
+An unverified backup is not a backup. Copy the file to a temporary path —
 never over the live database — and check that it holds real data, e.g. by
 counting rows in a known table:
 ```
-sqlite3 ./resources/backups/database_<timestamp>.db "SELECT COUNT(*) FROM recommendation;"
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
 ```
+Query the copy, not the file in `./resources/backups`: backups keep the live
+database's WAL journal mode, so opening one makes SQLite create
+`-wal`/`-shm` files next to it. Without write permission on the directory
+(the usual case for a root-owned Docker bind mount) even a `SELECT` fails,
+e.g. with "attempt to write a readonly database"; with it, you risk leaving
+stray files in the backup directory.
 A structurally valid, non-empty SQLite file with a plausible row count is
 what "verified" means here; a file that merely exists is not enough.
 
