@@ -216,20 +216,23 @@ def remove_stale_partials(dest_dir: Path) -> None:
 class Shutdown:
     """Records a SIGTERM/SIGINT so the loop exits cleanly *between* backups.
 
-    The signal handler only sets a flag: a backup already in progress runs
-    to completion (and gets renamed or discarded) instead of being cut off
-    and leaving a `.partial` behind. The interval sleep polls the flag so
-    the process still exits within about a second, well inside
-    `docker compose stop`'s 10s grace period.
+    The signal handler only records the signal -- it does no I/O, since a
+    `print` from a handler that interrupted another `print` raises
+    `RuntimeError: reentrant call`; the loop logs it instead. A backup
+    already in progress runs to completion (and gets published or
+    discarded) instead of being cut off and leaving a `.partial` behind.
+    The interval sleep polls the flag so the process still exits within
+    about a second, well inside `docker compose stop`'s 10s grace period.
     """
 
     def __init__(self) -> None:
         self.requested = False
+        self.signum: int | None = None
 
     def request(self, signum: int, frame: object) -> None:
         del frame
+        self.signum = signum
         self.requested = True
-        log(f"received signal {signum}, exiting after the current step")
 
     def sleep(self, seconds: float) -> None:
         deadline = time.monotonic() + seconds
@@ -250,30 +253,36 @@ def run(
     """Runs one backup+prune cycle, or loops on `config.interval_seconds`.
 
     `once` selects the single-cycle mode `make db-backup` and `db-restore`'s
-    pre-restore safety snapshot use; it also makes a failed backup raise.
-    The loop first clears stale `.partial` files, then runs until
-    `shutdown` is requested.
+    pre-restore safety snapshot use: it always takes its backup -- even if
+    a signal already arrived, since a caller relying on that snapshot must
+    never get exit 0 without one -- and makes a failed backup raise. The
+    loop first clears stale `.partial` files, then runs until `shutdown`
+    is requested.
     """
-    shutdown = Shutdown() if shutdown is None else shutdown
-    if not once:
-        remove_stale_partials(config.dest_dir)
-    while not shutdown.requested:
-        run_backup(config.source_db, config.dest_dir, strict=once, now=now)
+    if once:
+        run_backup(config.source_db, config.dest_dir, strict=True, now=now)
         prune_old_backups(config.dest_dir, config.retention)
-        if once:
-            return
+        return
+    shutdown = Shutdown() if shutdown is None else shutdown
+    remove_stale_partials(config.dest_dir)
+    while not shutdown.requested:
+        run_backup(config.source_db, config.dest_dir, now=now)
+        prune_old_backups(config.dest_dir, config.retention)
         log(f"sleeping {config.interval_seconds}s")
         shutdown.sleep(config.interval_seconds)
-    log("stopped")
+    log(f"received signal {shutdown.signum}, stopped")
 
 
 def main() -> None:
     """Entrypoint: reads the config from env and `--once` from the command line.
 
     Installs SIGTERM/SIGINT handlers so `docker compose stop` ends the
-    process cleanly instead of waiting out the grace period and SIGKILLing
-    it (as PID 1, or under `init: true`, Python would otherwise ignore or
-    die on SIGTERM wherever it happened to be).
+    process cleanly between backups. Without them, how SIGTERM lands
+    depends on what PID 1 is: with `init: true` (the compose default here)
+    tini is PID 1 and forwards the signal, and Python, as an ordinary
+    process, would die on the spot (exit -15), possibly mid-copy; if Python
+    itself were PID 1 the kernel would drop the signal, so `docker compose
+    stop` would wait out the 10s grace period and SIGKILL it.
     """
     shutdown = Shutdown()
     signal.signal(signal.SIGTERM, shutdown.request)

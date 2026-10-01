@@ -261,6 +261,7 @@ def test_loop_cleans_stale_partials_and_exits_cleanly_on_sigterm(wal_db, dest_di
             proc.wait()
 
     assert proc.returncode == 0, output
+    assert "received signal 15" in output
     assert not stale.exists()
     assert _partials(dest_dir) == []
 
@@ -310,6 +311,19 @@ def test_failed_run_leaves_another_runs_partial_alone(tmp_path, dest_dir):
 
     assert in_progress.exists()
     assert _partials(dest_dir) == [in_progress]
+
+
+def test_once_still_backs_up_when_shutdown_was_already_requested(wal_db, dest_dir):
+    source, _writer = wal_db
+    shutdown = backup.Shutdown()
+    shutdown.request(signal.SIGTERM, None)
+    config = backup.BackupConfig(
+        source_db=source, dest_dir=dest_dir, interval_seconds=3600, retention=5
+    )
+
+    backup.run(config, once=True, shutdown=shutdown)
+
+    assert len(_backups(dest_dir)) == 1
 
 
 class _OneCycle(backup.Shutdown):
