@@ -56,6 +56,11 @@ from aymurai.database.crud.llm_extraction import (
     llm_extraction_create_or_update,
     llm_extraction_get,
 )
+from aymurai.database.crud.recommendation_correction import (
+    RecommendationNotFoundError,
+    StaleRecommendationError,
+    recommendation_correct,
+)
 from aymurai.database.crud.recommendation import (
     InconsistentSectorError,
     OrganigramReferenceNotFoundError,
@@ -493,10 +498,6 @@ async def api_data_extraction_recommendation_correct(
     Returns:
         RecommendationDetailResponse: The corrected row, with a fresh etag.
     """
-    recommendation = recommendation_get(recommendation_id, session)
-    if not recommendation:
-        raise NotFoundError(detail=f"Recommendation not found: {recommendation_id}")
-
     # Parsed to a `datetime` and compared as one, NEVER string-compared: the
     # same instant has several equally valid ISO-8601 spellings (trailing `Z`
     # vs. `+00:00`, microseconds present or truncated, a `T` vs. a space
@@ -512,29 +513,20 @@ async def api_data_extraction_recommendation_correct(
             status_code=400, detail=f"Malformed If-Match header: {if_match}"
         ) from exc
 
-    # `updated_at` is `onupdate`-only with no `server_default`, so it stays
-    # NULL until the row's first edit -- a never-corrected recommendation has
-    # only `created_at` to identify its version by. Same fallback the client
-    # applies when it picks the etag to send, so the two always agree.
-    current = recommendation.updated_at or recommendation.created_at
-    if expected != current:
+    data = _validation_data(payload)
+    try:
+        recommendation = recommendation_correct(
+            recommendation_id, expected, data, session
+        )
+    except RecommendationNotFoundError as exc:
+        raise NotFoundError(detail=str(exc)) from exc
+    except StaleRecommendationError as exc:
         # 412, per RFC 7232: a failed `If-Match` precondition is exactly what
         # this status means. Not 409 (which says the request conflicts with
         # the resource's state, when the request itself is fine and only its
         # precondition failed) and not 404 (the row is right here). The client
         # keys its "recargá los datos" branch off this status.
-        raise PreconditionFailedError(
-            detail="Recommendation was modified since it was last read"
-        )
-
-    # Upsert by `document_id`, not by `recommendation_id`: one document has at
-    # most one recommendation, so this reuses `/validate`'s single write path
-    # rather than growing a second, divergent one.
-    data = _validation_data(payload)
-    try:
-        recommendation = recommendation_upsert(
-            recommendation.document_id, data, session
-        )
+        raise PreconditionFailedError(detail=str(exc)) from exc
     except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
