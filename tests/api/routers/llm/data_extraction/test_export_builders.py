@@ -476,7 +476,7 @@ def test_exported_files_use_situation_detail_header(session):
     csv_path = write_csv(rows)
     xlsx_path = write_xlsx(rows, [])
     try:
-        with csv_path.open(newline="") as handle:
+        with csv_path.open(encoding="utf-8", newline="") as handle:
             csv_row = next(csv.DictReader(handle))
         assert csv_row["DETALLE_DE_LA_SITUACION"] == "En trámite"
         assert "DETALLE_DE_LA_RECOMENDACION" not in csv_row

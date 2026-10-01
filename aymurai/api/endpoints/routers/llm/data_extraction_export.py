@@ -423,5 +423,5 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     frame = pd.DataFrame(recomendaciones, columns=RECOMENDACIONES_COLUMNS)
     fd, path = tempfile.mkstemp(suffix=".csv")
     os.close(fd)
-    frame.to_csv(path, index=False)
+    frame.to_csv(path, index=False, encoding="utf-8")
     return Path(path)
