@@ -11,10 +11,12 @@ from aymurai.database.crud.recommendation import (
     OrganigramReferenceNotFoundError,
     RecipientValidationData,
     RecommendationValidationData,
-    parse_recommendation_date,
     recommendation_get_by_document,
     recommendation_list,
     recommendation_upsert,
+)
+from aymurai.transforms.datetime_formatter.recommendation_prose import (
+    parse_recommendation_date,
 )
 from aymurai.database.schema import (
     MacroSector,

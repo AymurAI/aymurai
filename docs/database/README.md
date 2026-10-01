@@ -31,6 +31,154 @@ The last four are the Defensoría del Pueblo (CABA) feature (see
 them. **These migrations always run**, independent of the `DEFENSORIA_ENABLED`
 feature flag, which only gates whether the corresponding routers are mounted.
 
+## Operations
+
+### Location and volume persistence
+Inside the container the database lives at
+`/resources/cache/sqlite/database.db`; on the host it's
+`./resources/cache/sqlite/database.db`, reachable via the
+`./resources/cache:/resources/cache` bind mount on every API variant
+(`aymurai-api`, `aymurai-api-gpu`, `aymurai-api-full`, `aymurai-api-full-gpu`).
+That mount has to stay a bind mount tied to the host, not to the container:
+if the database only lived in the container's writable layer, recreating the
+container (redeploy, `--force-recreate`, an image update) would silently
+wipe it. This was a real bug on the `api-full` profile, fixed as part of this
+Fase — the profile's compose definition was missing the mount entirely.
+
+### Automatic backups
+The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
+`sqlite3.Connection.backup()` — safe under WAL, unlike copying the file with
+`cp`, which can capture it mid-checkpoint — and writes dated snapshots
+`database_<timestamp>.db` to `./resources/backups` (mounted at `/backups`
+in the container). The `<timestamp>` is `YYYYMMDDHHMMSS` in **UTC** — unlike
+the exported workbook's filename, which uses `EXPORT_TIMEZONE` (Buenos Aires
+time by default), so a backup taken at 14:00 local time is named `…170000`.
+An existing backup is never overwritten: a second backup within the same
+UTC second gets a suffix (`database_<timestamp>_01.db`, `_02`, …), which
+still sorts after the first one and before the next second. Configuration, with the defaults shipped in
+`docker-compose.yml`:
+- `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
+- `BACKUP_RETENTION` — default `336`; keeps the newest N dated backups and
+  deletes older ones. `BACKUP_RETENTION <= 0` disables pruning — it does
+  **not** mean "delete everything."
+
+A run whose copy is byte-identical (sha256) to the most recent backup is
+discarded instead of written (the sidecar logs `unchanged since …, skipped`),
+so backups only accumulate in hours when the database actually changed.
+With the hourly default, `336` retained backups therefore cover (not
+counting manual `make db-backup` runs and pre-restore snapshots, which take
+slots too):
+- **at least 14 days** even if the database changed every single hour, day
+  and night;
+- **about 7 weeks** at a realistic pace — grid edits during working hours
+  only (~9 changed hours a day, 5 days a week ≈ 45 backups a week);
+- longer still across idle stretches (holidays, weekends), which no longer
+  consume slots.
+
+Disk use is roughly `BACKUP_RETENTION × database size`: a few-MB database
+(a development database holding a handful of documents and transcriptions
+is ~4.5 MB) costs ~1.5 GB at the cap. Lower `BACKUP_RETENTION` if the
+database grows much larger than that, or raise it for a longer history.
+
+`./resources/backups` lives on the **same disk** as the database: it
+protects against bad edits, accidental deletes and a corrupted database
+file, not against losing the disk or the machine. Copying backups off the
+host (another disk, a network share, offline media) on a schedule is the
+administrator's responsibility; any completed `database_*.db` file can be
+copied safely with plain `cp`/`rsync` (only the hidden `.partial` file is
+ever being written).
+
+For a manual, immediate backup outside the interval: `make db-backup`, which
+runs the same script once (`--once`) and exits.
+
+The loop itself does not start on its own — start it once with
+`make db-backup-up`; from then on `restart: always` keeps it running across
+host reboots and container restarts (`make db-backup-stop` stops it,
+`make db-backup-logs` tails its output).
+
+Stopping is graceful: the service runs under `init: true` and the script
+handles SIGTERM by finishing any backup in progress and exiting before the
+next one, so `make db-backup-stop` returns within about a second instead of
+waiting out Docker's 10s grace period. A copy is written as a hidden
+`.database_<timestamp>_<random>.db.partial` file (unique per run, so a
+`make db-backup` running alongside the loop never touches the loop's file)
+and only gets its final name once complete; if a
+run is ever killed outright, the leftover `.partial` is never a restore
+candidate, and the loop deletes any such file when it next starts.
+
+### Restoring a backup
+Stop the API before restoring — `make db-restore` does this itself, stopping
+every API variant plus `db-backup` and refusing to proceed if any of them is
+still reported running. Then:
+```
+make db-restore BACKUP_FILE=database_<timestamp>.db
+```
+As a safety net, if a live `database.db` exists when `db-restore` runs, it
+first takes an automatic snapshot by invoking the `db-backup` sidecar once
+(the same as `make db-backup`) before touching anything — the pre-restore
+state lands in `./resources/backups` as an ordinary dated backup, not a
+separate file (or, if nothing changed since the latest backup, the snapshot
+is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
+beforehand, not instead of it.
+
+Whenever `db-restore` exits after stopping the containers, it starts the
+`db-backup` sidecar again (`docker compose up -d db-backup`, the same as
+`make db-backup-up`) — after a successful restore, and also when it stops
+early: refusing because a container is still running, a failed pre-restore
+snapshot, or a `cp`/`mv` permission error. A failure prints
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; if the
+restart itself fails, it prints a warning telling you to run
+`make db-backup-up`. A failure never leaves a half-written database: the
+backup is copied to `database.db.restoring` first, and only once that copy
+succeeded are the old `-wal`/`-shm` removed and the copy moved into place,
+so `database.db` is always either the untouched old file or the restored
+one. After a successful restore the sidecar's first run backs up the
+restored database. The API is left stopped on purpose: start it yourself
+with `make api-up` or `make api-full-up` after checking the restore.
+
+**Pruning right after a restore.** The pre-restore snapshot is taken with
+pruning disabled, but the restarted sidecar immediately backs up the
+restored database and prunes back to `BACKUP_RETENTION`. With a full set,
+the snapshot plus that first run push it two over the cap, so the two
+**oldest** backups are deleted right away — and they may be the file you
+just restored from, or ones you meant to try next. Before restoring, copy
+any backup you may still need out of `./resources/backups` (e.g.
+`cp resources/backups/database_<timestamp>.db ~/restore-candidates/`), and
+copy it back when you want to restore it. If you are going to try several
+restores in a row, also run `make db-backup-stop` right after each one, so
+the sidecar doesn't keep adding backups and pruning between attempts.
+
+On a fresh deployment, the bind-mounted directories (`resources/cache/`,
+`resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side
+file operations (the `cp`/`mv`/`rm` steps) need permission to write there, so
+you may need to adjust ownership or run those steps with sufficient
+privileges before restoring.
+
+### Verifying a backup
+An unverified backup is not a backup. Copy the file to a temporary path —
+never over the live database — and check that it holds real data, e.g. by
+counting rows in a known table:
+```
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
+```
+Query the copy, not the file in `./resources/backups`: backups keep the live
+database's WAL journal mode, so opening one makes SQLite create
+`-wal`/`-shm` files next to it. Without write permission on the directory
+(the usual case for a root-owned Docker bind mount) even a `SELECT` fails,
+e.g. with "attempt to write a readonly database"; with it, you risk leaving
+stray files in the backup directory.
+A structurally valid, non-empty SQLite file with a plausible row count is
+what "verified" means here; a file that merely exists is not enough.
+
+### Exported workbooks are not backups
+The workbook the Defensoría del Pueblo feature exports is a read-only report
+generated from the database; it cannot be imported back and does not
+substitute for a database backup. See
+[ADR-0014](../adr/0014-workbook-exportado-de-solo-lectura.md).
+
 ## ER Diagram
 Rendered inline so it can never drift out of sync with a stale image.
 The same diagram lives standalone in [`schema.mmd`](schema.mmd).

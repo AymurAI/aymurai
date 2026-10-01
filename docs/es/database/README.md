@@ -32,6 +32,167 @@ keys hacia ellas. **Estas migraciones siempre corren**, independientemente del
 feature flag `DEFENSORIA_ENABLED`, que solo gatea si se montan los routers
 correspondientes.
 
+## Operación
+
+### Ubicación y persistencia del volumen
+Dentro del contenedor la base vive en `/resources/cache/sqlite/database.db`;
+en el host es `./resources/cache/sqlite/database.db`, accesible vía el bind
+mount `./resources/cache:/resources/cache` en cada variante de la API
+(`aymurai-api`, `aymurai-api-gpu`, `aymurai-api-full`, `aymurai-api-full-gpu`).
+Ese mount tiene que seguir siendo un bind mount atado al host, no al
+contenedor: si la base viviera solo en la capa escribible del contenedor,
+recrear el contenedor (redeploy, `--force-recreate`, una actualización de
+imagen) la borraría silenciosamente. Este fue un bug real en el perfil
+`api-full`, corregido en esta Fase — a la definición de compose de ese
+perfil directamente le faltaba el mount.
+
+### Respaldos automáticos
+El sidecar `db-backup` (`docker/backup/backup.py`) corre en loop, usando
+`sqlite3.Connection.backup()` — seguro bajo WAL, a diferencia de copiar el
+archivo con `cp`, que puede capturarlo a mitad de un checkpoint — y escribe
+snapshots fechados `database_<timestamp>.db` en `./resources/backups`
+(montado como `/backups` en el contenedor). El `<timestamp>` es
+`YYYYMMDDHHMMSS` en **UTC** — a diferencia del nombre del workbook exportado,
+que usa `EXPORT_TIMEZONE` (hora de Buenos Aires por default), así que un
+respaldo tomado a las 14:00 hora local se llama `…170000`. Nunca se
+sobrescribe un respaldo existente: un segundo respaldo dentro del mismo
+segundo UTC lleva un sufijo (`database_<timestamp>_01.db`, `_02`, …), que
+igual queda ordenado después del primero y antes del segundo siguiente.
+Configuración, con los defaults
+que quedaron en `docker-compose.yml`:
+- `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
+- `BACKUP_RETENTION` — default `336`; conserva los N respaldos fechados más
+  recientes y borra los demás. `BACKUP_RETENTION <= 0` desactiva la poda —
+  **no** significa "borrar todo."
+
+Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
+reciente se descarta en vez de escribirse (el sidecar loguea
+`unchanged since …, skipped`), así que los respaldos solo se acumulan en las
+horas en que la base efectivamente cambió. Con el intervalo horario por
+default, los `336` respaldos conservados cubren (sin contar las corridas
+manuales de `make db-backup` ni los snapshots previos a una restauración,
+que también ocupan lugares):
+- **al menos 14 días** aunque la base cambiara todas las horas, de día y de
+  noche;
+- **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
+  horario laboral (~9 horas con cambios por día, 5 días por semana ≈ 45
+  respaldos por semana);
+- todavía más a través de períodos sin actividad (feriados, fines de
+  semana), que ya no consumen lugares.
+
+El uso de disco es aproximadamente `BACKUP_RETENTION × tamaño de la base`:
+una base de pocos MB (una base de desarrollo con un puñado de documentos y
+transcripciones pesa ~4,5 MB) ocupa ~1,5 GB con la retención completa. Bajar
+`BACKUP_RETENTION` si la base crece mucho más que eso, o subirlo para tener
+más historia.
+
+`./resources/backups` vive en el **mismo disco** que la base: protege contra
+ediciones erróneas, borrados accidentales y un archivo de base corrupto, no
+contra perder el disco o la máquina. Copiar los respaldos fuera del host
+(otro disco, un recurso compartido de red, medios offline) periódicamente es
+responsabilidad de quien administra el sistema; cualquier archivo
+`database_*.db` completo se puede copiar sin riesgo con `cp`/`rsync` común
+(el único que se está escribiendo es el `.partial` oculto).
+
+Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
+que corre el mismo script una sola vez (`--once`) y termina.
+
+El loop en sí no arranca solo — hay que iniciarlo una vez con
+`make db-backup-up`; de ahí en más `restart: always` lo mantiene corriendo
+entre reinicios del host y del container (`make db-backup-stop` lo para,
+`make db-backup-logs` sigue su output).
+
+La parada es ordenada: el servicio corre con `init: true` y el script maneja
+SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
+siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
+vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
+como un archivo oculto `.database_<timestamp>_<aleatorio>.db.partial` (único
+por corrida, así que un `make db-backup` que corre junto al loop nunca toca
+el archivo del loop) y solo recibe su nombre final cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
+así la próxima vez que arranca.
+
+### Restaurar un respaldo
+Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
+parando cada variante de la API más `db-backup` y negándose a continuar si
+alguna sigue reportada como corriendo. Después:
+```
+make db-restore BACKUP_FILE=database_<timestamp>.db
+```
+Como red de seguridad, si existe un `database.db` vivo cuando corre
+`db-restore`, primero toma un snapshot automático invocando una vez el
+sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
+estado previo a la restauración queda en `./resources/backups` como un
+respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
+último respaldo, el snapshot se saltea porque ese último respaldo ya tiene
+exactamente los mismos bytes). Esto corre además de
+cualquier verificación manual que hayas hecho antes, no en su lugar.
+
+Siempre que `db-restore` termina después de haber parado los containers,
+vuelve a levantar el sidecar `db-backup` (`docker compose up -d db-backup`,
+lo mismo que `make db-backup-up`) — después de una restauración exitosa, y
+también cuando corta antes: al negarse porque un container sigue corriendo,
+si falla el snapshot previo a la restauración, o ante un error de permisos
+en `cp`/`mv`. Un fallo imprime
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; si el
+reinicio mismo falla, imprime un aviso indicando que corras
+`make db-backup-up`. Un fallo nunca deja una base a medio escribir: el
+respaldo se copia primero a `database.db.restoring`, y solo cuando esa copia
+salió bien se borran los `-wal`/`-shm` viejos y se mueve la copia a su
+lugar, así que `database.db` siempre es o el archivo viejo intacto o el
+restaurado. Después de una restauración exitosa, la primera corrida del
+sidecar respalda la base restaurada. La API queda parada a propósito:
+levantala vos con `make api-up` o `make api-full-up` después de revisar la
+restauración.
+
+**Poda justo después de restaurar.** El snapshot previo a la restauración
+se toma con la poda desactivada, pero el sidecar reiniciado respalda
+enseguida la base restaurada y poda de vuelta a `BACKUP_RETENTION`. Con el
+conjunto completo, el snapshot más esa primera corrida lo dejan dos por
+encima del tope, así que los dos respaldos **más viejos** se borran en el
+acto — y pueden ser justo el archivo desde el que restauraste, o los que
+pensabas probar después. Antes de restaurar, copiá fuera de
+`./resources/backups` cualquier respaldo que todavía puedas necesitar (por
+ejemplo `cp resources/backups/database_<timestamp>.db ~/candidatos-restore/`),
+y volvé a copiarlo cuando quieras restaurarlo. Si vas a probar varias
+restauraciones seguidas, corré también `make db-backup-stop` justo después
+de cada una, para que el sidecar no siga agregando respaldos y podando entre
+intentos.
+
+En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
+`resources/backups/`) pueden quedar con dueño root por Docker; las
+operaciones sobre archivos del lado del host que hace `db-restore`
+(los pasos `cp`/`mv`/`rm`) necesitan permiso para escribir ahí, así que puede
+hacer falta ajustar el dueño de esos directorios o correr esos pasos con
+privilegios suficientes antes de restaurar.
+
+### Verificar un respaldo
+Un respaldo no verificado no es un respaldo. Copiarlo a un path temporal
+— nunca sobre la base viva — y comprobar que tiene datos reales, por
+ejemplo contando filas de una tabla conocida:
+```
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
+```
+Consultar la copia, no el archivo en `./resources/backups`: los respaldos
+conservan el modo de journal WAL de la base viva, así que abrir uno hace que
+SQLite cree archivos `-wal`/`-shm` al lado. Sin permiso de escritura sobre
+el directorio (lo habitual en un bind mount de Docker con dueño root) hasta
+un `SELECT` falla, por ejemplo con "attempt to write a readonly database";
+con permiso, se corre el riesgo de dejar archivos sueltos en el directorio
+de respaldos.
+Un archivo SQLite estructuralmente válido y no vacío, con un conteo de filas
+plausible, es lo que significa "verificado" acá; que el archivo exista no
+alcanza.
+
+### El workbook exportado no es un respaldo
+El workbook que exporta la feature de la Defensoría del Pueblo es un reporte
+de solo lectura generado a partir de la base; no se puede reimportar y no
+sustituye a un respaldo de la base de datos. Ver
+[ADR-0014](../../adr/0014-workbook-exportado-de-solo-lectura.md).
+
 ## Diagrama ER
 Se renderiza inline para que no pueda quedar desfasado respecto de una imagen
 vieja. El mismo diagrama vive suelto en [`schema.mmd`](../../database/schema.mmd).

@@ -1,5 +1,6 @@
 import io
 import json
+import re
 from datetime import datetime
 
 import openpyxl
@@ -143,3 +144,12 @@ def test_export_csv_format_has_only_recomendaciones(
     assert "Contenido csv." in text
     # destinatarios-only column -- csv never carries that sheet at all.
     assert "DESTINATARIO_PRINCIPAL" not in text
+
+
+def test_export_filename_carries_a_timestamp_suffix(extraction_client):
+    response = extraction_client.get(
+        "/llm/data-extraction/export", params={"format": "xlsx"}
+    )
+
+    disposition = response.headers["content-disposition"]
+    assert re.search(r'filename="recomendaciones_\d{14}\.xlsx"', disposition)

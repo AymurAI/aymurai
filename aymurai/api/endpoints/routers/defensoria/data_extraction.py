@@ -1,7 +1,8 @@
 import os
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -393,11 +394,14 @@ async def api_data_extraction_export(
         path = write_xlsx(recomendaciones, destinatarios)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+    timestamp = datetime.now(ZoneInfo(settings.EXPORT_TIMEZONE)).strftime(
+        "%Y%m%d%H%M%S"
+    )
     return FileResponse(
         str(path),
         background=BackgroundTask(os.remove, str(path)),
         media_type=media_type,
-        filename=f"recomendaciones.{format}",
+        filename=f"recomendaciones_{timestamp}.{format}",
     )
 
 

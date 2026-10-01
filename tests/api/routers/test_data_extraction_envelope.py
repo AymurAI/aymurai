@@ -25,7 +25,7 @@ from aymurai.database.schema import (
     TopicCreate,
 )
 from aymurai.database.seed.catalogs import seed_macro_sectors
-from aymurai.database.session import _enable_sqlite_foreign_keys, get_session
+from aymurai.database.session import _configure_sqlite_connection, get_session
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    event.listen(engine, "connect", _configure_sqlite_connection)
     SQLModel.metadata.create_all(engine)
     yield engine
     engine.dispose()

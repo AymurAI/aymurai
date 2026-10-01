@@ -74,17 +74,43 @@ export const validateRecommendation = () =>
     },
   });
 
+function filenameFromContentDisposition(
+  header: string | undefined,
+  fallback: string,
+): string {
+  const match = header?.match(/filename="?([^"]+)"?/);
+  if (!match?.[1]) {
+    console.warn(
+      "Content-Disposition header missing or unparseable; falling back to a generic export filename. Check CORS_ORIGINS.",
+    );
+    return fallback;
+  }
+  return match[1];
+}
+
+export interface RecommendationsExportResult {
+  blob: Blob;
+  fileName: string;
+}
+
 export const downloadRecommendationsExport = () =>
   mutationOptions({
-    mutationFn: async (format: "xlsx" | "csv" = "xlsx") => {
-      const data = USE_MOCK_DATA_EXTRACTION
-        ? await mock.mockDownloadRecommendationsExport(format)
-        : (
-            await api.get("/llm/data-extraction/export", {
-              params: { format },
-              responseType: "blob",
-            })
-          ).data;
-      return data as Blob;
+    mutationFn: async (
+      format: "xlsx" | "csv" = "xlsx",
+    ): Promise<RecommendationsExportResult> => {
+      if (USE_MOCK_DATA_EXTRACTION) {
+        return mock.mockDownloadRecommendationsExport(format);
+      }
+      const response = await api.get("/llm/data-extraction/export", {
+        params: { format },
+        responseType: "blob",
+      });
+      return {
+        blob: response.data as Blob,
+        fileName: filenameFromContentDisposition(
+          response.headers["content-disposition"],
+          `recomendaciones.${format}`,
+        ),
+      };
     },
   });
