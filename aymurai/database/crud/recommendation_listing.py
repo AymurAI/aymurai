@@ -90,7 +90,7 @@ def _like_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _local_day_start_utc(day: date) -> str:
+def _local_day_start_utc(day: date) -> str | None:
     """
     The UTC instant at which `day` starts in `settings.EXPORT_TIMEZONE`.
 
@@ -104,13 +104,21 @@ def _local_day_start_utc(day: date) -> str:
         day (date): Calendar day in the local timezone.
 
     Returns:
-        str: Naive UTC `YYYY-MM-DD HH:MM:SS`, the format SQLite's
-            `datetime()` reads and emits.
+        str | None: Naive UTC `YYYY-MM-DD HH:MM:SS`, the format SQLite's
+            `datetime()` reads and emits -- via `isoformat`, not
+            `strftime("%Y")`, which doesn't zero-pad years below 1000 (SQLite
+            reads that as NULL and the filter silently matches nothing).
+            None when the instant falls outside what `datetime` can
+            represent, i.e. the bound lies beyond every possible timestamp.
     """
-    local_midnight = datetime.combine(
-        day, time.min, tzinfo=ZoneInfo(settings.EXPORT_TIMEZONE)
-    )
-    return local_midnight.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        local_midnight = datetime.combine(
+            day, time.min, tzinfo=ZoneInfo(settings.EXPORT_TIMEZONE)
+        )
+        utc = local_midnight.astimezone(UTC).replace(tzinfo=None)
+    except OverflowError:
+        return None
+    return utc.isoformat(sep=" ", timespec="seconds")
 
 
 def recommendation_list(
@@ -188,15 +196,18 @@ def recommendation_list(
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
     # `datetime()` on both sides, not raw comparison (see `_LAST_EDITED`).
-    if edited_from is not None:
-        statement = statement.where(
-            _LAST_EDITED >= func.datetime(_local_day_start_utc(edited_from))
-        )
-    if edited_to is not None:
-        statement = statement.where(
-            _LAST_EDITED
-            < func.datetime(_local_day_start_utc(edited_to + timedelta(days=1)))
-        )
+    # A bound past the edge of the calendar (`edited_to=9999-12-31`, whose
+    # next day doesn't exist) bounds nothing, so it is simply left out.
+    lower = _local_day_start_utc(edited_from) if edited_from is not None else None
+    upper = (
+        _local_day_start_utc(edited_to + timedelta(days=1))
+        if edited_to is not None and edited_to < date.max
+        else None
+    )
+    if lower is not None:
+        statement = statement.where(_LAST_EDITED >= func.datetime(lower))
+    if upper is not None:
+        statement = statement.where(_LAST_EDITED < func.datetime(upper))
     # Folded with the same `normalize_text` the SQL side applies, so case and
     # accents never decide a match ("area" finds "Área", "ÁREA" finds "área").
     needle = normalize_text(q) if q else ""

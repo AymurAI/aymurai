@@ -1,7 +1,10 @@
-"""`last_edited` sort precision, checked straight against the CRUD."""
+"""`last_edited` sort precision and the "editado desde/hasta" bounds at the
+edges of the calendar, checked straight against the CRUD."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+
+import pytest
 from sqlmodel import col, update
 
 from aymurai.database.crud.recommendation import (
@@ -51,3 +54,25 @@ def test_last_edited_sort_keeps_sub_second_order(session):
 
     assert ordered("asc") == [earlier, later]
     assert ordered("desc") == [later, earlier]
+
+
+def test_edited_to_the_last_representable_day_has_no_upper_bound(session):
+    edited = _seed(session, updated_at=datetime(2024, 6, 1, 12, 0))
+
+    items, total = recommendation_list(session, edited_to=date.max)
+
+    assert total == 1
+    assert [item.id for item in items] == [edited]
+
+
+@pytest.mark.parametrize("bound", [date(1, 1, 1), date(999, 12, 31)])
+def test_edited_from_a_year_before_1000_still_filters(session, bound):
+    # `%Y` doesn't zero-pad years below 1000, and SQLite reads a malformed
+    # timestamp as NULL -- which silently matched nothing.
+    edited = _seed(session, updated_at=datetime(2024, 6, 1, 12, 0))
+
+    items, total = recommendation_list(session, edited_from=bound)
+
+    assert total == 1
+    assert [item.id for item in items] == [edited]
+    assert recommendation_list(session, edited_to=bound)[1] == 0
