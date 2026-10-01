@@ -100,14 +100,28 @@ vi.mock("@/services/export/use-export-recommendations", () => ({
   }),
 }));
 
+const TOPIC = "8f14e45f-ceea-4e7a-9b1c-2d3e4f5a6b7c";
+
 const GRID_SEARCH = {
-  topicId: "t1",
+  topicId: TOPIC,
   status: "Cerrada",
   page: 2,
   orderBy: "recommendation_number",
   orderDir: "asc",
   view: "recipients",
 } as const;
+
+function renderAt(search: Record<string, unknown>) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createRouter({
+    routeTree,
+    context: { queryClient },
+    history: createMemoryHistory({ initialEntries: ["/home/dataset"] }),
+  });
+  return { queryClient, router, search };
+}
 
 describe("grilla → corrección → grilla", () => {
   it("comes back to the same filters, sort, page and tab", async () => {
@@ -132,7 +146,7 @@ describe("grilla → corrección → grilla", () => {
     );
 
     const expectedListParams = expect.objectContaining({
-      topicId: "t1",
+      topicId: TOPIC,
       status: "Cerrada",
       page: 2,
       orderBy: "recommendation_number",
@@ -165,5 +179,35 @@ describe("grilla → corrección → grilla", () => {
     expect(
       await screen.findByRole("tab", { name: "grilla.tabs.recipients" }),
     ).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("never sends a malformed URL value on to the list request", async () => {
+    mockList.mockResolvedValue({ items: [ROW], total: 45 });
+    const { queryClient, router } = renderAt({});
+    await act(() =>
+      router.navigate({
+        to: "/home/dataset",
+        search: {
+          topicId: "t1",
+          editedFrom: "ayer",
+          recipientSector: "sector:s1",
+          status: "Cerrada",
+        } as never,
+      }),
+    );
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    const params = mockList.mock.lastCall?.[0];
+    expect(params).toMatchObject({ status: "Cerrada" });
+    expect(params.topicId).toBeUndefined();
+    expect(params.editedFrom).toBeUndefined();
+    expect(params.sectorId).toBeUndefined();
   });
 });

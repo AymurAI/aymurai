@@ -48,26 +48,44 @@ const SORTABLE = new Set<string>(
 
 // TanStack's default search parser JSON-decodes each value, so a search for
 // `123` arrives as a number. Anything malformed is dropped rather than thrown:
-// a stale or hand-edited link should open the grilla, not an error screen.
+// a stale or hand-edited link should open the grilla, not an error screen --
+// and a value the server would reject (a non-uuid id, a non-ISO date) must not
+// reach the list request, where it would turn into a 422 instead.
+const asText = (value: unknown) =>
+  typeof value === "number" ? String(value) : value;
 const text = z
-  .preprocess(
-    (value) => (typeof value === "number" ? String(value) : value),
-    z.string().min(1).optional(),
+  .preprocess(asText, z.string().min(1).optional())
+  .catch(undefined);
+const uuid = z.uuid().optional().catch(undefined);
+// `YYYY-MM-DD`, a real calendar day -- what the date inputs emit and what the
+// endpoint parses.
+const isoDate = z.iso.date().optional().catch(undefined);
+// `sector:<uuid>` or `macro:<uuid>`: the filter panel's single picker encodes
+// which of the two server filters the id belongs to.
+const recipientSector = z
+  .string()
+  .regex(
+    /^(sector|macro):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   )
+  .optional()
   .catch(undefined);
 
 const gridSearchSchema = z.object({
   q: text,
-  topicId: text,
-  subtopicId: text,
-  recipientSector: text,
+  topicId: uuid,
+  subtopicId: uuid,
+  recipientSector,
+  // Situación and estado are closed catalogs, but they belong to the server
+  // (`GET /catalogs/recommendation-enums`) and are never written out in TS
+  // (ADR-0015), so the URL can only insist on a non-empty string; a value
+  // outside the catalog matches nothing in the filter's dropdown.
   situation: text,
   status: text,
   publication: z.enum(["yes", "no", "unanswered"]).optional().catch(undefined),
-  dateFrom: text,
-  dateTo: text,
-  editedFrom: text,
-  editedTo: text,
+  dateFrom: isoDate,
+  dateTo: isoDate,
+  editedFrom: isoDate,
+  editedTo: isoDate,
   page: z.coerce.number().int().min(1).optional().catch(undefined),
   orderBy: z
     .custom<SortColumn>(
@@ -106,7 +124,17 @@ export function compactGridSearch(
 export function validateGridSearch(
   raw: Record<string, unknown>,
 ): RecommendationsGridSearch {
-  return compactGridSearch(gridSearchSchema.parse(raw));
+  const compact = compactGridSearch(gridSearchSchema.parse(raw));
+  // Every known key comes back, `undefined` when dropped -- not left out.
+  // TanStack merges a route's validated search over the raw location search,
+  // so a key that is merely absent here lets the raw (malformed) value through
+  // to `useSearch()`; an explicit `undefined` overrides it.
+  return Object.fromEntries(
+    Object.keys(gridSearchSchema.shape).map((key) => [
+      key,
+      compact[key as keyof RecommendationsGridSearch],
+    ]),
+  );
 }
 
 /** The filter panel's values (minus the live search box) for a URL search. */
