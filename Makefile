@@ -77,8 +77,14 @@ db-backup-logs:
 # steady state the backup set is already at the retention cap, so taking one
 # more snapshot without disabling pruning would make the sidecar's own prune
 # step delete the oldest file -- which can be the exact backup being restored.
-# Once the restored file is in place the sidecar is brought back up (same as
-# `make db-backup-up`), so a restore never silently leaves backups switched off.
+# Everything from stopping the containers onwards runs in one shell with an
+# EXIT trap that brings the sidecar back up (same as `make db-backup-up`)
+# however the shell ends -- success, the "still running" refusal, a failed
+# pre-restore snapshot, or a cp/mv permission error -- so a restore never
+# leaves backups switched off. That is safe at every failure point because
+# database.db is always either the untouched old file or the fully restored
+# one: the copy goes to database.db.restoring first, and only once it
+# succeeded are the old -wal/-shm removed and the copy mv'd into place.
 db-restore:
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
@@ -88,19 +94,27 @@ db-restore:
 		echo "no such backup: resources/backups/$(BACKUP_FILE)"; \
 		exit 1; \
 	fi
-	docker compose stop aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup || true
-	@still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup)"; \
+	@set -e; \
+	trap 'status=$$?; \
+		if docker compose up -d db-backup; then \
+			if [ $$status -ne 0 ]; then echo "db-restore FAILED (exit $$status); the db-backup sidecar was restarted." >&2; fi; \
+		else \
+			echo "WARNING: could not restart the db-backup sidecar; start it with: make db-backup-up" >&2; \
+		fi' EXIT; \
+	set -x; \
+	docker compose stop aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup || true; \
+	still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup)"; \
 	if [ -n "$$still" ]; then \
-		echo "refusing to restore: an API container is still running"; exit 1; \
-	fi
-	@if [ -f resources/cache/sqlite/database.db ]; then \
+		echo "refusing to restore: an API container is still running" >&2; exit 1; \
+	fi; \
+	if [ -f resources/cache/sqlite/database.db ]; then \
 		docker compose run --rm -e BACKUP_RETENTION=0 db-backup --once; \
-	fi
-	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
-	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring
-	mv resources/cache/sqlite/database.db.restoring resources/cache/sqlite/database.db
-	docker compose up -d db-backup
-	@echo "Restored $(BACKUP_FILE) and restarted the db-backup sidecar. Start the API again with 'make api-up' or 'make api-full-up'."
+	fi; \
+	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring; \
+	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm; \
+	mv resources/cache/sqlite/database.db.restoring resources/cache/sqlite/database.db; \
+	set +x; \
+	echo "Restored $(BACKUP_FILE); the db-backup sidecar is being restarted. Start the API again with 'make api-up' or 'make api-full-up'."
 
 stress-test:
 	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899

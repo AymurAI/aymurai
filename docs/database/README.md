@@ -116,10 +116,19 @@ separate file (or, if nothing changed since the latest backup, the snapshot
 is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
 
-Once the restored file is in place, `db-restore` starts the `db-backup`
-sidecar again (`docker compose up -d db-backup`, the same as
-`make db-backup-up`), so automatic backups resume — the first run backs up
-the restored database. The API is left stopped on purpose: start it yourself
+Whenever `db-restore` exits after stopping the containers, it starts the
+`db-backup` sidecar again (`docker compose up -d db-backup`, the same as
+`make db-backup-up`) — after a successful restore, and also when it stops
+early: refusing because a container is still running, a failed pre-restore
+snapshot, or a `cp`/`mv` permission error. A failure prints
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; if the
+restart itself fails, it prints a warning telling you to run
+`make db-backup-up`. A failure never leaves a half-written database: the
+backup is copied to `database.db.restoring` first, and only once that copy
+succeeded are the old `-wal`/`-shm` removed and the copy moved into place,
+so `database.db` is always either the untouched old file or the restored
+one. After a successful restore the sidecar's first run backs up the
+restored database. The API is left stopped on purpose: start it yourself
 with `make api-up` or `make api-full-up` after checking the restore.
 
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,

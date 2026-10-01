@@ -122,12 +122,22 @@ respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
 exactamente los mismos bytes). Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
 
-Una vez que el archivo restaurado está en su lugar, `db-restore` vuelve a
-levantar el sidecar `db-backup` (`docker compose up -d db-backup`, lo mismo
-que `make db-backup-up`), así que los respaldos automáticos se reanudan — la
-primera corrida respalda la base restaurada. La API queda parada a
-propósito: levantala vos con `make api-up` o `make api-full-up` después de
-revisar la restauración.
+Siempre que `db-restore` termina después de haber parado los containers,
+vuelve a levantar el sidecar `db-backup` (`docker compose up -d db-backup`,
+lo mismo que `make db-backup-up`) — después de una restauración exitosa, y
+también cuando corta antes: al negarse porque un container sigue corriendo,
+si falla el snapshot previo a la restauración, o ante un error de permisos
+en `cp`/`mv`. Un fallo imprime
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; si el
+reinicio mismo falla, imprime un aviso indicando que corras
+`make db-backup-up`. Un fallo nunca deja una base a medio escribir: el
+respaldo se copia primero a `database.db.restoring`, y solo cuando esa copia
+salió bien se borran los `-wal`/`-shm` viejos y se mueve la copia a su
+lugar, así que `database.db` siempre es o el archivo viejo intacto o el
+restaurado. Después de una restauración exitosa, la primera corrida del
+sidecar respalda la base restaurada. La API queda parada a propósito:
+levantala vos con `make api-up` o `make api-full-up` después de revisar la
+restauración.
 
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
 `resources/backups/`) pueden quedar con dueño root por Docker; las
