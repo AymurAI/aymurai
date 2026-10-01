@@ -1,10 +1,12 @@
-import { Button, Callout, PageTitle, Spinner } from "@aymurai/ui";
+import { Button, Callout, Spinner } from "@aymurai/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { AxiosError } from "axios";
 import { type Dispatch, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import FileAnnotator from "@/components/file-annotator";
+import Footer from "@/components/layout/footer";
+import Header from "@/components/layout/header";
 import { FileContext, FileDispatchContext } from "@/context/File";
 import { showToast } from "@/features/showToast";
 import { SectionTitle } from "@/layout/section-title";
@@ -15,18 +17,29 @@ import {
   recommendationsList,
 } from "@/services/aymurai/dataExtraction";
 import { css } from "@/styled/css";
-import { Flex, Grid, HStack, Stack, styled } from "@/styled/jsx";
+import { Grid, HStack, Stack, styled } from "@/styled/jsx";
 import type {
   RecommendationDetail,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { FeatureFlowEnum } from "@/types/features";
 import type { DocFile } from "@/types/file";
 import { buildAnnotations } from "@/utils/recommendations/build-annotations";
 import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import { predictionFromDetail } from "@/utils/recommendations/prediction-from-detail";
 import RecommendationForm from "./recommendation-form";
 
-const subtitle = css({
+const page = css({
+  display: "flex",
+  flexDirection: "column",
+  width: "full",
+  height: "[100dvh]",
+  minH: "0",
+  overflow: "hidden",
+  bg: "bg.primary",
+});
+
+const statusText = css({
   textStyle: "paragraph.sm.default",
   color: "text.lighter",
 });
@@ -35,9 +48,7 @@ const panes = css({
   flex: "1",
   minH: "0",
   overflow: "hidden",
-  bg: "bg.secondary",
-  border: "card",
-  borderRadius: "lg",
+  bg: "bg.primary",
 });
 
 // Same reason as `recommendation-validation.tsx`'s `validationPane`: a grid
@@ -48,6 +59,7 @@ const documentPane = css({
   height: "full",
   minHeight: "[0]",
   overflow: "hidden",
+  bg: "bg.secondary",
 });
 
 /**
@@ -267,119 +279,60 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
     setSaveError(null);
   };
 
+  const editHeader = (
+    <Header
+      title={t("correction.title")}
+      feature={FeatureFlowEnum.Recommendations}
+    />
+  );
+
   if (detailQuery.isPending) {
-    // Announced, not just drawn: `<Spinner />` is a decorative graphic with no
-    // accessible name, so without this a screen reader gets an empty screen
-    // with nothing to say about it. `aria-live="polite"` matches the three
-    // error states below, which announce through `role="alert"`.
     return (
-      <HStack
-        justify="center"
-        gap="3"
-        py="8"
-        width="full"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <Spinner />
-        <styled.p className={subtitle}>{t("correction.loading")}</styled.p>
-      </HStack>
+      <div className={page}>
+        {editHeader}
+        <HStack
+          justify="center"
+          gap="3"
+          flex="1"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Spinner />
+          <styled.p className={statusText}>{t("correction.loading")}</styled.p>
+        </HStack>
+      </div>
     );
   }
 
   if (detailQuery.isError || !detail || !prediction || !docFile) {
     return (
-      <Stack gap="4" width="full">
-        <PageTitle>{t("correction.title")}</PageTitle>
-        <Callout
-          variant="error"
-          role="alert"
-          message={
-            detail && !prediction
-              ? t("correction.predictionUnavailable")
-              : t("correction.loadFailed")
-          }
-        />
-        <HStack>
-          <Button variant="secondary" onClick={goBack}>
+      <div className={page}>
+        {editHeader}
+        <Stack gap="4" flex="1" p={{ base: "6", xl: "12" }}>
+          <Callout
+            variant="error"
+            role="alert"
+            message={
+              detail && !prediction
+                ? t("correction.predictionUnavailable")
+                : t("correction.loadFailed")
+            }
+          />
+        </Stack>
+        <Footer withBuiltBy>
+          <Button variant="secondary" size="md" onClick={goBack}>
             {t("correction.back")}
           </Button>
-        </HStack>
-      </Stack>
+        </Footer>
+      </div>
     );
   }
 
   return (
-    <Stack gap="6" width="full" flex="1" minH="0">
-      {/* `HStack` (the Panda pattern) takes no `wrap` prop — `Flex` is the one
-          that does (see `.claude/rules/panda-css.md`'s Stack-vs-Flex trap), and
-          the title/actions row has to wrap on a narrow window rather than
-          squeeze the buttons. */}
-      <Flex justify="space-between" alignItems="flex-start" gap="4" wrap="wrap">
-        <Stack gap="1">
-          <PageTitle>{t("correction.title")}</PageTitle>
-          <styled.p className={subtitle}>{t("correction.subtitle")}</styled.p>
-        </Stack>
-        {/* Top-right, beside the title, rather than in a footer: this screen
-            lives under `HomeLayout` (the Configuración/grilla chrome), which
-            has no footer slot — the wizard's `<Footer>` belongs to the
-            `/$feature/...` step layout and would be borrowed chrome here. */}
-        <HStack gap="3">
-          <Button variant="secondary" onClick={goBack}>
-            {t("correction.cancel")}
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={save.isPending || conflict || !payload}
-          >
-            {confirmUnvalidated
-              ? t("correction.saveAnyway")
-              : t("correction.save")}
-          </Button>
-        </HStack>
-      </Flex>
-
-      {conflict && (
-        <Stack gap="3" alignItems="flex-start">
-          <Callout
-            variant="warning"
-            role="alert"
-            message={t("correction.conflict")}
-          />
-          <Button
-            variant="secondary"
-            onClick={handleReload}
-            disabled={detailQuery.isFetching}
-          >
-            {t("correction.reload")}
-          </Button>
-          {reloadFailed && (
-            <Callout
-              variant="error"
-              role="alert"
-              message={t("correction.reloadFailed")}
-            />
-          )}
-        </Stack>
-      )}
-
-      {saveError && (
-        <Callout
-          variant="error"
-          role="alert"
-          message={
-            saveError === "server"
-              ? t("correction.saveRejected")
-              : t("correction.saveFailed")
-          }
-        />
-      )}
-
+    <div className={page}>
+      {editHeader}
       <Grid
         className={panes}
-        // Same responsive split as the wizard's validation step: stacked below
-        // `lg` (no room for two panes), side by side above it. Both panes
-        // scroll internally, so neither needs a taller share when stacked.
         gridTemplateColumns={{
           base: "[minmax(0, 1fr)]",
           lg: "[repeat(2, minmax(0, 1fr))]",
@@ -389,8 +342,6 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
           lg: "[minmax(0, 1fr)]",
         }}
         gap="0"
-        flex="1"
-        minHeight="0"
         justifyContent="stretch"
         alignItems="stretch"
       >
@@ -404,21 +355,57 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
             </FileDispatchContext.Provider>
           </FileContext.Provider>
         </section>
+
         <Stack
-          px={{ base: "6", xl: "10" }}
-          py={{ base: "6", xl: "10" }}
+          position="relative"
+          px={{ base: "6", xl: "[100px]" }}
+          py={{ base: "6", xl: "16" }}
           overflowY="auto"
           overflowX="hidden"
-          gap="8"
+          gap={{ base: "8", xl: "16" }}
+          bg="bg.primary"
           minHeight="0"
           minWidth="0"
         >
           <SectionTitle>{t("correction.sectionTitle")}</SectionTitle>
+
+          {conflict && (
+            <Stack gap="3" alignItems="flex-start">
+              <Callout
+                variant="warning"
+                role="alert"
+                message={t("correction.conflict")}
+              />
+              <Button
+                variant="secondary"
+                onClick={handleReload}
+                disabled={detailQuery.isFetching}
+              >
+                {t("correction.reload")}
+              </Button>
+              {reloadFailed && (
+                <Callout
+                  variant="error"
+                  role="alert"
+                  message={t("correction.reloadFailed")}
+                />
+              )}
+            </Stack>
+          )}
+
+          {saveError && (
+            <Callout
+              variant="error"
+              role="alert"
+              message={
+                saveError === "server"
+                  ? t("correction.saveRejected")
+                  : t("correction.saveFailed")
+              }
+            />
+          )}
+
           <RecommendationForm
-            // A reload after a conflict returns a row with a new etag, and
-            // `useRecommendationForm` freezes its initial values on first
-            // render — without a changing key React would keep the same
-            // instance and go on showing the values that just lost the race.
             key={`${detail.id}:${etag}`}
             prediction={prediction}
             validation={detail}
@@ -427,6 +414,23 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
           />
         </Stack>
       </Grid>
-    </Stack>
+
+      <Footer withBuiltBy>
+        <HStack gap="3">
+          <Button variant="secondary" size="md" onClick={goBack}>
+            {t("correction.cancel")}
+          </Button>
+          <Button
+            size="md"
+            onClick={handleSave}
+            disabled={save.isPending || conflict || !payload}
+          >
+            {confirmUnvalidated
+              ? t("correction.saveAnyway")
+              : t("correction.save")}
+          </Button>
+        </HStack>
+      </Footer>
+    </div>
   );
 }

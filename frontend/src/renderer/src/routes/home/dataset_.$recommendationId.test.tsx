@@ -77,9 +77,8 @@ describe("/home/dataset/$recommendationId — the correction route", () => {
       "rec-1",
     );
     expect(screen.queryByTestId("navigate-away")).not.toBeInTheDocument();
-    // `HomeLayout variant="wide"`, same chrome as the grilla it returns to —
-    // not the wizard's stepper layout, since a correction is not a step.
-    expect(homeLayoutProps).toEqual([{ variant: "wide" }]);
+    expect(screen.queryByTestId("home-layout")).not.toBeInTheDocument();
+    expect(homeLayoutProps).toEqual([]);
   });
 
   // Same criterion as `/home/dataset`: the Defensoría flag gates the entry

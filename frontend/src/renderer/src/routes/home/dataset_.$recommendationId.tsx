@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import RecommendationCorrection from "@/components/recommendations/recommendation-correction";
 import APIProtected from "@/features/APIProtected";
-import HomeLayout from "@/layout/home";
 
 /**
  * The correction screen for one recommendation already in the grilla — a flat
@@ -23,9 +22,9 @@ import HomeLayout from "@/layout/home";
  * other `/home/*` route: the Defensoría flag gates the entry points into this
  * screen, not the screen itself.
  *
- * No `<Header currentStep={...}>` either — a correction is not a step of the
- * extraction wizard, so it carries no stepper. `HomeLayout` supplies the plain
- * app header.
+ * The edit screen owns the same full-height Header/content/Footer
+ * composition as validation, but omits the stepper because it is not a wizard
+ * step.
  */
 export const Route = createFileRoute("/home/dataset_/$recommendationId")({
   component: RouteComponent,
@@ -35,9 +34,7 @@ function RouteComponent() {
   const { recommendationId } = Route.useParams();
   return (
     <APIProtected>
-      <HomeLayout variant="wide">
-        <RecommendationCorrection recommendationId={recommendationId} />
-      </HomeLayout>
+      <RecommendationCorrection recommendationId={recommendationId} />
     </APIProtected>
   );
 }

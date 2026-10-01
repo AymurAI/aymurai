@@ -43,6 +43,34 @@ vi.mock("@/features/showToast", () => ({
   showToast: (...args: unknown[]) => showToast(...args),
 }));
 
+vi.mock("@/components/layout/header", () => ({
+  default: ({
+    title,
+    currentStep,
+  }: {
+    title?: string;
+    currentStep?: number;
+  }) => (
+    <header data-testid="edit-header" data-current-step={currentStep}>
+      {title}
+    </header>
+  ),
+}));
+
+vi.mock("@/components/layout/footer", () => ({
+  default: ({
+    children,
+    withBuiltBy,
+  }: {
+    children?: React.ReactNode;
+    withBuiltBy?: boolean;
+  }) => (
+    <footer data-testid="edit-footer" data-built-by={String(withBuiltBy)}>
+      {children}
+    </footer>
+  ),
+}));
+
 // The three factories this screen consumes. `recommendationsList` is only ever
 // read for its query-key prefix (the invalidation after a successful save), so
 // the stub returns just that.
@@ -357,6 +385,27 @@ describe("RecommendationCorrection", () => {
     mockPayloadOverride = {};
     annotatorFile = null;
     formProps = null;
+  });
+
+  it("uses the validation layout without presenting the edit as a wizard step", async () => {
+    renderCorrection();
+    await formSettled();
+
+    const header = screen.getByTestId("edit-header");
+    expect(header).toHaveTextContent("recommendations:correction.title");
+    expect(header).not.toHaveAttribute("data-current-step");
+    expect(
+      screen.queryByText("recommendations:correction.subtitle"),
+    ).not.toBeInTheDocument();
+    const footer = screen.getByTestId("edit-footer");
+    expect(footer).toContainElement(saveButton());
+    expect(footer).toHaveAttribute("data-built-by", "true");
+    expect(
+      screen.getByText("recommendations:correction.sectionTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("file-annotator").closest("section")?.className,
+    ).toContain("bg_bg.secondary");
   });
 
   // ADR-0013 inverted (issue #58 asks for this explicitly): on a correction
