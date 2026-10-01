@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { validateGridSearch } from "@/components/recommendations/recommendations-grid-search";
 import { Route } from "./dataset_.$recommendationId";
 
 // Same shape as `routes/home/dataset.test.tsx`: the route module is exercised
@@ -8,6 +9,7 @@ import { Route } from "./dataset_.$recommendationId";
 // real method on the object `createFileRoute` returns in the app, so the stub
 // has to supply it too.
 const mockParams = { recommendationId: "rec-1" };
+const mockSearch = { topicId: "t1", page: 2 };
 const { routeIds } = vi.hoisted(() => ({ routeIds: [] as string[] }));
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: (id: string) => {
@@ -15,6 +17,7 @@ vi.mock("@tanstack/react-router", () => ({
     return (options: unknown) => ({
       options,
       useParams: () => mockParams,
+      useSearch: () => mockSearch,
     });
   },
   Navigate: () => <div data-testid="navigate-away" />,
@@ -31,8 +34,19 @@ vi.mock("@/services/api", () => ({
 }));
 
 vi.mock("@/components/recommendations/recommendation-correction", () => ({
-  default: ({ recommendationId }: { recommendationId: string }) => (
-    <div data-testid="recommendation-correction">{recommendationId}</div>
+  default: ({
+    recommendationId,
+    gridSearch,
+  }: {
+    recommendationId: string;
+    gridSearch: unknown;
+  }) => (
+    <div
+      data-testid="recommendation-correction"
+      data-grid-search={JSON.stringify(gridSearch)}
+    >
+      {recommendationId}
+    </div>
   ),
 }));
 
@@ -94,5 +108,18 @@ describe("/home/dataset/$recommendationId — the correction route", () => {
   // `routeTree.gen.ts`, where this route's `path`/`fullPath` carry no `_`).
   it("opts out of nesting under the grilla route", () => {
     expect(routeIds).toEqual(["/home/dataset_/$recommendationId"]);
+  });
+
+  it("accepts the grilla's search and hands it to the correction screen", () => {
+    renderRoute();
+
+    expect(Route.options.validateSearch).toBe(validateGridSearch);
+    expect(
+      JSON.parse(
+        screen
+          .getByTestId("recommendation-correction")
+          .getAttribute("data-grid-search") ?? "null",
+      ),
+    ).toEqual(mockSearch);
   });
 });

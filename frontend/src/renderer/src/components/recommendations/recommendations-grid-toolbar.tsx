@@ -1,6 +1,5 @@
 import { Button, Search } from "@aymurai/ui";
 import { Funnel } from "phosphor-react";
-import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { HStack, Stack } from "@/styled/jsx";
 import RecommendationsGridTabs from "./recommendations-grid-tabs";
@@ -10,7 +9,7 @@ export type RecommendationsGridView = "seguimiento" | "recipients";
 interface RecommendationsGridToolbarProps {
   tabsId: string;
   view: RecommendationsGridView;
-  setView: Dispatch<SetStateAction<RecommendationsGridView>>;
+  setView: (view: RecommendationsGridView) => void;
   filtersOpen: boolean;
   search: string;
   exportPending: boolean;

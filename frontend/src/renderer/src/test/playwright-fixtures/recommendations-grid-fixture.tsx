@@ -91,7 +91,7 @@ export function RecommendationsGridFixture() {
               height="[calc(100dvh - 96px)]"
               minH="0"
             >
-              <RecommendationsGrid />
+              <RecommendationsGrid search={{}} onSearchChange={() => {}} />
             </Stack>
           </MainContent>
         </Stack>

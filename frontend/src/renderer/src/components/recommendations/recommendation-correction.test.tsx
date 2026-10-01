@@ -18,6 +18,7 @@ import type {
 import type { DocFile } from "@/types/file";
 import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import RecommendationCorrection from "./recommendation-correction";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 vi.mock("react-i18next", () => ({
   useTranslation: (namespace?: string) => ({
@@ -338,7 +339,10 @@ function aDetail(
   };
 }
 
-function renderCorrection(recommendationId = "rec-1") {
+function renderCorrection(
+  recommendationId = "rec-1",
+  gridSearch?: RecommendationsGridSearch,
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -348,7 +352,10 @@ function renderCorrection(recommendationId = "rec-1") {
     // throw without a provider ancestor. Harmless for the stubbed tests.
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <RecommendationCorrection recommendationId={recommendationId} />
+        <RecommendationCorrection
+          recommendationId={recommendationId}
+          gridSearch={gridSearch}
+        />
       </TooltipProvider>
     </QueryClientProvider>,
   );
@@ -523,7 +530,10 @@ describe("RecommendationCorrection", () => {
       payload: { topic: "Salud" },
     });
     await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/home/dataset" }),
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/home/dataset",
+        search: {},
+      }),
     );
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ["recommendations-list"],
@@ -716,6 +726,34 @@ describe("RecommendationCorrection", () => {
     await waitFor(() => expect(mockCorrect).toHaveBeenCalledTimes(1));
   });
 
+  it("returns to the grilla with the search it was opened from", async () => {
+    const gridSearch: RecommendationsGridSearch = {
+      topicId: "t1",
+      page: 3,
+      orderBy: "file_number",
+      view: "recipients",
+    };
+    renderCorrection("rec-1", gridSearch);
+    await screen.findByTestId("recommendation-form");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "recommendations:correction.cancel" }),
+    );
+    expect(mockNavigate).toHaveBeenLastCalledWith({
+      to: "/home/dataset",
+      search: gridSearch,
+    });
+
+    mockNavigate.mockClear();
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenLastCalledWith({
+        to: "/home/dataset",
+        search: gridSearch,
+      }),
+    );
+  });
+
   it("navigates back without saving when cancelled", async () => {
     renderCorrection();
     await screen.findByTestId("recommendation-form");
@@ -724,7 +762,10 @@ describe("RecommendationCorrection", () => {
       screen.getByRole("button", { name: "recommendations:correction.cancel" }),
     );
 
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/home/dataset" });
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/home/dataset",
+      search: {},
+    });
     expect(mockCorrect).not.toHaveBeenCalled();
   });
 

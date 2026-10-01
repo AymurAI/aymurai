@@ -1,11 +1,12 @@
 import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecommendationRow } from "@/types/dataExtraction";
 import { formatDisplayTimestamp } from "@/utils/format-date";
 import RecommendationsGrid from "./recommendations-grid";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -16,12 +17,14 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
     params,
+    search,
     children,
     className,
     ...rest
   }: {
     to: string;
     params?: Record<string, string>;
+    search?: Record<string, unknown>;
     children?: ReactNode;
     className?: string;
     [key: string]: unknown;
@@ -29,6 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
     <a
       href={`${to}?params=${JSON.stringify(params)}`}
       data-testid={`link-to-${params?.recommendationId}`}
+      data-search={JSON.stringify(search)}
       className={className}
       {...rest}
     >
@@ -164,17 +168,45 @@ vi.mock("@/services/export/use-export-recommendations", () => ({
   }),
 }));
 
-function renderGrid() {
+/**
+ * Stands in for the `/home/dataset` route: owns the URL search the grid reads
+ * and records every replacement the grid asks for, in order.
+ */
+function UrlSearchHarness({
+  initial,
+  onChange,
+}: {
+  initial: RecommendationsGridSearch;
+  onChange: (search: RecommendationsGridSearch) => void;
+}) {
+  const [search, setSearch] = useState(initial);
+  return (
+    <RecommendationsGrid
+      search={search}
+      onSearchChange={(next) => {
+        onChange(next);
+        setSearch(next);
+      }}
+    />
+  );
+}
+
+function renderGrid(initialSearch: RecommendationsGridSearch = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const searches: RecommendationsGridSearch[] = [];
+  const rendered = render(
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <RecommendationsGrid />
+        <UrlSearchHarness
+          initial={initialSearch}
+          onChange={(next) => searches.push(next)}
+        />
       </TooltipProvider>
     </QueryClientProvider>,
   );
+  return { ...rendered, searches };
 }
 
 /**
@@ -780,5 +812,113 @@ describe("RecommendationsGrid", () => {
 
     // Ensure the two links are different
     expect(link1.getAttribute("href")).not.toEqual(link2.getAttribute("href"));
+  });
+
+  it("restores filters, search, sort, page and tab from the URL search", async () => {
+    mockList.mockResolvedValue({ items: [aRow()], total: 45 });
+    renderGrid({
+      q: "guardias",
+      topicId: "t1",
+      publication: "no",
+      editedFrom: "2026-03-10",
+      page: 2,
+      orderBy: "recommendation_number",
+      orderDir: "asc",
+      view: "recipients",
+    });
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: "guardias",
+          topicId: "t1",
+          approvedForPublication: false,
+          editedFrom: "2026-03-10",
+          page: 2,
+          orderBy: "recommendation_number",
+          orderDir: "asc",
+        }),
+      ),
+    );
+    expect(
+      screen.getByRole("tab", { name: "grilla.tabs.recipients" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("grilla.filters.searchLabel")).toHaveValue(
+      "guardias",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+    expect(screen.getByLabelText("grilla.filters.publication")).toHaveValue(
+      "no",
+    );
+  });
+
+  it("writes sort, page and filter changes to the URL search, defaults left out", async () => {
+    mockList.mockResolvedValue({ items: [aRow()], total: 45 });
+    const { searches } = renderGrid();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /grilla\.columns\.recommendationNumber/,
+      }),
+    );
+    expect(searches.at(-1)).toEqual({
+      orderBy: "recommendation_number",
+      orderDir: "asc",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.pagination.next" }),
+    );
+    expect(searches.at(-1)).toEqual({
+      orderBy: "recommendation_number",
+      orderDir: "asc",
+      page: 2,
+    });
+
+    // Narrowing drops the page back to the (omitted) first one.
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+    fireEvent.change(screen.getByLabelText("grilla.filters.status"), {
+      target: { value: "Cerrada" },
+    });
+    expect(searches.at(-1)).toEqual({
+      orderBy: "recommendation_number",
+      orderDir: "asc",
+      status: "Cerrada",
+    });
+
+    fireEvent.change(screen.getByLabelText("grilla.filters.searchLabel"), {
+      target: { value: "salud" },
+    });
+    await waitFor(() =>
+      expect(searches.at(-1)).toEqual({
+        orderBy: "recommendation_number",
+        orderDir: "asc",
+        status: "Cerrada",
+        q: "salud",
+      }),
+    );
+  });
+
+  it("carries the URL search on every Editar link", async () => {
+    mockList.mockResolvedValue({ items: [aRow()], total: 45 });
+    renderGrid({ topicId: "t1", page: 2 });
+
+    const link = await screen.findByTestId("link-to-r1");
+    expect(JSON.parse(link.getAttribute("data-search") ?? "null")).toEqual({
+      topicId: "t1",
+      page: 2,
+    });
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "grilla.tabs.recipients" }),
+    );
+    const recipientsLink = await screen.findByTestId("link-to-r1");
+    expect(
+      JSON.parse(recipientsLink.getAttribute("data-search") ?? "null"),
+    ).toEqual({ topicId: "t1", page: 2, view: "recipients" });
   });
 });

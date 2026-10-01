@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listMacroSectors } from "@/services/aymurai/catalogs";
 import {
@@ -27,9 +27,16 @@ import RecommendationsGridRow, {
   type RecommendationSeguimientoPatch,
   type SeguimientoField,
 } from "./recommendations-grid-row";
-import RecommendationsGridToolbar, {
-  type RecommendationsGridView,
-} from "./recommendations-grid-toolbar";
+import {
+  compactGridSearch,
+  DEFAULT_ORDER_BY,
+  DEFAULT_ORDER_DIR,
+  DEFAULT_VIEW,
+  filtersFromSearch,
+  type RecommendationsGridSearch,
+  searchFromFilters,
+} from "./recommendations-grid-search";
+import RecommendationsGridToolbar from "./recommendations-grid-toolbar";
 
 /** Server-paginated tracking grid with per-field inline edits. */
 
@@ -50,20 +57,6 @@ function editKey(
 ) {
   return `${recommendationId}:${Object.keys(payload).join(",")}`;
 }
-
-const EMPTY_FILTERS: RecommendationsGridFilterValues = {
-  search: "",
-  topicId: "",
-  subtopicId: "",
-  recipientSector: "",
-  situation: "",
-  status: "",
-  publication: "all",
-  dateFrom: "",
-  dateTo: "",
-  editedFrom: "",
-  editedTo: "",
-};
 
 const subtitle = css({
   textStyle: "paragraph.sm.default",
@@ -96,21 +89,49 @@ const message = css({
   py: "8",
 });
 
-export default function RecommendationsGrid() {
+interface RecommendationsGridProps {
+  /**
+   * Filters, sort, page and tab — owned by the route's URL, not by this
+   * component, so they survive a trip to the correction screen and back
+   * (`recommendations-grid-search.ts`).
+   */
+  search: RecommendationsGridSearch;
+  /** Replaces the URL search; already compacted (no defaults). */
+  onSearchChange: (search: RecommendationsGridSearch) => void;
+}
+
+export default function RecommendationsGrid({
+  search,
+  onSearchChange,
+}: RecommendationsGridProps) {
   const { t } = useTranslation("recommendations");
   const queryClient = useQueryClient();
   const tabsId = useId();
-  const [view, setView] = useState<RecommendationsGridView>("seguimiento");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const macroSectors = useQuery(listMacroSectors());
   const exporter = useExportRecommendations();
 
-  const [filters, setFilters] =
-    useState<RecommendationsGridFilterValues>(EMPTY_FILTERS);
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [orderBy, setOrderBy] = useState<SortColumn>("created_at");
-  const [orderDir, setOrderDir] = useState<"asc" | "desc">("desc");
+  const view = search.view ?? DEFAULT_VIEW;
+  const q = search.q ?? "";
+  const page = search.page ?? 1;
+  const orderBy = search.orderBy ?? DEFAULT_ORDER_BY;
+  const orderDir = search.orderDir ?? DEFAULT_ORDER_DIR;
+  // The search box alone stays local: it changes on every keystroke, and only
+  // its debounced value (`q`) is worth a URL entry. Seeded from the URL so a
+  // return from the correction screen shows the text the list is filtered by.
+  const [searchText, setSearchText] = useState(q);
+  const filters: RecommendationsGridFilterValues = {
+    ...filtersFromSearch(search),
+    search: searchText,
+  };
+
+  // Read through a ref by the debounce below, so a URL change that lands while
+  // the timer is pending (another filter, a page) is not overwritten by the
+  // search the timer captured when it started.
+  const searchRef = useRef(search);
+  searchRef.current = search;
+  const changeSearch = (patch: RecommendationsGridSearch) =>
+    onSearchChange(compactGridSearch({ ...searchRef.current, ...patch }));
   // Per cell, not one flag for the screen: a save that failed on row A stays
   // reported until *that* edit succeeds, however many other rows are saved in
   // the meantime. `EditableTextCell` keeps showing the text it never managed
@@ -124,10 +145,16 @@ export default function RecommendationsGrid() {
   // gesture people watch while typing, and the endpoint answers a substring
   // match over the four text columns that need no join (número, expediente,
   // detalle, contenido -- `_SEARCH_COLUMNS` server-side).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: changeSearch reads the latest URL search through a ref
   useEffect(() => {
-    const timer = setTimeout(() => setQ(filters.search), SEARCH_DEBOUNCE_MS);
+    if (searchText === (searchRef.current.q ?? "")) return;
+    const timer = setTimeout(
+      // Any narrowing invalidates the page number, same as `updateFilters`.
+      () => changeSearch({ q: searchText || undefined, page: undefined }),
+      SEARCH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
-  }, [filters.search]);
+  }, [searchText]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -142,8 +169,10 @@ export default function RecommendationsGrid() {
   // very likely past the end of the new one. Reset here, where the change
   // actually happens, rather than in an effect watching the filters.
   const updateFilters = (patch: Partial<RecommendationsGridFilterValues>) => {
-    setFilters((current) => ({ ...current, ...patch }));
-    setPage(1);
+    const { search: nextSearchText, ...rest } = patch;
+    if (nextSearchText !== undefined) setSearchText(nextSearchText);
+    if (Object.keys(rest).length > 0)
+      changeSearch({ ...searchFromFilters(rest), page: undefined });
   };
 
   const list = useQuery({
@@ -185,10 +214,11 @@ export default function RecommendationsGrid() {
 
   // A saved edit can remove the final match on this page. Wait for the new
   // result rather than clamping against the previous page's placeholder data.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: changeSearch reads the latest URL search through a ref
   useEffect(() => {
     if (!list.data || list.isPlaceholderData) return;
     const lastPage = Math.max(1, Math.ceil(list.data.total / PAGE_SIZE));
-    if (page > lastPage) setPage(lastPage);
+    if (page > lastPage) changeSearch({ page: lastPage });
   }, [list.data, list.isPlaceholderData, page]);
 
   // The two closed catalogs behind `status`/`recommendation_situation`. Never
@@ -234,13 +264,14 @@ export default function RecommendationsGrid() {
     filters.publication !== "all";
 
   const toggleSort = (column: SortColumn) => {
-    setPage(1);
     if (column === orderBy) {
-      setOrderDir((direction) => (direction === "asc" ? "desc" : "asc"));
+      changeSearch({
+        page: undefined,
+        orderDir: orderDir === "asc" ? "desc" : "asc",
+      });
       return;
     }
-    setOrderBy(column);
-    setOrderDir("asc");
+    changeSearch({ page: undefined, orderBy: column, orderDir: "asc" });
   };
 
   const rows = list.data?.items ?? [];
@@ -256,7 +287,7 @@ export default function RecommendationsGrid() {
       <RecommendationsGridToolbar
         tabsId={tabsId}
         view={view}
-        setView={setView}
+        setView={(next) => changeSearch({ view: next })}
         filtersOpen={filtersOpen}
         search={filters.search}
         exportPending={exporter.isPending}
@@ -336,6 +367,7 @@ export default function RecommendationsGrid() {
                   <RecommendationsGridRecipients
                     rows={rows}
                     catalogs={macroSectors.data ?? []}
+                    gridSearch={search}
                   />
                 ) : (
                   <table className={table}>
@@ -360,6 +392,7 @@ export default function RecommendationsGrid() {
                           onEdit={(payload) =>
                             save.mutate({ recommendationId: row.id, payload })
                           }
+                          gridSearch={search}
                         />
                       ))}
                     </tbody>
@@ -378,9 +411,15 @@ export default function RecommendationsGrid() {
             onChange={updateFilters}
             onClose={() => setFiltersOpen(false)}
             onReset={() => {
-              setFilters(EMPTY_FILTERS);
-              setQ("");
-              setPage(1);
+              // Filters only: the sort and the tab are not narrowing.
+              setSearchText("");
+              onSearchChange(
+                compactGridSearch({
+                  orderBy: search.orderBy,
+                  orderDir: search.orderDir,
+                  view: search.view,
+                }),
+              );
             }}
             isFiltered={isFiltered}
           />
@@ -391,7 +430,7 @@ export default function RecommendationsGrid() {
         page={page}
         pageSize={PAGE_SIZE}
         total={total}
-        onPage={setPage}
+        onPage={(next) => changeSearch({ page: next })}
       />
     </Stack>
   );

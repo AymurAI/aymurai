@@ -28,6 +28,7 @@ import { buildAnnotations } from "@/utils/recommendations/build-annotations";
 import type { PendingValidationField } from "@/utils/recommendations/pending-validation-fields";
 import { predictionFromDetail } from "@/utils/recommendations/prediction-from-detail";
 import RecommendationForm from "./recommendation-form";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 const page = css({
   display: "flex",
@@ -110,6 +111,12 @@ function syntheticDocFile(detail: RecommendationDetail): DocFile {
 
 interface Props {
   recommendationId: string;
+  /**
+   * The grilla's URL search this screen was opened from. Returned to on the
+   * way out — not `history.back()`, which would leave the app on a deep link
+   * opened in a fresh tab — so the person lands on the same view they left.
+   */
+  gridSearch?: RecommendationsGridSearch;
 }
 
 /**
@@ -132,7 +139,10 @@ interface Props {
  * the only answer on offer; on a correction the person is editing their own
  * earlier answer and must see it.
  */
-export default function RecommendationCorrection({ recommendationId }: Props) {
+export default function RecommendationCorrection({
+  recommendationId,
+  gridSearch = {},
+}: Props) {
   const { t } = useTranslation("recommendations");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -198,7 +208,7 @@ export default function RecommendationCorrection({ recommendationId }: Props) {
     [prediction, docFile?.paragraphs, payload],
   );
 
-  const goBack = () => navigate({ to: "/home/dataset" });
+  const goBack = () => navigate({ to: "/home/dataset", search: gridSearch });
 
   // The backend's own `_etag` convention: `updated_at` when set, else
   // `created_at`. Sent as `If-Match` so a save against a snapshot somebody

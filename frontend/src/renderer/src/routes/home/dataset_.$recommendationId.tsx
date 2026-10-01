@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import RecommendationCorrection from "@/components/recommendations/recommendation-correction";
+import { validateGridSearch } from "@/components/recommendations/recommendations-grid-search";
 import APIProtected from "@/features/APIProtected";
 
 /**
@@ -27,14 +28,21 @@ import APIProtected from "@/features/APIProtected";
  * step.
  */
 export const Route = createFileRoute("/home/dataset_/$recommendationId")({
+  // The grilla's own search, carried in by its Editar link and handed back on
+  // the way out, so returning restores its filters, sort, page and tab.
+  validateSearch: validateGridSearch,
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const { recommendationId } = Route.useParams();
+  const gridSearch = Route.useSearch();
   return (
     <APIProtected>
-      <RecommendationCorrection recommendationId={recommendationId} />
+      <RecommendationCorrection
+        recommendationId={recommendationId}
+        gridSearch={gridSearch}
+      />
     </APIProtected>
   );
 }

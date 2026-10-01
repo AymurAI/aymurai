@@ -7,6 +7,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { PencilSimple } from "phosphor-react";
 import { css } from "@/styled/css";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 const editLink = css({
   display: "inline-flex",
@@ -24,11 +25,17 @@ const editLink = css({
 interface RecommendationEditLinkProps {
   recommendationId: string;
   label: string;
+  /**
+   * The grilla's current URL search, carried to the correction screen so it
+   * can send the person back to the same filters, sort, page and tab.
+   */
+  gridSearch: RecommendationsGridSearch;
 }
 
 export default function RecommendationEditLink({
   recommendationId,
   label,
+  gridSearch,
 }: RecommendationEditLinkProps) {
   return (
     <TooltipProvider delayDuration={0}>
@@ -38,6 +45,7 @@ export default function RecommendationEditLink({
             <Link
               to="/home/dataset/$recommendationId"
               params={{ recommendationId }}
+              search={gridSearch}
               className={editLink}
               aria-label={label}
             >

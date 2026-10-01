@@ -11,6 +11,7 @@ import {
   EditableTextCell,
 } from "./recommendations-grid-cells";
 import type { ColumnId } from "./recommendations-grid-columns";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 /**
  * The body of one PATCH to `/recommendations/{id}`: only the keys the person
@@ -93,6 +94,8 @@ interface RecommendationsGridRowProps {
    * racing. A failure surfaces as the grid's own banner instead.
    */
   onEdit: (patch: RecommendationSeguimientoPatch) => void;
+  /** Carried by the Editar link, so the correction screen can come back. */
+  gridSearch: RecommendationsGridSearch;
 }
 
 export default function RecommendationsGridRow({
@@ -104,6 +107,7 @@ export default function RecommendationsGridRow({
   hasFailed,
   saveFailedMessage,
   onEdit,
+  gridSearch,
 }: RecommendationsGridRowProps) {
   const { t } = useTranslation("recommendations");
 
@@ -243,6 +247,7 @@ export default function RecommendationsGridRow({
         <RecommendationEditLink
           recommendationId={row.id}
           label={t("grilla.columns.edit")}
+          gridSearch={gridSearch}
         />
       </td>
     </tr>

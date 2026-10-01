@@ -4,6 +4,7 @@ import type { MacroSector } from "@/types/catalogs";
 import type { RecommendationRow } from "@/types/dataExtraction";
 import { primaryRecipient, recipientSector } from "./recipient-display";
 import RecommendationEditLink from "./recommendation-edit-link";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 import {
   stickyFirstHeadCell,
   tableHeadCell,
@@ -27,9 +28,12 @@ const stickyFirst = css({
 export default function RecommendationsGridRecipients({
   rows,
   catalogs,
+  gridSearch,
 }: {
   rows: RecommendationRow[];
   catalogs: MacroSector[];
+  /** Carried by the Editar links, so the correction screen can come back. */
+  gridSearch: RecommendationsGridSearch;
 }) {
   const { t } = useTranslation("recommendations");
   const editLabel = t("grilla.columns.edit");
@@ -92,6 +96,7 @@ export default function RecommendationsGridRecipients({
                   <RecommendationEditLink
                     recommendationId={row.id}
                     label={editLabel}
+                    gridSearch={gridSearch}
                   />
                 </td>
               </tr>
@@ -125,6 +130,7 @@ export default function RecommendationsGridRecipients({
                       <RecommendationEditLink
                         recommendationId={row.id}
                         label={editLabel}
+                        gridSearch={gridSearch}
                       />
                     </td>
                   )}
