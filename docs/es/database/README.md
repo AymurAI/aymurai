@@ -66,7 +66,9 @@ Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
 reciente se descarta en vez de escribirse (el sidecar loguea
 `unchanged since …, skipped`), así que los respaldos solo se acumulan en las
 horas en que la base efectivamente cambió. Con el intervalo horario por
-default, los `336` respaldos conservados cubren:
+default, los `336` respaldos conservados cubren (sin contar las corridas
+manuales de `make db-backup` ni los snapshots previos a una restauración,
+que también ocupan lugares):
 - **al menos 14 días** aunque la base cambiara todas las horas, de día y de
   noche;
 - **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
@@ -138,6 +140,20 @@ restaurado. Después de una restauración exitosa, la primera corrida del
 sidecar respalda la base restaurada. La API queda parada a propósito:
 levantala vos con `make api-up` o `make api-full-up` después de revisar la
 restauración.
+
+**Poda justo después de restaurar.** El snapshot previo a la restauración
+se toma con la poda desactivada, pero el sidecar reiniciado respalda
+enseguida la base restaurada y poda de vuelta a `BACKUP_RETENTION`. Con el
+conjunto completo, el snapshot más esa primera corrida lo dejan dos por
+encima del tope, así que los dos respaldos **más viejos** se borran en el
+acto — y pueden ser justo el archivo desde el que restauraste, o los que
+pensabas probar después. Antes de restaurar, copiá fuera de
+`./resources/backups` cualquier respaldo que todavía puedas necesitar (por
+ejemplo `cp resources/backups/database_<timestamp>.db ~/candidatos-restore/`),
+y volvé a copiarlo cuando quieras restaurarlo. Si vas a probar varias
+restauraciones seguidas, corré también `make db-backup-stop` justo después
+de cada una, para que el sidecar no siga agregando respaldos y podando entre
+intentos.
 
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
 `resources/backups/`) pueden quedar con dueño root por Docker; las

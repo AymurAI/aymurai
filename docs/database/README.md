@@ -64,7 +64,9 @@ Configuration, with the defaults shipped in
 A run whose copy is byte-identical (sha256) to the most recent backup is
 discarded instead of written (the sidecar logs `unchanged since …, skipped`),
 so backups only accumulate in hours when the database actually changed.
-With the hourly default, `336` retained backups therefore cover:
+With the hourly default, `336` retained backups therefore cover (not
+counting manual `make db-backup` runs and pre-restore snapshots, which take
+slots too):
 - **at least 14 days** even if the database changed every single hour, day
   and night;
 - **about 7 weeks** at a realistic pace — grid edits during working hours
@@ -130,6 +132,18 @@ so `database.db` is always either the untouched old file or the restored
 one. After a successful restore the sidecar's first run backs up the
 restored database. The API is left stopped on purpose: start it yourself
 with `make api-up` or `make api-full-up` after checking the restore.
+
+**Pruning right after a restore.** The pre-restore snapshot is taken with
+pruning disabled, but the restarted sidecar immediately backs up the
+restored database and prunes back to `BACKUP_RETENTION`. With a full set,
+the snapshot plus that first run push it two over the cap, so the two
+**oldest** backups are deleted right away — and they may be the file you
+just restored from, or ones you meant to try next. Before restoring, copy
+any backup you may still need out of `./resources/backups` (e.g.
+`cp resources/backups/database_<timestamp>.db ~/restore-candidates/`), and
+copy it back when you want to restore it. If you are going to try several
+restores in a row, also run `make db-backup-stop` right after each one, so
+the sidecar doesn't keep adding backups and pruning between attempts.
 
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,
 `resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side
