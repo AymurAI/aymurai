@@ -3,6 +3,7 @@ edges of the calendar, checked straight against the CRUD."""
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 import pytest
 from sqlmodel import col, update
@@ -46,7 +47,7 @@ def test_last_edited_sort_keeps_sub_second_order(session):
     earlier = _seed(session, updated_at=datetime(2024, 6, 1, 12, 0, 0, 200_000))
     later = _seed(session, updated_at=datetime(2024, 6, 1, 12, 0, 0, 700_000))
 
-    def ordered(order_dir: str) -> list[uuid.UUID | None]:
+    def ordered(order_dir: Literal["asc", "desc"]) -> list[uuid.UUID | None]:
         items, _ = recommendation_list(
             session, order_by="last_edited", order_dir=order_dir
         )
