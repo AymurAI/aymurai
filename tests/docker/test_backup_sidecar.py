@@ -16,6 +16,7 @@ import sys
 import time
 import sqlite3
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -260,5 +261,112 @@ def test_loop_cleans_stale_partials_and_exits_cleanly_on_sigterm(wal_db, dest_di
             proc.wait()
 
     assert proc.returncode == 0, output
+    assert "received signal 15" in output
     assert not stale.exists()
     assert _partials(dest_dir) == []
+
+
+FROZEN = datetime(2026, 9, 21, 23, 15, 0, tzinfo=UTC)
+
+
+def _frozen_clock() -> datetime:
+    return FROZEN
+
+
+def _add_row(writer: sqlite3.Connection) -> None:
+    writer.execute("INSERT INTO recommendation (body) VALUES ('changed')")
+    writer.commit()
+
+
+def test_same_second_backups_never_overwrite_each_other(wal_db, dest_dir):
+    source, writer = wal_db
+    first = backup.run_backup(source, dest_dir, now=_frozen_clock)
+    _add_row(writer)
+
+    second = backup.run_backup(source, dest_dir, now=_frozen_clock)
+    _add_row(writer)
+    third = backup.run_backup(source, dest_dir, now=_frozen_clock)
+
+    assert first is not None and second is not None and third is not None
+    assert _backups(dest_dir) == [first, second, third]  # name order = time order
+    assert backup.latest_backup(dest_dir) == third
+    counts = []
+    for path in (first, second, third):
+        with sqlite3.connect(path) as conn:
+            counts.append(
+                conn.execute("SELECT COUNT(*) FROM recommendation").fetchone()
+            )
+    assert counts == [(50,), (51,), (52,)]
+
+
+def test_failed_run_leaves_another_runs_partial_alone(tmp_path, dest_dir):
+    """Two processes backing up in the same second must not share a .partial."""
+    dest_dir.mkdir()
+    in_progress = dest_dir / f".database_{FROZEN:%Y%m%d%H%M%S}.db.partial"
+    in_progress.write_bytes(b"another process is still writing this")
+    corrupt = tmp_path / "database.db"
+    corrupt.write_bytes(b"this is not a sqlite database" * 200)
+
+    assert backup.run_backup(corrupt, dest_dir, now=_frozen_clock) is None
+
+    assert in_progress.exists()
+    assert _partials(dest_dir) == [in_progress]
+
+
+def test_once_still_backs_up_when_shutdown_was_already_requested(wal_db, dest_dir):
+    source, _writer = wal_db
+    shutdown = backup.Shutdown()
+    shutdown.request(signal.SIGTERM, None)
+    config = backup.BackupConfig(
+        source_db=source, dest_dir=dest_dir, interval_seconds=3600, retention=5
+    )
+
+    backup.run(config, once=True, shutdown=shutdown)
+
+    assert len(_backups(dest_dir)) == 1
+
+
+class _OneCycle(backup.Shutdown):
+    """Fake shutdown: lets the loop run exactly one backup+prune cycle."""
+
+    def sleep(self, seconds: float) -> None:
+        del seconds
+        self.requested = True
+
+
+def test_restore_sequence_keeps_the_pre_restore_snapshot(wal_db, dest_dir):
+    """db-restore: `--once` with retention 0 over a full set, then the loop restarts."""
+    source, writer = wal_db
+    retention = 3
+    full_set = [
+        _fake_backup(dest_dir, f"2000010100000{i}", f"old{i}".encode())
+        for i in range(retention)
+    ]
+
+    # Pre-restore safety snapshot of the live database, pruning disabled.
+    backup.run(
+        backup.BackupConfig(source, dest_dir, interval_seconds=3600, retention=0),
+        once=True,
+        now=_frozen_clock,
+    )
+    (snapshot,) = set(_backups(dest_dir)) - set(full_set)
+
+    # The restore replaces the live database; the sidecar's loop then
+    # restarts and its first run lands in the very same UTC second.
+    _add_row(writer)
+    backup.run(
+        backup.BackupConfig(
+            source, dest_dir, interval_seconds=3600, retention=retention
+        ),
+        once=False,
+        shutdown=_OneCycle(),
+        now=_frozen_clock,
+    )
+
+    kept = _backups(dest_dir)
+    assert len(kept) == retention
+    assert snapshot in kept
+    with sqlite3.connect(snapshot) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM recommendation").fetchone() == (50,)
+    with sqlite3.connect(kept[-1]) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM recommendation").fetchone() == (51,)
