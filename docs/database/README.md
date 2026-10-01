@@ -53,7 +53,9 @@ The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
 in the container). The `<timestamp>` is `YYYYMMDDHHMMSS` in **UTC** — unlike
 the exported workbook's filename, which uses `EXPORT_TIMEZONE` (Buenos Aires
 time by default), so a backup taken at 14:00 local time is named `…170000`.
-Configuration, with the defaults shipped in
+An existing backup is never overwritten: a second backup within the same
+UTC second gets a suffix (`database_<timestamp>_01.db`, `_02`, …), which
+still sorts after the first one and before the next second. Configuration, with the defaults shipped in
 `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
 - `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
@@ -99,7 +101,9 @@ Stopping is graceful: the service runs under `init: true` and the script
 handles SIGTERM by finishing any backup in progress and exiting before the
 next one, so `make db-backup-stop` returns within about a second instead of
 waiting out Docker's 10s grace period. A copy is written as a hidden
-`.database_<timestamp>.db.partial` file and only renamed once complete; if a
+`.database_<timestamp>_<random>.db.partial` file (unique per run, so a
+`make db-backup` running alongside the loop never touches the loop's file)
+and only gets its final name once complete; if a
 run is ever killed outright, the leftover `.partial` is never a restore
 candidate, and the loop deletes any such file when it next starts.
 

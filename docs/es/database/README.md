@@ -54,7 +54,11 @@ snapshots fechados `database_<timestamp>.db` en `./resources/backups`
 (montado como `/backups` en el contenedor). El `<timestamp>` es
 `YYYYMMDDHHMMSS` en **UTC** — a diferencia del nombre del workbook exportado,
 que usa `EXPORT_TIMEZONE` (hora de Buenos Aires por default), así que un
-respaldo tomado a las 14:00 hora local se llama `…170000`. Configuración, con los defaults
+respaldo tomado a las 14:00 hora local se llama `…170000`. Nunca se
+sobrescribe un respaldo existente: un segundo respaldo dentro del mismo
+segundo UTC lleva un sufijo (`database_<timestamp>_01.db`, `_02`, …), que
+igual queda ordenado después del primero y antes del segundo siguiente.
+Configuración, con los defaults
 que quedaron en `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
 - `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
@@ -103,8 +107,9 @@ La parada es ordenada: el servicio corre con `init: true` y el script maneja
 SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
 siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
 vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
-como un archivo oculto `.database_<timestamp>.db.partial` y solo se renombra
-cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+como un archivo oculto `.database_<timestamp>_<aleatorio>.db.partial` (único
+por corrida, así que un `make db-backup` que corre junto al loop nunca toca
+el archivo del loop) y solo recibe su nombre final cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
 que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
 así la próxima vez que arranca.
 
