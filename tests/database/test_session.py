@@ -34,11 +34,11 @@ def test_sqlite_connection_registers_normalize_text(tmp_path, monkeypatch):
 
     engine = get_engine()
     try:
-        with Session(engine) as session:
-            folded = session.execute(
+        with engine.connect() as connection:
+            folded = connection.execute(
                 text("SELECT normalize_text('ÁREA Ñandú')")
             ).scalar()
-            null = session.execute(text("SELECT normalize_text(NULL)")).scalar()
+            null = connection.execute(text("SELECT normalize_text(NULL)")).scalar()
     finally:
         engine.dispose()
 

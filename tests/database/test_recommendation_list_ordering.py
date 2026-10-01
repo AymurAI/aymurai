@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import get_args
 
 import pytest
-from sqlmodel import update
+from sqlmodel import col, update
 
 from aymurai.database.crud.recommendation import (
     RecommendationOrderColumn,
@@ -40,7 +40,7 @@ def _seed(session, *, created_at: datetime, updated_at: datetime | None) -> uuid
     recommendation = recommendation_upsert(uuid.uuid4(), _data(), session)
     session.exec(
         update(Recommendation)
-        .where(Recommendation.id == recommendation.id)
+        .where(col(Recommendation.id) == recommendation.id)
         .values(created_at=created_at, updated_at=updated_at)
     )
     session.commit()

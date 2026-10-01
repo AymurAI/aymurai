@@ -6,7 +6,7 @@ from typing import Literal
 from sqlalchemy import func, or_
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.crud.organigram.sector import is_sector_ancestor_of
@@ -476,7 +476,7 @@ def recommendation_list(
         # `id` breaks ties: without a total order, SQLite may return tied rows
         # in a different order on each query, so consecutive pages could
         # repeat some rows and skip others.
-        statement.order_by(order_clause.nullslast(), Recommendation.id)
+        statement.order_by(order_clause.nullslast(), col(Recommendation.id))
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
