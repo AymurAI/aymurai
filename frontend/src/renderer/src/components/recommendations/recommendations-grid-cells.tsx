@@ -13,7 +13,17 @@ import { css } from "@/styled/css";
  */
 
 /** Keeps an editor from collapsing to its content width inside a `<td>`. */
-const control = css({ minW: "[168px]" });
+const control = css({
+  minW: "[168px]",
+  "& div:has(> input), & [role=combobox]": {
+    height: "[40px]",
+    minHeight: "[40px]",
+    boxSizing: "border-box",
+    paddingTop: "0",
+    paddingBottom: "0",
+  },
+  "& input": { height: "full", minHeight: "0" },
+});
 
 // `Select` has no `error` prop, unlike `TextField` -- same gap, and same
 // local workaround, as `validated-select-field.tsx`.

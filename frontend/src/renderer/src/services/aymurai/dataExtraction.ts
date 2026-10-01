@@ -86,9 +86,17 @@ export const recommendationsList = (params: {
   unparsedDates?: boolean;
   q?: string;
   topicId?: string;
+  subtopicId?: string;
   sectorId?: string;
+  macroSectorId?: string;
+  recommendationSituation?: string;
+  status?: string;
+  approvedForPublication?: boolean;
+  publicationUnanswered?: boolean;
   dateFrom?: string;
   dateTo?: string;
+  editedFrom?: string;
+  editedTo?: string;
 }) =>
   queryOptions({
     queryKey: ["recommendations-list", params, api.defaults.baseURL],
@@ -105,9 +113,17 @@ export const recommendationsList = (params: {
                 unparsed_dates: params.unparsedDates,
                 q: params.q,
                 topic_id: params.topicId,
+                subtopic_id: params.subtopicId,
                 sector_id: params.sectorId,
+                macro_sector_id: params.macroSectorId,
+                recommendation_situation: params.recommendationSituation,
+                status: params.status,
+                approved_for_publication: params.approvedForPublication,
+                publication_unanswered: params.publicationUnanswered,
                 date_from: params.dateFrom,
                 date_to: params.dateTo,
+                edited_from: params.editedFrom,
+                edited_to: params.editedTo,
               },
             })
           ).data;

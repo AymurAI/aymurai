@@ -120,10 +120,10 @@ export function mockSubtopicUsage(subtopicId: string): Promise<CategoryUsage> {
   return delay({ count: subtopicUsageCount(subtopicId) });
 }
 
-export function mockListSubtopics(topicId: string): Promise<Subtopic[]> {
+export function mockListSubtopics(topicId?: string): Promise<Subtopic[]> {
   return delay(
     subtopics
-      .filter((s) => s.topic_id === topicId)
+      .filter((subtopic) => !topicId || subtopic.topic_id === topicId)
       .sort((a, b) => a.order - b.order),
   );
 }

@@ -12,6 +12,7 @@ export type ColumnId =
   | "topic"
   | "subtopic"
   | "recipient"
+  | "publishableContent"
   | "fileNumber"
   | "recommendationDetail"
   | "recommendationSituation"
@@ -19,7 +20,7 @@ export type ColumnId =
   | "approvedForPublication"
   | "link"
   | "lastEdited"
-  | "correct";
+  | "edit";
 
 /**
  * The columns the backend will order by — whitelisted there (issue #58) to
@@ -51,6 +52,7 @@ export const COLUMNS: ColumnSpec[] = [
   { id: "topic" },
   { id: "subtopic" },
   { id: "recipient" },
+  { id: "publishableContent" },
   { id: "fileNumber", sortBy: "file_number" },
   { id: "recommendationDetail" },
   { id: "recommendationSituation", sortBy: "recommendation_situation" },
@@ -58,5 +60,5 @@ export const COLUMNS: ColumnSpec[] = [
   { id: "approvedForPublication" },
   { id: "link" },
   { id: "lastEdited", sortBy: "created_at" },
-  { id: "correct" },
+  { id: "edit" },
 ];

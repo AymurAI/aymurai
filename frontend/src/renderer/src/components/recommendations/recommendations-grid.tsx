@@ -1,39 +1,37 @@
-import { Button, Callout, PageTitle, Spinner } from "@aymurai/ui";
+import { Callout, PageTitle, Spinner } from "@aymurai/ui";
 import {
   keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { CaretDown, CaretLeft, CaretRight, CaretUp } from "phosphor-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { listMacroSectors } from "@/services/aymurai/catalogs";
 import {
   patchRecommendationSeguimiento,
   recommendationEnums,
   recommendationsList,
 } from "@/services/aymurai/dataExtraction";
+import { useExportRecommendations } from "@/services/export/use-export-recommendations";
 import { css } from "@/styled/css";
 import { HStack, Stack, styled } from "@/styled/jsx";
-import { COLUMNS, type SortColumn } from "./recommendations-grid-columns";
+import type { SortColumn } from "./recommendations-grid-columns";
 import RecommendationsGridFilters, {
   type RecommendationsGridFilterValues,
 } from "./recommendations-grid-filters";
+import RecommendationsGridHeader from "./recommendations-grid-header";
+import RecommendationsGridPagination from "./recommendations-grid-pagination";
+import RecommendationsGridRecipients from "./recommendations-grid-recipients";
 import RecommendationsGridRow, {
   type RecommendationSeguimientoPatch,
   type SeguimientoField,
 } from "./recommendations-grid-row";
+import RecommendationsGridToolbar, {
+  type RecommendationsGridView,
+} from "./recommendations-grid-toolbar";
 
-/**
- * The grilla de seguimiento: every recomendación in the shared dataset, with
- * the six post-publication fields editable in place. This is what replaces
- * the external spreadsheet three to five people edit by hand (issue #58).
- *
- * The server paginates, filters and orders — there is no client-side table
- * engine here on purpose: with the page already coming back sorted and cut,
- * `@tanstack/react-table` would only add weight. One edit is one PATCH of one
- * key, so a save never has to rebuild the row.
- */
+/** Server-paginated tracking grid with per-field inline edits. */
 
 const PAGE_SIZE = 20;
 
@@ -55,9 +53,16 @@ function editKey(
 
 const EMPTY_FILTERS: RecommendationsGridFilterValues = {
   search: "",
+  topicId: "",
+  subtopicId: "",
+  recipientSector: "",
+  situation: "",
+  status: "",
+  publication: "all",
   dateFrom: "",
   dateTo: "",
-  unparsedDates: false,
+  editedFrom: "",
+  editedTo: "",
 };
 
 const subtitle = css({
@@ -70,7 +75,9 @@ const subtitle = css({
 const tableWrap = css({
   flex: "1",
   minH: "0",
-  overflow: "auto",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
   bg: "bg.secondary",
   border: "card",
   borderRadius: "lg",
@@ -83,34 +90,6 @@ const table = css({
   textAlign: "left",
 });
 
-const headCell = css({
-  position: "sticky",
-  top: "0",
-  zIndex: "[1]",
-  bg: "bg.primary",
-  px: "3",
-  py: "2",
-  whiteSpace: "nowrap",
-  textStyle: "label.sm.strong",
-  color: "text.lighter",
-  borderBottomWidth: "1",
-  borderBottomStyle: "solid",
-  borderBottomColor: "bg.secondary-highlight",
-});
-
-const sortButton = css({
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "1",
-  p: "0",
-  borderWidth: "0",
-  bg: "[transparent]",
-  font: "inherit",
-  color: "[inherit]",
-  cursor: "pointer",
-  "&:hover": { color: "text.default" },
-});
-
 const message = css({
   textStyle: "paragraph.md.default",
   color: "text.lighter",
@@ -120,6 +99,11 @@ const message = css({
 export default function RecommendationsGrid() {
   const { t } = useTranslation("recommendations");
   const queryClient = useQueryClient();
+  const tabsId = useId();
+  const [view, setView] = useState<RecommendationsGridView>("seguimiento");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const macroSectors = useQuery(listMacroSectors());
+  const exporter = useExportRecommendations();
 
   const [filters, setFilters] =
     useState<RecommendationsGridFilterValues>(EMPTY_FILTERS);
@@ -145,6 +129,15 @@ export default function RecommendationsGrid() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [filtersOpen]);
+
   // Any narrowing invalidates the page number: page 3 of the old result set is
   // very likely past the end of the new one. Reset here, where the change
   // actually happens, rather than in an effect watching the filters.
@@ -160,9 +153,27 @@ export default function RecommendationsGrid() {
       orderBy,
       orderDir,
       q: q || undefined,
+      topicId: filters.topicId || undefined,
+      subtopicId: filters.subtopicId || undefined,
+      sectorId: filters.recipientSector.startsWith("sector:")
+        ? filters.recipientSector.slice(7)
+        : undefined,
+      macroSectorId: filters.recipientSector.startsWith("macro:")
+        ? filters.recipientSector.slice(6)
+        : undefined,
+      recommendationSituation: filters.situation || undefined,
+      status: filters.status || undefined,
+      approvedForPublication:
+        filters.publication === "yes"
+          ? true
+          : filters.publication === "no"
+            ? false
+            : undefined,
+      publicationUnanswered: filters.publication === "unanswered" || undefined,
       dateFrom: filters.dateFrom || undefined,
       dateTo: filters.dateTo || undefined,
-      unparsedDates: filters.unparsedDates || undefined,
+      editedFrom: filters.editedFrom || undefined,
+      editedTo: filters.editedTo || undefined,
     }),
     // Paging, sorting and filtering each land on a different cache key, so
     // without this the table is replaced by the spinner on every one of them
@@ -171,6 +182,14 @@ export default function RecommendationsGrid() {
     // feel like a spreadsheet rather than a series of page loads.
     placeholderData: keepPreviousData,
   });
+
+  // A saved edit can remove the final match on this page. Wait for the new
+  // result rather than clamping against the previous page's placeholder data.
+  useEffect(() => {
+    if (!list.data || list.isPlaceholderData) return;
+    const lastPage = Math.max(1, Math.ceil(list.data.total / PAGE_SIZE));
+    if (page > lastPage) setPage(lastPage);
+  }, [list.data, list.isPlaceholderData, page]);
 
   // The two closed catalogs behind `status`/`recommendation_situation`. Never
   // written out in TS: they are the server's to change (issue #58).
@@ -203,9 +222,16 @@ export default function RecommendationsGrid() {
   const isFiltered =
     q !== "" ||
     filters.search !== "" ||
+    filters.topicId !== "" ||
+    filters.subtopicId !== "" ||
     filters.dateFrom !== "" ||
     filters.dateTo !== "" ||
-    filters.unparsedDates;
+    filters.editedFrom !== "" ||
+    filters.editedTo !== "" ||
+    filters.recipientSector !== "" ||
+    filters.situation !== "" ||
+    filters.status !== "" ||
+    filters.publication !== "all";
 
   const toggleSort = (column: SortColumn) => {
     setPage(1);
@@ -219,8 +245,6 @@ export default function RecommendationsGrid() {
 
   const rows = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
-  const firstOnPage = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const lastOnPage = Math.min(page * PAGE_SIZE, total);
 
   return (
     <Stack gap="6" width="full" flex="1" minH="0">
@@ -229,15 +253,24 @@ export default function RecommendationsGrid() {
         <styled.p className={subtitle}>{t("grilla.subtitle")}</styled.p>
       </Stack>
 
-      <RecommendationsGridFilters
-        values={filters}
-        onChange={updateFilters}
-        onReset={() => {
-          setFilters(EMPTY_FILTERS);
-          setPage(1);
-        }}
-        isFiltered={isFiltered}
+      <RecommendationsGridToolbar
+        tabsId={tabsId}
+        view={view}
+        setView={setView}
+        filtersOpen={filtersOpen}
+        search={filters.search}
+        exportPending={exporter.isPending}
+        onToggleFilters={() => setFiltersOpen((open) => !open)}
+        onSearch={(search) => updateFilters({ search })}
+        onExport={() => exporter.download()}
       />
+      {exporter.isError && (
+        <Callout
+          variant="error"
+          role="alert"
+          message={t("grilla.export.failed")}
+        />
+      )}
 
       {/* Not dismissible: it stands for edits the server does not have, and
           it disappears the moment a retry lands. The offending cells carry
@@ -261,115 +294,105 @@ export default function RecommendationsGrid() {
         />
       )}
 
-      {list.isError ? (
-        <Callout
-          variant="error"
-          role="alert"
-          message={t("grilla.loadFailed")}
-        />
-      ) : list.isPending ? (
-        <HStack justify="center" py="8">
-          <Spinner />
-        </HStack>
-      ) : rows.length === 0 ? (
-        <styled.p className={message}>
-          {isFiltered ? t("grilla.emptyFiltered") : t("grilla.empty")}
-        </styled.p>
-      ) : (
-        <div className={tableWrap}>
-          <table className={table}>
-            <thead>
-              <tr>
-                {COLUMNS.map((column) => {
-                  const active = column.sortBy === orderBy;
-                  return (
-                    <th
-                      key={column.id}
-                      scope="col"
-                      className={headCell}
-                      aria-sort={
-                        active
-                          ? orderDir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      {column.sortBy ? (
-                        <button
-                          type="button"
-                          className={sortButton}
-                          onClick={() =>
-                            column.sortBy && toggleSort(column.sortBy)
+      <div
+        className={css({
+          position: "relative",
+          display: "flex",
+          flex: "1",
+          minH: "0",
+          overflow: "hidden",
+        })}
+      >
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel`}
+          aria-labelledby={`${tabsId}-${view}`}
+          className={css({
+            display: "flex",
+            flexDirection: "column",
+            flex: "1",
+            minH: "0",
+            minW: "0",
+          })}
+        >
+          {list.isError ? (
+            <Callout
+              variant="error"
+              role="alert"
+              message={t("grilla.loadFailed")}
+            />
+          ) : list.isPending ? (
+            <HStack justify="center" py="8">
+              <Spinner />
+            </HStack>
+          ) : rows.length === 0 ? (
+            <styled.p className={message}>
+              {isFiltered ? t("grilla.emptyFiltered") : t("grilla.empty")}
+            </styled.p>
+          ) : (
+            <div className={tableWrap}>
+              <div className={css({ overflow: "auto", minH: "0", flex: "1" })}>
+                {view === "recipients" ? (
+                  <RecommendationsGridRecipients
+                    rows={rows}
+                    catalogs={macroSectors.data ?? []}
+                  />
+                ) : (
+                  <table className={table}>
+                    <RecommendationsGridHeader
+                      orderBy={orderBy}
+                      orderDir={orderDir}
+                      onSort={toggleSort}
+                    />
+                    <tbody>
+                      {rows.map((row) => (
+                        <RecommendationsGridRow
+                          key={row.id}
+                          row={row}
+                          macroSectors={macroSectors.data ?? []}
+                          situations={enums.data?.situations ?? []}
+                          statuses={enums.data?.statuses ?? []}
+                          catalogsReady={enums.data !== undefined}
+                          hasFailed={(field: SeguimientoField) =>
+                            failedEdits.has(`${row.id}:${field}`)
                           }
-                        >
-                          {t(`grilla.columns.${column.id}`)}
-                          {active &&
-                            (orderDir === "asc" ? (
-                              <CaretUp size={12} aria-hidden="true" />
-                            ) : (
-                              <CaretDown size={12} aria-hidden="true" />
-                            ))}
-                        </button>
-                      ) : (
-                        t(`grilla.columns.${column.id}`)
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <RecommendationsGridRow
-                  key={row.id}
-                  row={row}
-                  situations={enums.data?.situations ?? []}
-                  statuses={enums.data?.statuses ?? []}
-                  catalogsReady={enums.data !== undefined}
-                  hasFailed={(field: SeguimientoField) =>
-                    failedEdits.has(`${row.id}:${field}`)
-                  }
-                  saveFailedMessage={t("grilla.cellSaveFailed")}
-                  onEdit={(payload) =>
-                    save.mutate({ recommendationId: row.id, payload })
-                  }
-                />
-              ))}
-            </tbody>
-          </table>
+                          saveFailedMessage={t("grilla.cellSaveFailed")}
+                          onEdit={(payload) =>
+                            save.mutate({ recommendationId: row.id, payload })
+                          }
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+        {filtersOpen && (
+          <RecommendationsGridFilters
+            values={filters}
+            situations={enums.data?.situations ?? []}
+            statuses={enums.data?.statuses ?? []}
+            catalogsReady={enums.data !== undefined}
+            onChange={updateFilters}
+            onClose={() => setFiltersOpen(false)}
+            onReset={() => {
+              setFilters(EMPTY_FILTERS);
+              setQ("");
+              setPage(1);
+            }}
+            isFiltered={isFiltered}
+          />
+        )}
+      </div>
 
-      {total > PAGE_SIZE && (
-        <HStack justify="flex-end" alignItems="center" gap="3">
-          <styled.span className={subtitle}>
-            {t("grilla.pagination.range", {
-              from: firstOnPage,
-              to: lastOnPage,
-              total,
-            })}
-          </styled.span>
-          <Button
-            variant="tertiary"
-            size="sm"
-            aria-label={t("grilla.pagination.previous")}
-            disabled={page <= 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            <CaretLeft size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="tertiary"
-            size="sm"
-            aria-label={t("grilla.pagination.next")}
-            disabled={lastOnPage >= total}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            <CaretRight size={16} aria-hidden="true" />
-          </Button>
-        </HStack>
-      )}
+      <RecommendationsGridPagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPage={setPage}
+      />
     </Stack>
   );
 }

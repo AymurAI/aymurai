@@ -12,6 +12,11 @@ import type {
 } from "@/types/dataExtraction";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 import type { RecommendationsExportResult } from "./dataExtraction";
+import {
+  mockListMacroSectors,
+  mockListSubtopics,
+  mockListTopics,
+} from "./mockCatalogs";
 
 const now = "2026-08-28T00:00:00Z";
 
@@ -389,22 +394,25 @@ const recommendationRows = new Map<string, RecommendationDetail>([
   ],
 ]);
 
-export function mockRecommendationsList(params: {
+export async function mockRecommendationsList(params: {
   page?: number;
   pageSize?: number;
   orderBy?: string;
   orderDir?: "asc" | "desc";
   unparsedDates?: boolean;
   q?: string;
-  // `RecommendationRow` carries `topic`/`subtopic` names, not the ids the
-  // real endpoint filters by, and no sector at all (that lives on
-  // recipients) -- the seed data is too small for id-based filtering to mean
-  // anything client-side, so these two are accepted for signature parity
-  // with the real params but intentionally not applied below.
   topicId?: string;
+  subtopicId?: string;
   sectorId?: string;
+  macroSectorId?: string;
+  recommendationSituation?: string;
+  status?: string;
+  approvedForPublication?: boolean;
+  publicationUnanswered?: boolean;
   dateFrom?: string;
   dateTo?: string;
+  editedFrom?: string;
+  editedTo?: string;
 }): Promise<RecommendationPage> {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 20;
@@ -422,17 +430,69 @@ export function mockRecommendationsList(params: {
   }
   if (params.q) {
     const q = params.q.toLowerCase();
-    // The same four columns the real endpoint ORs over (see `_SEARCH_COLUMNS`
-    // in `database/crud/recommendation.py`). `topic` is deliberately NOT one
-    // of them -- matching it server-side would need a join (issue #58).
     rows = rows.filter((r) =>
       [
         r.recommendation_number,
         r.file_number,
         r.recommendation_detail,
         r.publishable_content,
+        r.topic,
+        r.subtopic,
+        r.link,
+        ...r.recipients.flatMap((recipient) => [
+          recipient.name,
+          recipient.position,
+          recipient.unit_name,
+          recipient.sector_name,
+          recipient.macro_sector,
+        ]),
       ].some((field) => field?.toLowerCase().includes(q)),
     );
+  }
+  if (params.topicId) {
+    const topic = (await mockListTopics()).find((t) => t.id === params.topicId);
+    rows = rows.filter((r) => topic !== undefined && r.topic === topic.name);
+  }
+  if (params.subtopicId) {
+    const subtopic = (await mockListSubtopics(params.topicId ?? "")).find(
+      (item) => item.id === params.subtopicId,
+    );
+    rows = rows.filter(
+      (row) => subtopic !== undefined && row.subtopic === subtopic.name,
+    );
+  }
+  if (params.sectorId) {
+    rows = rows.filter((r) =>
+      r.recipients.some((recipient) => recipient.sector_id === params.sectorId),
+    );
+  }
+  if (params.macroSectorId) {
+    const macroSector = (await mockListMacroSectors()).find(
+      (sector) => sector.id === params.macroSectorId,
+    );
+    rows = rows.filter(
+      (r) =>
+        macroSector !== undefined &&
+        r.recipients.some(
+          (recipient) => recipient.macro_sector === macroSector.name,
+        ),
+    );
+  }
+  if (params.recommendationSituation !== undefined) {
+    rows = rows.filter(
+      (r) => r.recommendation_situation === params.recommendationSituation,
+    );
+  }
+  if (params.status !== undefined) {
+    rows = rows.filter((r) => r.status === params.status);
+  }
+  if (params.approvedForPublication !== undefined) {
+    rows = rows.filter(
+      (r) => r.approved_for_publication === params.approvedForPublication,
+    );
+  }
+  if (params.publicationUnanswered) {
+    rows = rows.filter((r) => r.approved_for_publication === null);
   }
   const dateFrom = params.dateFrom;
   if (dateFrom) {
@@ -445,6 +505,19 @@ export function mockRecommendationsList(params: {
   if (dateTo) {
     rows = rows.filter(
       (r) => r.recommendation_date !== null && r.recommendation_date <= dateTo,
+    );
+  }
+
+  const editedFrom = params.editedFrom;
+  if (editedFrom) {
+    rows = rows.filter(
+      (row) => (row.updated_at ?? row.created_at).slice(0, 10) >= editedFrom,
+    );
+  }
+  const editedTo = params.editedTo;
+  if (editedTo) {
+    rows = rows.filter(
+      (row) => (row.updated_at ?? row.created_at).slice(0, 10) <= editedTo,
     );
   }
 

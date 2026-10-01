@@ -1,3 +1,4 @@
+import { TooltipProvider } from "@aymurai/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -17,16 +18,19 @@ vi.mock("@tanstack/react-router", () => ({
     params,
     children,
     className,
+    ...rest
   }: {
     to: string;
     params?: Record<string, string>;
     children?: ReactNode;
     className?: string;
+    [key: string]: unknown;
   }) => (
     <a
       href={`${to}?params=${JSON.stringify(params)}`}
       data-testid={`link-to-${params?.recommendationId}`}
       className={className}
+      {...rest}
     >
       {children}
     </a>
@@ -131,13 +135,44 @@ vi.mock("@/services/aymurai/dataExtraction", () => ({
   patchRecommendationSeguimiento: () => ({ mutationFn: mockPatch }),
 }));
 
+vi.mock("@/services/aymurai/catalogs", () => ({
+  listTopics: () => ({
+    queryKey: ["topics"],
+    queryFn: async () => [{ id: "t1", name: "Salud", active: true }],
+  }),
+  listSubtopics: () => ({
+    queryKey: ["subtopics", "t1"],
+    queryFn: async () => [
+      { id: "st1", topic_id: "t1", name: "Hospitales", active: true },
+    ],
+  }),
+  listMacroSectors: () => ({
+    queryKey: ["macro-sectors"],
+    queryFn: async () => [
+      { id: "m1", code: "EMPRESA", name: "Empresas del catálogo" },
+    ],
+  }),
+}));
+vi.mock("@/services/aymurai/organigram", () => ({
+  listUnits: () => ({ queryKey: ["units"], queryFn: async () => [] }),
+}));
+vi.mock("@/services/export/use-export-recommendations", () => ({
+  useExportRecommendations: () => ({
+    download: vi.fn(),
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 function renderGrid() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <RecommendationsGrid />
+      <TooltipProvider>
+        <RecommendationsGrid />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
@@ -180,12 +215,300 @@ describe("RecommendationsGrid", () => {
     }));
   });
 
+  it("shows every recipient grouped under its recommendation in the recipients tab", async () => {
+    const row = aRow();
+    row.recipients.push({
+      ...row.recipients[0],
+      id: "secondary",
+      is_primary: false,
+      name: "Persona secundaria",
+      macro_sector: "Empresas del catálogo",
+      sector_id: null,
+      sector_name: null,
+    });
+    mockList.mockResolvedValue({
+      items: [
+        row,
+        aRow({ id: "empty", recommendation_number: "VACIA", recipients: [] }),
+      ],
+      total: 2,
+    });
+    renderGrid();
+    await screen.findByText("REC-001");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "grilla.tabs.recipients" }),
+    );
+    expect(await screen.findByText("Persona secundaria")).toBeInTheDocument();
+    expect(screen.getByText("Empresas del catálogo")).toBeInTheDocument();
+    expect(screen.getByText("grilla.recipients.empty")).toBeInTheDocument();
+    expect(mockList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pageSize: 20 }),
+    );
+  });
+
+  it("shares server filters and resets pagination across tabs", async () => {
+    mockList.mockResolvedValue({ items: [aRow()], total: 45 });
+    renderGrid();
+    await screen.findByText("REC-001");
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.pagination.next" }),
+    );
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("grilla.filters.status"), {
+      target: { value: "Cerrada" },
+    });
+    fireEvent.change(screen.getByLabelText("grilla.filters.situation"), {
+      target: { value: "Respondida" },
+    });
+    fireEvent.change(screen.getByLabelText("grilla.filters.publication"), {
+      target: { value: "unanswered" },
+    });
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          status: "Cerrada",
+          recommendationSituation: "Respondida",
+          publicationUnanswered: true,
+        }),
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("tab", { name: "grilla.tabs.recipients" }),
+    );
+    expect(screen.getByLabelText("grilla.filters.status")).toHaveValue(
+      "Cerrada",
+    );
+    fireEvent.focus(screen.getByLabelText("grilla.filters.recipientSector"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Empresas del catálogo" }),
+    );
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({ macroSectorId: "m1", sectorId: undefined }),
+      ),
+    );
+  });
+
+  it("opens a collapsible filter sidebar and sends every structured filter", async () => {
+    renderGrid();
+    await screen.findByText("REC-001");
+
+    expect(
+      screen.queryByRole("complementary", { name: "grilla.filters.title" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+    const panel = screen.getByRole("complementary", {
+      name: "grilla.filters.title",
+    });
+    expect(panel).toBeInTheDocument();
+
+    const topic = screen.getByLabelText("grilla.filters.topic");
+    await waitFor(() => expect(topic).not.toBeDisabled());
+    fireEvent.change(topic, { target: { value: "t1" } });
+    const subtopic = screen.getByLabelText("grilla.filters.subtopic");
+    await waitFor(() => expect(subtopic).not.toBeDisabled());
+    fireEvent.change(subtopic, { target: { value: "st1" } });
+    fireEvent.change(screen.getByLabelText("grilla.filters.editedFrom"), {
+      target: { value: "2026-02-01" },
+    });
+    fireEvent.change(screen.getByLabelText("grilla.filters.editedTo"), {
+      target: { value: "2026-02-28" },
+    });
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          topicId: "t1",
+          subtopicId: "st1",
+          editedFrom: "2026-02-01",
+          editedTo: "2026-02-28",
+        }),
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.close" }),
+    );
+    expect(panel).not.toBeInTheDocument();
+  });
+
+  it("filters by subtopic without requiring a topic and omits the discarded unparsed-date control", async () => {
+    renderGrid();
+    await screen.findByText("REC-001");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+
+    const subtopic = screen.getByLabelText("grilla.filters.subtopic");
+    await waitFor(() => expect(subtopic).not.toBeDisabled());
+    fireEvent.change(subtopic, { target: { value: "st1" } });
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          topicId: undefined,
+          subtopicId: "st1",
+        }),
+      ),
+    );
+    expect(mockList.mock.lastCall?.[0]).not.toHaveProperty("unparsedDates");
+    expect(
+      screen.queryByText("grilla.filters.unparsedDates"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps reset in the filter panel header and closes the overlay with Escape", async () => {
+    renderGrid();
+    await screen.findByText("REC-001");
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+
+    const panel = screen.getByRole("complementary", {
+      name: "grilla.filters.title",
+    });
+    const reset = screen.getByRole("button", {
+      name: "grilla.filters.reset",
+    });
+    expect(reset.closest("header")).toBe(panel.querySelector("header"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(panel).not.toBeInTheDocument();
+  });
+
+  it("offers Editar from the recipients view for every recommendation", async () => {
+    renderGrid();
+    await screen.findByText("REC-001");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "grilla.tabs.recipients" }),
+    );
+    expect(
+      screen.getAllByRole("link", { name: "grilla.columns.edit" }),
+    ).toHaveLength(2);
+  });
+
+  it("returns to an available page after an edit removes the last filtered row", async () => {
+    let edited = false;
+    mockList.mockImplementation(async ({ page }) => ({
+      items: edited && page === 2 ? [] : [aRow()],
+      total: edited ? 20 : 21,
+    }));
+    mockPatch.mockImplementation(async () => {
+      edited = true;
+      return aRow();
+    });
+    renderGrid();
+    await screen.findByText("REC-001");
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.filters.open" }),
+    );
+    fireEvent.change(screen.getByLabelText("grilla.filters.status"), {
+      target: { value: "Abierta" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "grilla.pagination.next" }),
+    );
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+    const status = screen.getByRole("combobox", {
+      name: cellLabel("status", "REC-001"),
+    });
+    await openDropdown(status);
+    fireEvent.click(await screen.findByRole("option", { name: "Cerrada" }));
+    await waitFor(() =>
+      expect(mockList).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, status: "Abierta" }),
+      ),
+    );
+    expect(await screen.findByText("REC-001")).toBeInTheDocument();
+  });
+
+  it("supports keyboard switching between the associated tab panels", async () => {
+    renderGrid();
+    await screen.findByText("REC-001");
+    const tracking = screen.getByRole("tab", {
+      name: "grilla.tabs.seguimiento",
+    });
+    tracking.focus();
+    fireEvent.keyDown(tracking, { key: "ArrowRight" });
+    const recipients = screen.getByRole("tab", {
+      name: "grilla.tabs.recipients",
+    });
+    expect(recipients).toHaveFocus();
+    expect(recipients).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("tabpanel", { name: "grilla.tabs.recipients" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an explicitly saved sector even without a macro sector", async () => {
+    const row = aRow();
+    row.recipients[0].macro_sector = null;
+    mockList.mockResolvedValue({ items: [row], total: 1 });
+    renderGrid();
+    await screen.findByText("Ana Pérez");
+    expect(screen.getByText("Ministerio de Salud")).toBeInTheDocument();
+  });
+
+  it("does not infer a GCBA sector from the organizational unit", async () => {
+    const row = aRow();
+    row.recipients[0].sector_id = null;
+    row.recipients[0].sector_name = "Unvalidated sector";
+    mockList.mockResolvedValue({ items: [row], total: 1 });
+    renderGrid();
+    await screen.findByText("Ana Pérez");
+    expect(screen.queryByText("Unvalidated sector")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dirección")).not.toBeInTheDocument();
+  });
+
   it("lists the recommendations the server returned", async () => {
     renderGrid();
 
     expect(await screen.findByText("REC-001")).toBeInTheDocument();
     expect(screen.getByText("REC-002")).toBeInTheDocument();
     expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
+  });
+
+  it("shows publishable content immediately after the primary recipient", async () => {
+    const content =
+      "La Defensoría recomienda garantizar la atención y publicar los resultados del seguimiento.";
+    mockList.mockResolvedValue({
+      items: [aRow({ publishable_content: content })],
+      total: 1,
+    });
+    renderGrid();
+
+    const headers = await screen.findAllByRole("columnheader");
+    const labels = headers.map((header) => header.textContent);
+    expect(labels.indexOf("grilla.columns.publishableContent")).toBe(
+      labels.indexOf("grilla.columns.recipient") + 1,
+    );
+    expect(
+      screen.getByLabelText(`grilla.columns.publishableContent: ${content}`),
+    ).toHaveTextContent(content);
+  });
+
+  it("uses the same icon-only Editar link as the recipients view", async () => {
+    renderGrid();
+
+    const link = await screen.findByTestId("link-to-r1");
+    expect(link).toHaveAccessibleName("grilla.columns.edit");
+    expect(link).not.toHaveAttribute("title");
+    expect(link).toHaveTextContent("");
   });
 
   it("sends only the edited key when a seguimiento cell is committed", async () => {
@@ -332,20 +655,6 @@ describe("RecommendationsGrid", () => {
           orderBy: "recommendation_date",
           orderDir: "asc",
         }),
-      ),
-    );
-  });
-
-  it("asks the server for only the rows with an unparsed date", async () => {
-    renderGrid();
-
-    fireEvent.click(
-      await screen.findByLabelText("grilla.filters.unparsedDates"),
-    );
-
-    await waitFor(() =>
-      expect(mockList).toHaveBeenCalledWith(
-        expect.objectContaining({ unparsedDates: true }),
       ),
     );
   });

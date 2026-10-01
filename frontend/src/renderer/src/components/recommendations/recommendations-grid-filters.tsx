@@ -1,33 +1,60 @@
-import { Button, Checkbox, Search } from "@aymurai/ui";
+import { Button } from "@aymurai/ui";
+import { useQuery } from "@tanstack/react-query";
+import { X } from "phosphor-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  listMacroSectors,
+  listSubtopics,
+  listTopics,
+} from "@/services/aymurai/catalogs";
+import { listUnits } from "@/services/aymurai/organigram";
 import { css } from "@/styled/css";
-import { HStack, Stack } from "@/styled/jsx";
+import { HStack, Stack, styled } from "@/styled/jsx";
+import { GCBA_MACRO_SECTOR_CODE } from "@/types/catalogs";
+import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
+import { OrganigramCombobox } from "./organigram-combobox";
 
-/**
- * The grilla's filter bar. Purely presentational: it owns no query, only the
- * values `RecommendationsGrid` feeds straight into `recommendationsList(...)`.
- *
- * `topic_id`/`sector_id` are supported by the endpoint but not offered here —
- * both need a catalog picker, and neither is part of what the Excel sheet this
- * screen replaces let anybody filter by.
- */
-
-const bar = css({
-  flexWrap: "wrap",
-  alignItems: "flex-end",
-  gap: "4",
-  width: "full",
+const drawer = css({
+  position: "absolute",
+  top: "0",
+  right: "0",
+  bottom: "0",
+  zIndex: "10",
+  display: "flex",
+  flexDirection: "column",
+  width: { base: "full", sm: "panel.sideCompact", desktop: "panel.side" },
+  maxWidth: "full",
+  minH: "0",
+  overflow: "hidden",
+  bg: "bg.secondary",
+  borderLeft: "card",
+  boxShadow: "menu",
 });
 
-const searchSlot = css({ flex: "1", minW: "[240px]" });
+const panelHeader = css({
+  flexShrink: "0",
+  p: "5",
+  borderBottom: "card",
+  bg: "bg.secondary",
+});
 
-const dateLabel = css({
+const panelBody = css({
+  flex: "1",
+  minH: "0",
+  overflowY: "auto",
+  p: "5",
+  gap: "5",
+});
+const field = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "1",
   textStyle: "label.sm.default",
   color: "text.lighter",
 });
-
-const dateInput = css({
+const control = css({
+  width: "full",
   textStyle: "label.md.default",
   color: "text.default",
   bg: "bg.secondary",
@@ -43,87 +70,223 @@ const dateInput = css({
 });
 
 export interface RecommendationsGridFilterValues {
-  /** Raw text of the search box — debounced into `q` by the grid. */
   search: string;
-  /** `YYYY-MM-DD`, or `""` for "no bound". */
+  topicId: string;
+  subtopicId: string;
+  recipientSector: string;
+  situation: string;
+  status: string;
+  publication: "all" | "yes" | "no" | "unanswered";
   dateFrom: string;
   dateTo: string;
-  /** Only the rows whose `recommendation_date` never parsed. */
-  unparsedDates: boolean;
+  editedFrom: string;
+  editedTo: string;
 }
 
 interface RecommendationsGridFiltersProps {
   values: RecommendationsGridFilterValues;
+  situations: string[];
+  statuses: string[];
+  catalogsReady: boolean;
   onChange: (patch: Partial<RecommendationsGridFilterValues>) => void;
   onReset: () => void;
-  /** Whether anything is actually filtering — gates the reset button. */
+  onClose: () => void;
   isFiltered: boolean;
 }
 
 export default function RecommendationsGridFilters({
   values,
+  situations,
+  statuses,
+  catalogsReady,
   onChange,
   onReset,
+  onClose,
   isFiltered,
 }: RecommendationsGridFiltersProps) {
   const { t } = useTranslation("recommendations");
-  const fromId = useId();
-  const toId = useId();
+  const ids = {
+    topic: useId(),
+    subtopic: useId(),
+    dateFrom: useId(),
+    dateTo: useId(),
+    editedFrom: useId(),
+    editedTo: useId(),
+  };
+  const topics = useQuery(listTopics());
+  const subtopics = useQuery(listSubtopics());
+  const macros = useQuery(listMacroSectors());
+  const units = useQuery(listUnits());
+  const sectorOptions = [
+    ...(units.data ?? [])
+      .filter((unit) => unit.is_sector)
+      .map((unit) => ({ id: `sector:${unit.id}`, name: unit.name })),
+    ...(macros.data ?? [])
+      .filter((macro) => macro.code !== GCBA_MACRO_SECTOR_CODE)
+      .map((macro) => ({ id: `macro:${macro.id}`, name: macro.name })),
+  ];
+
+  const select = (
+    id: string,
+    label: string,
+    value: string,
+    options: Array<{ id: string; name: string }>,
+    onValue: (value: string) => void,
+    disabled = false,
+  ) => (
+    <label className={field} htmlFor={id}>
+      {label}
+      <select
+        id={id}
+        className={control}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onValue(event.target.value)}
+      >
+        <option value="">{t("grilla.filters.all")}</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
   return (
-    <HStack className={bar}>
-      <div className={searchSlot}>
-        <Search
-          aria-label={t("grilla.filters.searchLabel")}
-          placeholder={t("grilla.filters.searchPlaceholder")}
-          value={values.search}
-          onChange={(event) => onChange({ search: event.target.value })}
-          onClear={() => onChange({ search: "" })}
-          labels={{ clear: t("grilla.filters.clearSearch") }}
-        />
-      </div>
+    <aside aria-label={t("grilla.filters.title")} className={drawer}>
+      <header className={panelHeader}>
+        <HStack justify="space-between" alignItems="center" gap="3">
+          <styled.h2 textStyle="title.md.strong">
+            {t("grilla.filters.title")}
+          </styled.h2>
+          <HStack gap="2">
+            <Button
+              variant="tertiary"
+              size="sm"
+              onClick={onReset}
+              disabled={!isFiltered}
+            >
+              {t("grilla.filters.reset")}
+            </Button>
+            <Button
+              variant="tertiary"
+              size="sm"
+              aria-label={t("grilla.filters.close")}
+              onClick={onClose}
+            >
+              <X size={18} aria-hidden="true" />
+            </Button>
+          </HStack>
+        </HStack>
+      </header>
 
-      <Stack gap="1">
-        <label className={dateLabel} htmlFor={fromId}>
-          {t("grilla.filters.dateFrom")}
+      <Stack className={panelBody} data-testid="recommendations-filter-body">
+        {select(
+          ids.topic,
+          t("grilla.filters.topic"),
+          values.topicId,
+          (topics.data ?? []).map((topic) => ({
+            id: topic.id,
+            name: topic.name,
+          })),
+          (topicId) => onChange({ topicId }),
+          topics.isLoading || topics.isError,
+        )}
+        {select(
+          ids.subtopic,
+          t("grilla.filters.subtopic"),
+          values.subtopicId,
+          (subtopics.data ?? []).map((subtopic) => ({
+            id: subtopic.id,
+            name: subtopic.name,
+          })),
+          (subtopicId) => onChange({ subtopicId }),
+          subtopics.isLoading || subtopics.isError,
+        )}
+
+        <OrganigramCombobox
+          label={t("grilla.filters.recipientSector")}
+          placeholder={t("grilla.filters.sectorPlaceholder")}
+          options={sectorOptions}
+          emptyPrompt={t("grilla.filters.sectorPlaceholder")}
+          selectedLabel={
+            sectorOptions.find((option) => option.id === values.recipientSector)
+              ?.name ?? null
+          }
+          hasValue={values.recipientSector !== ""}
+          onPick={(recipientSector) => onChange({ recipientSector })}
+          onClear={() => onChange({ recipientSector: "" })}
+          search={{
+            run: (query) =>
+              sectorOptions.filter((option) =>
+                normalizeForSearch(option.name).includes(
+                  normalizeForSearch(query),
+                ),
+              ),
+            isLoading: macros.isLoading || units.isLoading,
+            isError: macros.isError || units.isError,
+            loadingLabel: t("grilla.filters.catalogLoading"),
+            errorLabel: t("grilla.filters.catalogFailed"),
+          }}
+        />
+
+        {select(
+          "recommendation-situation-filter",
+          t("grilla.filters.situation"),
+          values.situation,
+          situations.map((value) => ({ id: value, name: value })),
+          (situation) => onChange({ situation }),
+          !catalogsReady,
+        )}
+        {select(
+          "recommendation-status-filter",
+          t("grilla.filters.status"),
+          values.status,
+          statuses.map((value) => ({ id: value, name: value })),
+          (status) => onChange({ status }),
+          !catalogsReady,
+        )}
+
+        <label className={field}>
+          {t("grilla.filters.publication")}
+          <select
+            className={control}
+            value={values.publication}
+            onChange={(event) =>
+              onChange({
+                publication: event.target
+                  .value as RecommendationsGridFilterValues["publication"],
+              })
+            }
+          >
+            <option value="all">{t("grilla.filters.all")}</option>
+            <option value="yes">{t("grilla.approved.yes")}</option>
+            <option value="no">{t("grilla.approved.no")}</option>
+            <option value="unanswered">{t("grilla.filters.unanswered")}</option>
+          </select>
         </label>
-        <input
-          id={fromId}
-          type="date"
-          className={dateInput}
-          value={values.dateFrom}
-          onChange={(event) => onChange({ dateFrom: event.target.value })}
-        />
+
+        {(
+          [
+            ["dateFrom", ids.dateFrom],
+            ["dateTo", ids.dateTo],
+            ["editedFrom", ids.editedFrom],
+            ["editedTo", ids.editedTo],
+          ] as const
+        ).map(([name, id]) => (
+          <label key={name} className={field} htmlFor={id}>
+            {t(`grilla.filters.${name}`)}
+            <input
+              id={id}
+              type="date"
+              className={control}
+              value={values[name]}
+              onChange={(event) => onChange({ [name]: event.target.value })}
+            />
+          </label>
+        ))}
       </Stack>
-
-      <Stack gap="1">
-        <label className={dateLabel} htmlFor={toId}>
-          {t("grilla.filters.dateTo")}
-        </label>
-        <input
-          id={toId}
-          type="date"
-          className={dateInput}
-          value={values.dateTo}
-          onChange={(event) => onChange({ dateTo: event.target.value })}
-        />
-      </Stack>
-
-      <Checkbox
-        checked={values.unparsedDates}
-        onChange={(checked) => onChange({ unparsedDates: checked })}
-      >
-        {t("grilla.filters.unparsedDates")}
-      </Checkbox>
-
-      <Button
-        variant="tertiary"
-        size="sm"
-        onClick={onReset}
-        disabled={!isFiltered}
-      >
-        {t("grilla.filters.reset")}
-      </Button>
-    </HStack>
+    </aside>
   );
 }
