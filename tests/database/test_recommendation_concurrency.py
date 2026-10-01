@@ -1,4 +1,5 @@
 import threading
+import time
 import uuid
 from datetime import timedelta
 
@@ -7,6 +8,8 @@ from sqlalchemy import event
 from sqlmodel import Session, SQLModel, create_engine
 
 from aymurai.database.crud.recommendation import (
+    OrganigramReferenceNotFoundError,
+    RecipientValidationData,
     RecommendationValidationData,
     recommendation_upsert,
 )
@@ -122,3 +125,45 @@ def test_correct_missing_recommendation_raises_not_found(file_engine, stored):
             recommendation_correct(
                 uuid.uuid4(), recommendation_version(stored), _data("X."), session
             )
+
+
+def test_a_rejected_correction_releases_the_write_lock(file_engine, stored):
+    rejected = RecommendationValidationData(
+        recommendation_number=None,
+        recommendation_date_text=None,
+        topic=None,
+        subtopic=None,
+        personal_data=None,
+        publishable_content="Rechazada.",
+        recipients=[
+            RecipientValidationData(
+                id=None,
+                name="Inexistente",
+                position=None,
+                is_primary=True,
+                macro_sector=None,
+                unit_id=uuid.uuid4(),
+                sector_id=None,
+            )
+        ],
+    )
+    with Session(file_engine) as first:
+        with pytest.raises(OrganigramReferenceNotFoundError):
+            recommendation_correct(
+                stored.id, recommendation_version(stored), rejected, first
+            )
+
+        # `first` is still open: only its rollback can have released the
+        # lock. A leaked transaction would make this wait the whole
+        # `busy_timeout` and then fail with "database is locked".
+        started = time.monotonic()
+        with Session(file_engine) as second:
+            recommendation_correct(
+                stored.id, recommendation_version(stored), _data("B."), second
+            )
+        assert time.monotonic() - started < 1
+
+    with Session(file_engine) as session:
+        final = session.get(Recommendation, stored.id)
+        assert final is not None
+        assert final.publishable_content == "B."

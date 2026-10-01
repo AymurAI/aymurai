@@ -366,3 +366,39 @@ def test_put_correction_accepts_timezone_aware_spellings_of_the_etag(
         headers={"If-Match": spell(naive)},
     )
     assert response.status_code == 200
+
+
+def test_put_correction_rejected_by_the_organigram_changes_nothing(
+    extraction_client, seeded_catalogs
+):
+    validated = _validated_recommendation(
+        extraction_client, "Documento de corrección once."
+    )
+    url = f"/llm/data-extraction/recommendations/{validated['id']}"
+
+    rejected = extraction_client.put(
+        url,
+        json=_validate_payload(
+            publishable_content="No debería quedar.",
+            recipients=[
+                {**RECIPIENT, "name": "Inexistente", "unit_id": str(uuid.uuid4())}
+            ],
+        ),
+        headers={"If-Match": _etag(validated)},
+    )
+    assert rejected.status_code == 422
+
+    # Rolled back whole: neither the fields nor the version moved...
+    detail = extraction_client.get(url).json()
+    assert detail["publishable_content"] == validated["publishable_content"]
+    assert detail["updated_at"] == validated["updated_at"]
+    assert detail["recipients"] == []
+
+    # ...so the etag the client still holds is the current one.
+    retried = extraction_client.put(
+        url,
+        json=_validate_payload(publishable_content="Ahora sí."),
+        headers={"If-Match": _etag(validated)},
+    )
+    assert retried.status_code == 200
+    assert retried.json()["publishable_content"] == "Ahora sí."
