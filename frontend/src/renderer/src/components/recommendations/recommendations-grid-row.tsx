@@ -177,6 +177,17 @@ export default function RecommendationsGridRow({
           <span className={muted}>{EMPTY}</span>
         )}
       </td>
+      <td className={cx(cell, noWrap)}>
+        {/* Tri-state, like the export's DATOS_PERSONALES: never answered is
+            blank, not "No". Same wording as the validation form. */}
+        {row.personal_data === null ? (
+          <span className={muted}>{EMPTY}</span>
+        ) : row.personal_data ? (
+          t("validation.personalDataYes")
+        ) : (
+          t("validation.personalDataNo")
+        )}
+      </td>
 
       <td className={cell}>
         <EditableTextCell

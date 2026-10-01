@@ -71,11 +71,14 @@ db-backup-logs:
 # pre-restore safety snapshot reuses the db-backup sidecar's one-shot backup
 # instead of a plain `cp`, for the same WAL-safety reason backup.py itself
 # doesn't use `cp` -- it lands as an ordinary database_<timestamp>.db in the
-# normal backup set rather than a distinctly-named pre-restore_ file. That
+# normal backup set rather than a distinctly-named pre-restore_ file (or is
+# skipped when the latest backup already holds identical bytes). That
 # snapshot overrides BACKUP_RETENTION=0 for this one invocation only: at
 # steady state the backup set is already at the retention cap, so taking one
 # more snapshot without disabling pruning would make the sidecar's own prune
 # step delete the oldest file -- which can be the exact backup being restored.
+# Once the restored file is in place the sidecar is brought back up (same as
+# `make db-backup-up`), so a restore never silently leaves backups switched off.
 db-restore:
 	@if [ -z "$(BACKUP_FILE)" ]; then \
 		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
@@ -96,7 +99,8 @@ db-restore:
 	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm
 	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring
 	mv resources/cache/sqlite/database.db.restoring resources/cache/sqlite/database.db
-	@echo "Restored $(BACKUP_FILE). Start the API again with 'make api-up' or 'make api-full-up'."
+	docker compose up -d db-backup
+	@echo "Restored $(BACKUP_FILE) and restarted the db-backup sidecar. Start the API again with 'make api-up' or 'make api-full-up'."
 
 stress-test:
 	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899

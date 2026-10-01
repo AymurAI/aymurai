@@ -244,3 +244,61 @@ def test_last_edited_filters_use_the_local_calendar_day(
     assert ids(edited_to="2026-03-10") == {late, legacy}
     assert ids(edited_from="2026-03-11") == set()
     assert ids(edited_to="2026-03-09") == set()
+
+
+@pytest.fixture
+def accented_catalog_row(extraction_engine) -> str:
+    """One row whose accented text lives only in joined tables (topic,
+    subtopic, recipient, sector, unit, ámbito), never on `Recommendation`."""
+    with Session(extraction_engine) as session:
+        dataset = get_or_create_default_dataset(session)
+        macro = MacroSector(code="AUT", name="Órganos Autónomos")
+        sector = OrganigramUnit(name="Área Niñez", is_sector=True)
+        unit = OrganigramUnit(name="Dirección Jurídica")
+        topic = Topic(code="EDU", name="Educación")
+        session.add_all([macro, sector, unit, topic])
+        session.flush()
+        subtopic = Subtopic(topic_id=topic.id, code="ESC", name="Escuelas Técnicas")
+        session.add(subtopic)
+        session.flush()
+        row = Recommendation(
+            dataset_id=dataset.id,
+            document_id=uuid.uuid4(),
+            publishable_content="Neutro",
+            topic_id=topic.id,
+            subtopic_id=subtopic.id,
+        )
+        session.add(row)
+        session.flush()
+        session.add(
+            Recipient(
+                recommendation_id=row.id,
+                is_primary=True,
+                raw_name="José Núñez",
+                raw_position="Subsecretaría",
+                macro_sector_id=macro.id,
+                sector_id=sector.id,
+                unit_id=unit.id,
+            )
+        )
+        session.commit()
+        return str(row.id)
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "EDUCACION",
+        "escuelas tecnicas",
+        "JOSE NUNEZ",
+        "subsecretaria",
+        "area ninez",
+        "DIRECCION JURIDICA",
+        "organos autonomos",
+    ],
+)
+def test_search_of_joined_fields_folds_accents_and_case(
+    extraction_client, accented_catalog_row, needle
+):
+    page = _page(extraction_client, q=needle)
+    assert [row["id"] for row in page["items"]] == [accented_catalog_row]

@@ -34,7 +34,9 @@ export interface RecommendationsGridSearch {
   view?: RecommendationsGridView;
 }
 
-export const DEFAULT_ORDER_BY: SortColumn = "created_at";
+// "Última edición", newest first: the header marks that column as the active
+// sort, so the first request has to actually order by it.
+export const DEFAULT_ORDER_BY: SortColumn = "last_edited";
 export const DEFAULT_ORDER_DIR = "desc";
 export const DEFAULT_VIEW: RecommendationsGridView = "seguimiento";
 

@@ -327,3 +327,17 @@ def test_total_reflects_filtered_count_not_page_size(
     body_all = response_all.json()
     assert body_all["total"] == 3
     assert len(body_all["items"]) == 2
+
+
+def test_order_by_last_edited_is_whitelisted(
+    extraction_client, seeded_ordering_recommendations
+):
+    # The fixture's created_at override touches every row, so all three carry
+    # an `updated_at` of "now": this only pins the whitelist; the semantics
+    # are covered in tests/database/test_recommendation_list_ordering.py.
+    response = extraction_client.get(
+        "/llm/data-extraction/recommendations",
+        params={"order_by": "last_edited", "order_dir": "desc"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 3

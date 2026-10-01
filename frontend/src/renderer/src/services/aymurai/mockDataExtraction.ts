@@ -10,6 +10,7 @@ import type {
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 import type { RecommendationsExportResult } from "./dataExtraction";
 import {
@@ -433,8 +434,13 @@ export async function mockRecommendationsList(params: {
         r.recommendation_date_text !== null && r.recommendation_date === null,
     );
   }
-  if (params.q) {
-    const q = params.q.toLowerCase();
+  // Folded like the real endpoint does it (`normalize_text` on both sides),
+  // so "area" finds "Área" here too.
+  const q = normalizeForSearch(params.q);
+  if (q) {
+    // The same fields the real endpoint matches (`recommendation_listing.py`):
+    // the row's own text columns, its tema/subtema names, and every
+    // recipient's name, cargo, unidad, sector and ámbito.
     rows = rows.filter((r) =>
       [
         r.recommendation_number,
@@ -451,7 +457,7 @@ export async function mockRecommendationsList(params: {
           recipient.sector_name,
           recipient.macro_sector,
         ]),
-      ].some((field) => field?.toLowerCase().includes(q)),
+      ].some((field) => field != null && normalizeForSearch(field).includes(q)),
     );
   }
   if (params.topicId) {
@@ -528,11 +534,15 @@ export async function mockRecommendationsList(params: {
 
   const orderBy = params.orderBy ?? "created_at";
   const orderDir = params.orderDir ?? "desc";
+  // `last_edited` is not a field of the row: the real endpoint computes it
+  // as `COALESCE(updated_at, created_at)`.
+  const sortValue = (r: RecommendationRow): unknown =>
+    orderBy === "last_edited"
+      ? (r.updated_at ?? r.created_at)
+      : (r as unknown as Record<string, unknown>)[orderBy];
   rows = [...rows].sort((a, b) => {
-    const row = a as unknown as Record<string, unknown>;
-    const other = b as unknown as Record<string, unknown>;
-    const cmp = String(row[orderBy] ?? "").localeCompare(
-      String(other[orderBy] ?? ""),
+    const cmp = String(sortValue(a) ?? "").localeCompare(
+      String(sortValue(b) ?? ""),
     );
     return orderDir === "asc" ? cmp : -cmp;
   });

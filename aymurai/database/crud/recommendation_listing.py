@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import InstrumentedAttribute
-from sqlmodel import Session, select
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import Session, col, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.schema import (
@@ -20,7 +21,9 @@ from aymurai.database.schema import (
     Subtopic,
     Topic,
 )
+from aymurai.database.session import NORMALIZE_TEXT_SQL_FUNCTION
 from aymurai.settings import settings
+from aymurai.text.matching import normalize_text
 
 # issue #58: columnas propias de la recomendación ordenables desde la grilla.
 # Los órdenes que exigen join (tema, sector) quedan fuera. `Literal` es lo que
@@ -33,15 +36,27 @@ RecommendationOrderColumn = Literal[
     "status",
     "recommendation_situation",
     "file_number",
+    "last_edited",
 ]
 
-_ORDER_COLUMNS: dict[str, InstrumentedAttribute] = {
+# What the grilla's "Última edición" column shows: `updated_at` once anybody
+# touched the row, `created_at` otherwise (`updated_at` stays NULL until the
+# first update after creation). Wrapped in `datetime()` because stored values
+# mix the legacy `CURRENT_TIMESTAMP` spelling (no fraction) with SQLAlchemy's
+# `.ffffff` one, and the two don't order correctly as raw text -- so both the
+# "editado desde/hasta" filter and the `last_edited` sort go through it.
+_LAST_EDITED = func.datetime(
+    func.coalesce(Recommendation.updated_at, Recommendation.created_at)
+)
+
+_ORDER_COLUMNS: dict[str, InstrumentedAttribute | ColumnElement] = {
     "created_at": Recommendation.created_at,
     "recommendation_date": Recommendation.recommendation_date,
     "recommendation_number": Recommendation.recommendation_number,
     "status": Recommendation.status,
     "recommendation_situation": Recommendation.recommendation_situation,
     "file_number": Recommendation.file_number,
+    "last_edited": _LAST_EDITED,
 }
 
 _SEARCH_COLUMNS: tuple[InstrumentedAttribute, ...] = (
@@ -131,8 +146,8 @@ def recommendation_list(
         edited_from (date | None): Minimum local day (in
             `settings.EXPORT_TIMEZONE`) of the last edit, inclusive.
         edited_to (date | None): Maximum local day of the last edit, inclusive.
-        q (str | None): Case-insensitive substring search, matched against
-            recommendation text and all recipients and their resolved names.
+        q (str | None): Case- and accent-insensitive substring search,
+            matched against recommendation text and all recipients and their resolved names.
         unparsed_dates (bool): Restrict to rows with prose
             (`recommendation_date_text`) but no successfully parsed
             `recommendation_date` -- exactly the rows that need human
@@ -140,7 +155,8 @@ def recommendation_list(
         order_by (RecommendationOrderColumn): Column to sort by, whitelisted
             (issue #58) to columns that don't require a join.
         order_dir (Literal["asc", "desc"]): Sort direction. Nulls always
-            sort last, in both directions.
+            sort last, in both directions; ties are broken by `id`
+            ascending so pagination is deterministic.
         page (int): 1-indexed page number.
         page_size (int): Rows per page.
 
@@ -164,42 +180,43 @@ def recommendation_list(
         statement = statement.where(Recommendation.recommendation_date >= date_from)
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
-    # `datetime()` on both sides, not raw comparison: stored values mix the
-    # legacy `CURRENT_TIMESTAMP` spelling (no fraction) with SQLAlchemy's
-    # `.ffffff` one, and the two don't order correctly as text.
-    last_edited = func.datetime(
-        func.coalesce(Recommendation.updated_at, Recommendation.created_at)
-    )
+    # `datetime()` on both sides, not raw comparison (see `_LAST_EDITED`).
     if edited_from is not None:
         statement = statement.where(
-            last_edited >= func.datetime(_local_day_start_utc(edited_from))
+            _LAST_EDITED >= func.datetime(_local_day_start_utc(edited_from))
         )
     if edited_to is not None:
         statement = statement.where(
-            last_edited
+            _LAST_EDITED
             < func.datetime(_local_day_start_utc(edited_to + timedelta(days=1)))
         )
-    if q:
+    # Folded with the same `normalize_text` the SQL side applies, so case and
+    # accents never decide a match ("area" finds "Área", "ÁREA" finds "área").
+    needle = normalize_text(q) if q else ""
+    if needle:
         # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
         # match themselves rather than being reinterpreted as wildcards.
-        needle = _like_escape(q.lower())
-        pattern = f"%{needle}%"
+        pattern = f"%{_like_escape(needle)}%"
+        # The SQL `normalize_text` (registered per connection in
+        # `database/session.py`) maps NULL to NULL and `NULL LIKE ...` is
+        # NULL, so a nullable column simply never matches -- no null guard.
+        normalize = getattr(func, NORMALIZE_TEXT_SQL_FUNCTION)
         matching_units = select(OrganigramUnit.id).where(
-            func.lower(OrganigramUnit.name).like(pattern, escape="\\")
+            normalize(OrganigramUnit.name).like(pattern, escape="\\")
         )
         matching_macros = select(MacroSector.id).where(
-            func.lower(MacroSector.name).like(pattern, escape="\\")
+            normalize(MacroSector.name).like(pattern, escape="\\")
         )
         matching_topics = select(Topic.id).where(
-            func.lower(Topic.name).like(pattern, escape="\\")
+            normalize(Topic.name).like(pattern, escape="\\")
         )
         matching_subtopics = select(Subtopic.id).where(
-            func.lower(Subtopic.name).like(pattern, escape="\\")
+            normalize(Subtopic.name).like(pattern, escape="\\")
         )
         matching_recipients = select(Recipient.recommendation_id).where(
             or_(
-                func.lower(Recipient.raw_name).like(pattern, escape="\\"),
-                func.lower(Recipient.raw_position).like(pattern, escape="\\"),
+                normalize(Recipient.raw_name).like(pattern, escape="\\"),
+                normalize(Recipient.raw_position).like(pattern, escape="\\"),
                 Recipient.unit_id.in_(matching_units),
                 Recipient.sector_id.in_(matching_units),
                 Recipient.macro_sector_id.in_(matching_macros),
@@ -213,7 +230,7 @@ def recommendation_list(
                 Recommendation.topic_id.in_(matching_topics),
                 Recommendation.subtopic_id.in_(matching_subtopics),
                 *(
-                    func.lower(column).like(pattern, escape="\\")
+                    normalize(column).like(pattern, escape="\\")
                     for column in _SEARCH_COLUMNS
                 ),
             )
@@ -257,7 +274,10 @@ def recommendation_list(
     column = _ORDER_COLUMNS[order_by]
     order_clause = column.asc() if order_dir == "asc" else column.desc()
     statement = (
-        statement.order_by(order_clause.nullslast())
+        # `id` breaks ties: without a total order, SQLite may return tied rows
+        # in a different order on each query, so consecutive pages could
+        # repeat some rows and skip others.
+        statement.order_by(order_clause.nullslast(), col(Recommendation.id))
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

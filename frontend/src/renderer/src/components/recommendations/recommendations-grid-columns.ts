@@ -13,6 +13,7 @@ export type ColumnId =
   | "subtopic"
   | "recipient"
   | "publishableContent"
+  | "personalData"
   | "fileNumber"
   | "recommendationDetail"
   | "recommendationSituation"
@@ -32,7 +33,8 @@ export type SortColumn =
   | "recommendation_number"
   | "status"
   | "recommendation_situation"
-  | "file_number";
+  | "file_number"
+  | "last_edited";
 
 export interface ColumnSpec {
   id: ColumnId;
@@ -41,10 +43,9 @@ export interface ColumnSpec {
 }
 
 /**
- * "Última edición" shows `updated_at ?? created_at` but sorts by `created_at`:
- * that is the only one of the two in the server's order whitelist, and on a
- * never-edited row (the majority, until the base is worked through) they are
- * the same instant anyway.
+ * "Última edición" shows `updated_at ?? created_at` and sorts by
+ * `last_edited`, the server's `COALESCE(updated_at, created_at)` -- the same
+ * value, so the order on screen matches the dates on screen.
  */
 export const COLUMNS: ColumnSpec[] = [
   { id: "recommendationNumber", sortBy: "recommendation_number" },
@@ -52,13 +53,17 @@ export const COLUMNS: ColumnSpec[] = [
   { id: "topic" },
   { id: "subtopic" },
   { id: "recipient" },
+  // Read-only: both come from the document (validated, not tracked), so the
+  // grilla shows them -- the workbook has them -- but only correcting the
+  // recommendation can change them.
   { id: "publishableContent" },
+  { id: "personalData" },
   { id: "fileNumber", sortBy: "file_number" },
   { id: "recommendationDetail" },
   { id: "recommendationSituation", sortBy: "recommendation_situation" },
   { id: "status", sortBy: "status" },
   { id: "approvedForPublication" },
   { id: "link" },
-  { id: "lastEdited", sortBy: "created_at" },
+  { id: "lastEdited", sortBy: "last_edited" },
   { id: "edit" },
 ];

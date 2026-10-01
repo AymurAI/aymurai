@@ -59,8 +59,10 @@ class Settings(BaseSettings):
     # How long a SQLite connection waits before raising "database is locked"
     # when another connection holds the writer. With WAL, readers never block
     # the writer, so this only matters between concurrent writers -- tens of
-    # documents/month with 3-5 people makes this infrequent, but without a
-    # timeout the error is immediate instead of waiting.
+    # documents/month with 3-5 people makes this infrequent. Python's
+    # sqlite3.connect() already defaults to a 5s timeout (busy_timeout=5000),
+    # so the default here keeps that behaviour; the setting exists to make
+    # the wait configurable.
     SQLITE_BUSY_TIMEOUT_MS: int = 5000
 
     RESOURCES_BASEPATH: str = "/resources"

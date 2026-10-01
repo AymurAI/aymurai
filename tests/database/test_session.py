@@ -23,3 +23,24 @@ def test_sqlite_connection_has_wal_and_busy_timeout(tmp_path, monkeypatch):
 
     assert journal_mode == "wal"
     assert busy_timeout == 5000
+
+
+def test_sqlite_connection_registers_normalize_text(tmp_path, monkeypatch):
+    # The listing search folds case and accents in SQL; SQLite's built-in
+    # `lower()` only folds ASCII, so every connection must carry the Python
+    # normalization as a SQL function.
+    db_path = tmp_path / "test.db"
+    monkeypatch.setattr(settings, "SQLALCHEMY_DATABASE_URI", f"sqlite:///{db_path}")
+
+    engine = get_engine()
+    try:
+        with engine.connect() as connection:
+            folded = connection.execute(
+                text("SELECT normalize_text('ÁREA Ñandú')")
+            ).scalar()
+            null = connection.execute(text("SELECT normalize_text(NULL)")).scalar()
+    finally:
+        engine.dispose()
+
+    assert folded == "area nandu"
+    assert null is None

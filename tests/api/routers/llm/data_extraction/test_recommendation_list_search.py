@@ -174,3 +174,74 @@ def test_search_treats_wildcards_literally(
 
     # `%` is escaped, so it matches itself rather than every row.
     assert _search(extraction_client, "%") == []
+
+
+@dataclass
+class AccentIds:
+    """Two rows whose distinguishing text carries non-ASCII letters."""
+
+    lower_accented: str
+    upper_accented: str
+
+
+@pytest.fixture
+def seeded_accented_recommendations(extraction_client, seeded_catalogs) -> AccentIds:
+    """
+    SQLite's own `lower()` only folds ASCII, so `Á`/`Ñ` survive it untouched:
+    these rows are what proves the search folds case *and* accents on both
+    the stored text and the query.
+    """
+    doc_lower = _extract(extraction_client, "Documento con tildes en minúscula.")
+    doc_upper = _extract(extraction_client, "Documento con tildes en mayúscula.")
+
+    rec_lower = _validate(
+        extraction_client,
+        doc_lower,
+        recommendation_number="0010/2026",
+        publishable_content="Pedido al área de niñez.",
+    )
+    rec_upper = _validate(
+        extraction_client,
+        doc_upper,
+        recommendation_number="0011/2026",
+        publishable_content="Texto neutro.",
+    )
+    patch = extraction_client.patch(
+        f"/llm/data-extraction/recommendations/{rec_upper}",
+        json={"recommendation_detail": "ÁREA DE SALUD"},
+    )
+    assert patch.status_code == 200
+    return AccentIds(lower_accented=rec_lower, upper_accented=rec_upper)
+
+
+def test_search_folds_accents_and_case_of_the_query(
+    extraction_client, seeded_accented_recommendations
+):
+    ids = seeded_accented_recommendations
+
+    # Uppercase accented query against lowercase accented data, and the
+    # other way round: both sides go through the same normalization.
+    assert _search(extraction_client, "ÁREA DE NIÑEZ") == [ids.lower_accented]
+    assert _search(extraction_client, "área de salud") == [ids.upper_accented]
+
+
+def test_search_matches_accented_data_with_unaccented_query(
+    extraction_client, seeded_accented_recommendations
+):
+    ids = seeded_accented_recommendations
+
+    assert set(_search(extraction_client, "area")) == {
+        ids.lower_accented,
+        ids.upper_accented,
+    }
+    assert _search(extraction_client, "ninez") == [ids.lower_accented]
+
+
+def test_search_treats_underscore_literally(
+    extraction_client, seeded_accented_recommendations
+):
+    del seeded_accented_recommendations
+
+    # `_` is LIKE's single-char wildcard: escaped, it matches only itself.
+    assert _search(extraction_client, "_") == []
+    assert _search(extraction_client, "%rea") == []

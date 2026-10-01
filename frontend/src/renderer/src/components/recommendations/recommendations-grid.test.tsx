@@ -543,6 +543,47 @@ describe("RecommendationsGrid", () => {
     expect(link).toHaveTextContent("");
   });
 
+  it("shows the workbook's document-derived columns, read-only", async () => {
+    mockList.mockResolvedValue({
+      items: [
+        aRow({ personal_data: true, publishable_content: "Texto publicable" }),
+        aRow({
+          id: "r3",
+          recommendation_number: "REC-003",
+          personal_data: null,
+        }),
+      ],
+      total: 2,
+    });
+    renderGrid();
+
+    expect(
+      await screen.findByRole("columnheader", {
+        name: "grilla.columns.publishableContent",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "grilla.columns.personalData" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "grilla.columns.publishableContent: Texto publicable",
+      ),
+    ).toHaveTextContent("Texto publicable");
+    // Same yes/no wording as the validation form, and the export's "si"/""
+    // tri-state: never answered stays blank, not "No".
+    const [first, second] = screen.getAllByRole("row").slice(1);
+    expect(first).toHaveTextContent("validation.personalDataYes");
+    expect(second).not.toHaveTextContent("validation.personalData");
+    // Not one of the six seguimiento fields: nothing to edit here.
+    expect(
+      screen.queryByLabelText(cellLabel("personalData", "REC-001")),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(cellLabel("publishableContent", "REC-001")),
+    ).not.toBeInTheDocument();
+  });
+
   it("sends only the edited key when a seguimiento cell is committed", async () => {
     renderGrid();
 
@@ -688,6 +729,20 @@ describe("RecommendationsGrid", () => {
           orderDir: "asc",
         }),
       ),
+    );
+  });
+
+  it("sorts by the last edit by default, the column the header marks", async () => {
+    renderGrid();
+
+    const header = await screen.findByRole("columnheader", {
+      name: /grilla\.columns\.lastEdited/,
+    });
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    // What "Última edición" shows is `updated_at ?? created_at`, so that is
+    // what the request has to order by -- not `created_at` alone.
+    expect(mockList).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: "last_edited", orderDir: "desc" }),
     );
   });
 

@@ -142,10 +142,10 @@ export default function RecommendationsGrid({
   );
 
   // Debounced rather than committed on Enter: the search is a narrowing
-  // gesture people watch while typing. The endpoint answers a case-insensitive
-  // substring match over the recommendation's own text columns (número,
-  // expediente, detalle, contenido publicable, enlace -- `_SEARCH_COLUMNS`
-  // server-side), the names of its tema and subtema, and every recipient's
+  // gesture people watch while typing. The endpoint answers an accent- and
+  // case-insensitive substring match over the recommendation's own text
+  // columns (número, expediente, detalle, contenido publicable, enlace --
+  // `_SEARCH_COLUMNS` server-side), the names of its tema and subtema, and every recipient's
   // name, cargo, unidad, sector and ámbito (`recommendation_listing.py`).
   // biome-ignore lint/correctness/useExhaustiveDependencies: changeSearch reads the latest URL search through a ref
   useEffect(() => {

@@ -172,6 +172,11 @@ services:
             context: .
             dockerfile: ./docker/backup/Dockerfile
         container_name: aymurai-db-backup
+        # Runs tini as PID 1 so signals reach backup.py with their normal
+        # semantics (the kernel drops default-action signals sent to PID 1)
+        # and `docker compose stop` is delivered promptly; backup.py's own
+        # SIGTERM handler then exits cleanly between backups.
+        init: true
         volumes:
             - ./resources/cache:/resources/cache
             - ./resources/backups:/backups
@@ -179,7 +184,7 @@ services:
             BACKUP_SOURCE_DB: ${BACKUP_SOURCE_DB:-/resources/cache/sqlite/database.db}
             BACKUP_DEST_DIR: ${BACKUP_DEST_DIR:-/backups}
             BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-3600}
-            BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+            BACKUP_RETENTION: ${BACKUP_RETENTION:-336}
         restart: always
 
 volumes:

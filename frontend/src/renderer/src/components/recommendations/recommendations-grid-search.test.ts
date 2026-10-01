@@ -28,7 +28,7 @@ describe("validateGridSearch", () => {
       validateGridSearch({
         q: "",
         page: 1,
-        orderBy: "created_at",
+        orderBy: "last_edited",
         orderDir: "desc",
         view: "seguimiento",
       }),
