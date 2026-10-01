@@ -80,3 +80,24 @@ def test_default_order_breaks_ties_by_id(session):
     items, _ = recommendation_list(session)
 
     assert [item.id for item in items] == sorted(seeded)
+
+
+@pytest.mark.parametrize("order_dir", ["asc", "desc"])
+def test_order_by_last_edited_uses_updated_at_or_else_created_at(session, order_dir):
+    """`last_edited` is what the grilla's "Última edición" shows:
+    `updated_at` once the row was touched, `created_at` otherwise. Ordering
+    by `created_at` alone would put the oldest-registered row last even when
+    it was edited a minute ago."""
+    hour = timedelta(hours=1)
+    edited_recently = _seed(session, created_at=_BASE, updated_at=_BASE + 5 * hour)
+    never_edited = _seed(session, created_at=_BASE + 3 * hour, updated_at=None)
+    edited_early = _seed(
+        session, created_at=_BASE + 1 * hour, updated_at=_BASE + 2 * hour
+    )
+
+    items, _ = recommendation_list(session, order_by="last_edited", order_dir=order_dir)
+
+    expected = [edited_early, never_edited, edited_recently]
+    if order_dir == "desc":
+        expected.reverse()
+    assert [item.id for item in items] == expected

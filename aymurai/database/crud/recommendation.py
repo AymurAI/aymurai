@@ -5,6 +5,7 @@ from typing import Literal
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import Session, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
@@ -35,15 +36,20 @@ RecommendationOrderColumn = Literal[
     "status",
     "recommendation_situation",
     "file_number",
+    "last_edited",
 ]
 
-_ORDER_COLUMNS: dict[str, InstrumentedAttribute] = {
+# `last_edited` is what the grilla's "Última edición" column shows:
+# `updated_at` once anybody touched the row, `created_at` otherwise
+# (`updated_at` stays NULL until the first update after creation).
+_ORDER_COLUMNS: dict[str, InstrumentedAttribute | ColumnElement] = {
     "created_at": Recommendation.created_at,
     "recommendation_date": Recommendation.recommendation_date,
     "recommendation_number": Recommendation.recommendation_number,
     "status": Recommendation.status,
     "recommendation_situation": Recommendation.recommendation_situation,
     "file_number": Recommendation.file_number,
+    "last_edited": func.coalesce(Recommendation.updated_at, Recommendation.created_at),
 }
 
 # The columns the free-text search (`q`) spans. Kept to columns owned by
