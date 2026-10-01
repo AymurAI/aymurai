@@ -75,6 +75,8 @@ from aymurai.database.schema import (
     Recipient,
     Recommendation,
     RecommendationUpdate,
+    RecommendationSituation,
+    RecommendationStatus,
     Subtopic,
     Topic,
 )
@@ -372,9 +374,17 @@ async def api_data_extraction_validate(
 async def api_data_extraction_recommendations(
     session: SessionDep,
     topic_id: uuid.UUID | None = None,
+    subtopic_id: uuid.UUID | None = None,
     sector_id: uuid.UUID | None = None,
+    macro_sector_id: uuid.UUID | None = None,
+    recommendation_situation: RecommendationSituation | None = None,
+    status: RecommendationStatus | None = None,
+    approved_for_publication: bool | None = None,
+    publication_unanswered: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
+    edited_from: date | None = None,
+    edited_to: date | None = None,
     q: str | None = None,
     unparsed_dates: bool = False,
     order_by: RecommendationOrderColumn = "created_at",
@@ -382,12 +392,25 @@ async def api_data_extraction_recommendations(
     page: int = 1,
     page_size: int = 20,
 ):
+    if publication_unanswered and approved_for_publication is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="publication_unanswered cannot be combined with approved_for_publication",
+        )
     items, total = recommendation_list(
         session,
         topic_id=topic_id,
+        subtopic_id=subtopic_id,
         sector_id=sector_id,
+        macro_sector_id=macro_sector_id,
+        recommendation_situation=recommendation_situation,
+        status=status,
+        approved_for_publication=approved_for_publication,
+        publication_unanswered=publication_unanswered,
         date_from=date_from,
         date_to=date_to,
+        edited_from=edited_from,
+        edited_to=edited_to,
         q=q,
         unparsed_dates=unparsed_dates,
         order_by=order_by,

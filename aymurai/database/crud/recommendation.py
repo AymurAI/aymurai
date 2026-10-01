@@ -1,14 +1,15 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Literal
 
-from sqlalchemy import func, or_
-from sqlalchemy.orm import InstrumentedAttribute
 from sqlmodel import Session, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.crud.organigram.sector import is_sector_ancestor_of
+from aymurai.database.crud.recommendation_listing import (
+    RecommendationOrderColumn as RecommendationOrderColumn,
+    recommendation_list as recommendation_list,
+)
 from aymurai.database.schema import (
     MacroSector,
     OrganigramUnit,
@@ -21,40 +22,6 @@ from aymurai.database.schema import (
 from aymurai.text.matching import normalize_text
 from aymurai.transforms.datetime_formatter.recommendation_prose import (
     parse_recommendation_date,
-)
-
-# issue #58: columnas propias de la recomendación ordenables desde la grilla.
-# Los órdenes que exigen join (tema, sector) quedan fuera. `Literal` es lo que
-# hace que FastAPI devuelva 422 automáticamente ante cualquier valor fuera de
-# esta whitelist -- no hace falta validar a mano.
-RecommendationOrderColumn = Literal[
-    "created_at",
-    "recommendation_date",
-    "recommendation_number",
-    "status",
-    "recommendation_situation",
-    "file_number",
-]
-
-_ORDER_COLUMNS: dict[str, InstrumentedAttribute] = {
-    "created_at": Recommendation.created_at,
-    "recommendation_date": Recommendation.recommendation_date,
-    "recommendation_number": Recommendation.recommendation_number,
-    "status": Recommendation.status,
-    "recommendation_situation": Recommendation.recommendation_situation,
-    "file_number": Recommendation.file_number,
-}
-
-# The columns the free-text search (`q`) spans. Kept to columns owned by
-# `Recommendation` itself so one search stays one table scan -- `topic`/
-# `sector` would each need a join, which issue #58 rules out for this tajada.
-# The frontend's mock (`mockDataExtraction.ts`) and the search box's
-# placeholder copy both mirror exactly this list.
-_SEARCH_COLUMNS: tuple[InstrumentedAttribute, ...] = (
-    Recommendation.recommendation_number,
-    Recommendation.file_number,
-    Recommendation.recommendation_detail,
-    Recommendation.publishable_content,
 )
 
 
@@ -116,21 +83,6 @@ def _resolve_topic_subtopic(
         ).first()
 
     return (topic.id if topic else None, subtopic.id if subtopic else None)
-
-
-def _like_escape(value: str) -> str:
-    """
-    Escapes LIKE metacharacters so a user's literal text matches itself.
-
-    Args:
-        value (str): Raw user text.
-
-    Returns:
-        str: The text with `\\`, `%` and `_` escaped for use with
-            `.like(..., escape="\\")`. The backslash is escaped first, or it
-            would double-escape the sentinels added after it.
-    """
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _reconcile_recipients(
@@ -372,98 +324,3 @@ def recommendation_update_seguimiento(
     session.commit()
     session.refresh(recommendation)
     return recommendation
-
-
-def recommendation_list(
-    session: Session,
-    *,
-    topic_id: uuid.UUID | None = None,
-    sector_id: uuid.UUID | None = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    q: str | None = None,
-    unparsed_dates: bool = False,
-    order_by: RecommendationOrderColumn = "created_at",
-    order_dir: Literal["asc", "desc"] = "desc",
-    page: int = 1,
-    page_size: int = 20,
-) -> tuple[list[Recommendation], int]:
-    """
-    Lists recommendations in the shared dataset, filtered and paginated.
-
-    Args:
-        session (Session): Database session.
-        topic_id (uuid.UUID | None): Restrict to this topic.
-        sector_id (uuid.UUID | None): Restrict to recommendations with at
-            least one recipient resolved to this sector.
-        date_from (date | None): Minimum `recommendation_date` (inclusive).
-        date_to (date | None): Maximum `recommendation_date` (inclusive).
-        q (str | None): Case-insensitive substring search, matched against
-            any of `_SEARCH_COLUMNS`.
-        unparsed_dates (bool): Restrict to rows with prose
-            (`recommendation_date_text`) but no successfully parsed
-            `recommendation_date` -- exactly the rows that need human
-            correction.
-        order_by (RecommendationOrderColumn): Column to sort by, whitelisted
-            (issue #58) to columns that don't require a join.
-        order_dir (Literal["asc", "desc"]): Sort direction. Nulls always
-            sort last, in both directions.
-        page (int): 1-indexed page number.
-        page_size (int): Rows per page.
-
-    Returns:
-        tuple[list[Recommendation], int]: (page of results, total matching
-            rows across all pages).
-    """
-    dataset = get_or_create_default_dataset(session)
-    statement = select(Recommendation).where(Recommendation.dataset_id == dataset.id)
-
-    if topic_id is not None:
-        statement = statement.where(Recommendation.topic_id == topic_id)
-    if date_from is not None:
-        statement = statement.where(Recommendation.recommendation_date >= date_from)
-    if date_to is not None:
-        statement = statement.where(Recommendation.recommendation_date <= date_to)
-    if q:
-        # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
-        # match themselves rather than being reinterpreted as wildcards.
-        needle = _like_escape(q.lower())
-        pattern = f"%{needle}%"
-        # The four text columns that live directly on `Recommendation`: one
-        # search box, no joins. `tema`/`sector` are deliberately out (issue
-        # #58 keeps join-bound columns out of ordering, and filtering has the
-        # same cost). `func.lower(NULL)` and `NULL LIKE ...` are both NULL in
-        # SQL, so a nullable column simply never matches -- no null guard.
-        statement = statement.where(
-            or_(
-                *(
-                    func.lower(column).like(pattern, escape="\\")
-                    for column in _SEARCH_COLUMNS
-                )
-            )
-        )
-    if sector_id is not None:
-        statement = statement.where(
-            Recommendation.id.in_(
-                select(Recipient.recommendation_id).where(
-                    Recipient.sector_id == sector_id
-                )
-            )
-        )
-    if unparsed_dates:
-        statement = statement.where(
-            Recommendation.recommendation_date_text.is_not(None),
-            Recommendation.recommendation_date.is_(None),
-        )
-
-    total = session.exec(select(func.count()).select_from(statement.subquery())).one()
-
-    column = _ORDER_COLUMNS[order_by]
-    order_clause = column.asc() if order_dir == "asc" else column.desc()
-    statement = (
-        statement.order_by(order_clause.nullslast())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    items = list(session.exec(statement).all())
-    return items, total
