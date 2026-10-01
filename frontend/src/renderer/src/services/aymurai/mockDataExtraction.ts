@@ -419,11 +419,15 @@ export function mockRecommendationsList(params: {
 
   const orderBy = params.orderBy ?? "created_at";
   const orderDir = params.orderDir ?? "desc";
+  // `last_edited` is not a field of the row: the real endpoint computes it
+  // as `COALESCE(updated_at, created_at)`.
+  const sortValue = (r: RecommendationRow): unknown =>
+    orderBy === "last_edited"
+      ? (r.updated_at ?? r.created_at)
+      : (r as unknown as Record<string, unknown>)[orderBy];
   rows = [...rows].sort((a, b) => {
-    const row = a as unknown as Record<string, unknown>;
-    const other = b as unknown as Record<string, unknown>;
-    const cmp = String(row[orderBy] ?? "").localeCompare(
-      String(other[orderBy] ?? ""),
+    const cmp = String(sortValue(a) ?? "").localeCompare(
+      String(sortValue(b) ?? ""),
     );
     return orderDir === "asc" ? cmp : -cmp;
   });

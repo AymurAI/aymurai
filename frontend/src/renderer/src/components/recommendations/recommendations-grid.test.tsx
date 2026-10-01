@@ -312,6 +312,20 @@ describe("RecommendationsGrid", () => {
     );
   });
 
+  it("sorts by the last edit by default, the column the header marks", async () => {
+    renderGrid();
+
+    const header = await screen.findByRole("columnheader", {
+      name: /grilla\.columns\.lastEdited/,
+    });
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    // What "Última edición" shows is `updated_at ?? created_at`, so that is
+    // what the request has to order by -- not `created_at` alone.
+    expect(mockList).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: "last_edited", orderDir: "desc" }),
+    );
+  });
+
   it("asks the server for only the rows with an unparsed date", async () => {
     renderGrid();
 

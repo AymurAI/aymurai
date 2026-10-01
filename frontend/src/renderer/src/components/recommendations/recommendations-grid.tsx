@@ -125,7 +125,9 @@ export default function RecommendationsGrid() {
     useState<RecommendationsGridFilterValues>(EMPTY_FILTERS);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const [orderBy, setOrderBy] = useState<SortColumn>("created_at");
+  // "Última edición", newest first: the header marks that column as the
+  // active sort, so the first request has to actually order by it.
+  const [orderBy, setOrderBy] = useState<SortColumn>("last_edited");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("desc");
   // Per cell, not one flag for the screen: a save that failed on row A stays
   // reported until *that* edit succeeds, however many other rows are saved in
