@@ -111,6 +111,13 @@ respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
 exactamente los mismos bytes). Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
 
+Una vez que el archivo restaurado está en su lugar, `db-restore` vuelve a
+levantar el sidecar `db-backup` (`docker compose up -d db-backup`, lo mismo
+que `make db-backup-up`), así que los respaldos automáticos se reanudan — la
+primera corrida respalda la base restaurada. La API queda parada a
+propósito: levantala vos con `make api-up` o `make api-full-up` después de
+revisar la restauración.
+
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
 `resources/backups/`) pueden quedar con dueño root por Docker; las
 operaciones sobre archivos del lado del host que hace `db-restore`

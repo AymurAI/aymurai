@@ -105,6 +105,12 @@ separate file (or, if nothing changed since the latest backup, the snapshot
 is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
 
+Once the restored file is in place, `db-restore` starts the `db-backup`
+sidecar again (`docker compose up -d db-backup`, the same as
+`make db-backup-up`), so automatic backups resume — the first run backs up
+the restored database. The API is left stopped on purpose: start it yourself
+with `make api-up` or `make api-full-up` after checking the restore.
+
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,
 `resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side
 file operations (the `cp`/`mv`/`rm` steps) need permission to write there, so
