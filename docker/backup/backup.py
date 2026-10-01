@@ -27,8 +27,9 @@ import os
 import signal
 import sqlite3
 import sys
+import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,8 +69,9 @@ class BackupConfig:
 def latest_backup(dest_dir: Path) -> Path | None:
     """The most recent dated backup in `dest_dir`, or `None` if there is none.
 
-    The timestamp in the name is fixed-width and zero-padded, so the last
-    name in sorted order is the newest.
+    The timestamp in the name is fixed-width and zero-padded, and a
+    same-second collision gets a `_NN` suffix that sorts after the bare
+    name (`.` < `_`), so the last name in sorted order is the newest.
     """
     backups = sorted(dest_dir.glob("database_*.db"))
     return backups[-1] if backups else None
@@ -80,20 +82,56 @@ def _sha256(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
-def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path | None:
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _publish(tmp_path: Path, dest_dir: Path, timestamp: str) -> Path:
+    """Gives a finished copy its final name without ever overwriting a backup.
+
+    Timestamps have 1-second resolution, and two runs can land in the same
+    second (db-restore's pre-restore `--once` snapshot followed by the
+    restarted loop's first run; `make db-backup` while the loop runs).
+    `os.link` fails if the name is taken, so a collision moves on to
+    `database_<ts>_01.db`, `_02`, ... -- names that still match the
+    `database_*.db` glob and sort after the bare name and before the next
+    second, keeping name order equal to time order.
+    """
+    for n in range(100):
+        suffix = "" if n == 0 else f"_{n:02d}"
+        candidate = dest_dir / f"database_{timestamp}{suffix}.db"
+        try:
+            os.link(tmp_path, candidate)
+        except FileExistsError:
+            continue
+        tmp_path.unlink()
+        return candidate
+    raise FileExistsError(f"no free backup name for timestamp {timestamp}")
+
+
+def run_backup(
+    source_db: Path,
+    dest_dir: Path,
+    *,
+    strict: bool = False,
+    now: Callable[[], datetime] = _utc_now,
+) -> Path | None:
     """Writes one dated backup of `source_db` into `dest_dir`.
 
     Writes to a temporary file outside the `database_*.db` glob first, and
-    only renames it once the copy finishes -- so a backup that fails
-    partway through never leaves a 0-byte `.db` file that looks like a
-    valid backup, never consumes a retention slot, and never shows up as a
-    restore candidate.
+    only gives it its final name once the copy finishes -- so a backup that
+    fails partway through never leaves a 0-byte `.db` file that looks like
+    a valid backup, never consumes a retention slot, and never shows up as
+    a restore candidate. The temporary name is unique per run (`mkstemp`),
+    so concurrent runs never write to -- or clean up -- each other's file,
+    and the final name never replaces an existing backup (see `_publish`).
 
     Args:
         source_db: The live database to copy.
         dest_dir: Directory the dated backup is written to (created if missing).
         strict: Re-raise a failed backup instead of logging it -- a manual
             `--once` run must fail loudly, not report success.
+        now: Clock for the UTC timestamp in the name (injectable for tests).
 
     Returns:
         Path | None: The written backup's path, or `None` if there was no
@@ -107,11 +145,15 @@ def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path
         return None
 
     dest_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    dest_path = dest_dir / f"database_{timestamp}.db"
-    tmp_path = dest_dir / f".database_{timestamp}.db.partial"
+    timestamp = now().strftime("%Y%m%d%H%M%S")
+    tmp_path: Path | None = None
 
     try:
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".database_{timestamp}_", suffix=".db.partial", dir=dest_dir
+        )
+        os.close(fd)
+        tmp_path = Path(tmp_name)
         source_conn = sqlite3.connect(str(source_db))
         try:
             dest_conn = sqlite3.connect(str(tmp_path))
@@ -126,9 +168,10 @@ def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path
             tmp_path.unlink()
             log(f"unchanged since {latest.name}, skipped")
             return None
-        tmp_path.replace(dest_path)  # atomic: only a complete copy gets the real name
+        dest_path = _publish(tmp_path, dest_dir, timestamp)
     except (sqlite3.Error, OSError) as exc:
-        tmp_path.unlink(missing_ok=True)
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
         log(f"FAILED to back up {source_db}: {exc}")
         if strict:
             raise
@@ -197,7 +240,13 @@ class Shutdown:
             time.sleep(min(remaining, 1.0))
 
 
-def run(config: BackupConfig, *, once: bool, shutdown: Shutdown | None = None) -> None:
+def run(
+    config: BackupConfig,
+    *,
+    once: bool,
+    shutdown: Shutdown | None = None,
+    now: Callable[[], datetime] = _utc_now,
+) -> None:
     """Runs one backup+prune cycle, or loops on `config.interval_seconds`.
 
     `once` selects the single-cycle mode `make db-backup` and `db-restore`'s
@@ -209,7 +258,7 @@ def run(config: BackupConfig, *, once: bool, shutdown: Shutdown | None = None) -
     if not once:
         remove_stale_partials(config.dest_dir)
     while not shutdown.requested:
-        run_backup(config.source_db, config.dest_dir, strict=once)
+        run_backup(config.source_db, config.dest_dir, strict=once, now=now)
         prune_old_backups(config.dest_dir, config.retention)
         if once:
             return
