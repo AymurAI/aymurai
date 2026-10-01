@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
+from sqlalchemy import text
 from sqlmodel import Session
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
@@ -16,6 +17,7 @@ from aymurai.database.schema import (
     Subtopic,
     Topic,
 )
+from aymurai.settings import settings
 
 
 @dataclass
@@ -198,3 +200,47 @@ def test_invalid_filters_return_422(extraction_client, params):
         "/llm/data-extraction/recommendations", params=params
     )
     assert response.status_code == 422
+
+
+@pytest.fixture
+def late_edit_rows(extraction_engine, monkeypatch):
+    """One row last edited at 23:30 in Buenos Aires (02:30 UTC the next day),
+    and one never-edited row whose `created_at` is in the legacy
+    `CURRENT_TIMESTAMP` spelling (no fractional seconds)."""
+    monkeypatch.setattr(settings, "EXPORT_TIMEZONE", "America/Argentina/Buenos_Aires")
+    with Session(extraction_engine) as session:
+        dataset = get_or_create_default_dataset(session)
+        late = Recommendation(
+            dataset_id=dataset.id,
+            document_id=uuid.uuid4(),
+            publishable_content="Tarde",
+            created_at=datetime(2026, 3, 1, 12, 0),
+            updated_at=datetime(2026, 3, 11, 2, 30),
+        )
+        legacy = Recommendation(
+            dataset_id=dataset.id,
+            document_id=uuid.uuid4(),
+            publishable_content="Legacy",
+        )
+        session.add_all([late, legacy])
+        session.commit()
+        session.execute(
+            text("UPDATE recommendation SET created_at = :ts WHERE id = :id"),
+            {"ts": "2026-03-10 12:00:00", "id": legacy.id.hex},
+        )
+        session.commit()
+        return str(late.id), str(legacy.id)
+
+
+def test_last_edited_filters_use_the_local_calendar_day(
+    extraction_client, late_edit_rows
+):
+    late, legacy = late_edit_rows
+
+    def ids(**params) -> set[str]:
+        return {row["id"] for row in _page(extraction_client, **params)["items"]}
+
+    assert ids(edited_from="2026-03-10", edited_to="2026-03-10") == {late, legacy}
+    assert ids(edited_to="2026-03-10") == {late, legacy}
+    assert ids(edited_from="2026-03-11") == set()
+    assert ids(edited_to="2026-03-09") == set()

@@ -1,8 +1,9 @@
 """Dataset-scoped recommendation search, filtering, and pagination."""
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import InstrumentedAttribute
@@ -19,6 +20,7 @@ from aymurai.database.schema import (
     Subtopic,
     Topic,
 )
+from aymurai.settings import settings
 
 # issue #58: columnas propias de la recomendación ordenables desde la grilla.
 # Los órdenes que exigen join (tema, sector) quedan fuera. `Literal` es lo que
@@ -66,6 +68,29 @@ def _like_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _local_day_start_utc(day: date) -> str:
+    """
+    The UTC instant at which `day` starts in `settings.EXPORT_TIMEZONE`.
+
+    The grilla shows "última edición" in local time (and the export dates it
+    the same way, `_to_local_date`), while timestamps are stored naive UTC --
+    so a day the person picks must be turned into the UTC range it covers.
+    Filtering on the UTC date instead would file an edit made after 21:00 in
+    Buenos Aires (UTC-3) under the following day.
+
+    Args:
+        day (date): Calendar day in the local timezone.
+
+    Returns:
+        str: Naive UTC `YYYY-MM-DD HH:MM:SS`, the format SQLite's
+            `datetime()` reads and emits.
+    """
+    local_midnight = datetime.combine(
+        day, time.min, tzinfo=ZoneInfo(settings.EXPORT_TIMEZONE)
+    )
+    return local_midnight.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def recommendation_list(
     session: Session,
     *,
@@ -103,6 +128,9 @@ def recommendation_list(
         publication_unanswered (bool): Match unanswered only; false adds no filter.
         date_from (date | None): Minimum `recommendation_date` (inclusive).
         date_to (date | None): Maximum `recommendation_date` (inclusive).
+        edited_from (date | None): Minimum local day (in
+            `settings.EXPORT_TIMEZONE`) of the last edit, inclusive.
+        edited_to (date | None): Maximum local day of the last edit, inclusive.
         q (str | None): Case-insensitive substring search, matched against
             recommendation text and all recipients and their resolved names.
         unparsed_dates (bool): Restrict to rows with prose
@@ -136,13 +164,21 @@ def recommendation_list(
         statement = statement.where(Recommendation.recommendation_date >= date_from)
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
-    last_edited = func.date(
+    # `datetime()` on both sides, not raw comparison: stored values mix the
+    # legacy `CURRENT_TIMESTAMP` spelling (no fraction) with SQLAlchemy's
+    # `.ffffff` one, and the two don't order correctly as text.
+    last_edited = func.datetime(
         func.coalesce(Recommendation.updated_at, Recommendation.created_at)
     )
     if edited_from is not None:
-        statement = statement.where(last_edited >= edited_from)
+        statement = statement.where(
+            last_edited >= func.datetime(_local_day_start_utc(edited_from))
+        )
     if edited_to is not None:
-        statement = statement.where(last_edited <= edited_to)
+        statement = statement.where(
+            last_edited
+            < func.datetime(_local_day_start_utc(edited_to + timedelta(days=1)))
+        )
     if q:
         # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
         # match themselves rather than being reinterpreted as wildcards.
