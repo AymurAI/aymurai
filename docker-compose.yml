@@ -4,6 +4,8 @@ x-api-lite: &api-lite
         context: .
         dockerfile: ./docker/api/Dockerfile
         target: aymurai-api
+        args:
+            DEFENSORIA_ENABLED: ${DEFENSORIA_ENABLED:-false}
     shm_size: "2gb"
     ports:
         - "8899:8899"
@@ -19,6 +21,8 @@ x-api-full: &api-full
         context: .
         dockerfile: ./docker/api/Dockerfile
         target: aymurai-api-full
+        args:
+            DEFENSORIA_ENABLED: ${DEFENSORIA_ENABLED:-false}
     shm_size: "2gb"
     ports:
         - "8899:8899"
@@ -35,7 +39,7 @@ x-api-full: &api-full
                 cpus: "4.0"
 
 x-llamacpp: &llamacpp-base
-    image: ghcr.io/ggml-org/llama.cpp:server
+    image: ghcr.io/ggml-org/llama.cpp:server-b10615
     ports:
         - "8080:8080"
     volumes:
@@ -43,13 +47,10 @@ x-llamacpp: &llamacpp-base
     command: >
         -m /models/${LLAMACPP_MODEL_FILE}
         --host 0.0.0.0 --port 8080
-        -c ${LLAMACPP_CTX_SIZE:-16384}
-    environment:
-        # Reasoning is a server-launch concern: it cannot be set per request
-        # (llama.cpp discussion #21445), and chat_template_kwargs.enable_thinking
-        # is model-dependent (issue #20182).
-        LLAMA_ARG_REASONING: ${LLM_REASONING:-auto}
-        LLAMA_ARG_THINK_BUDGET: ${LLM_THINK_BUDGET:--1}
+        -c ${LLAMACPP_CTX_SIZE:-65536}
+    # Data extraction disables reasoning per request with
+    # extra_body.reasoning_effort="none". Do not disable reasoning globally:
+    # summarization keeps the model's default reasoning behaviour.
     restart: always
     shm_size: "2gb"
 
@@ -71,7 +72,7 @@ services:
 
     llamacpp-gpu:
         <<: *llamacpp-base
-        image: ghcr.io/ggml-org/llama.cpp:server-cuda
+        image: ghcr.io/ggml-org/llama.cpp:server-cuda-b10615
         container_name: llamacpp-gpu
         deploy:
             resources:

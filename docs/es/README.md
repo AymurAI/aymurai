@@ -7,6 +7,7 @@ Documentación operativa de AymurAI `v2.0.0`.
 - Entrada del repositorio: [../../README.es.md](../../README.es.md)
 - Referencia de API: [api/README.md](api/README.md)
 - Referencia de configuración: [configuration/README.md](configuration/README.md)
+- Runbook de despliegue de Defensoría: [deployment/defensoria.md](deployment/defensoria.md)
 - Esquema de base de datos interna: [database/README.md](database/README.md)
 - Desarrollo y empaquetado del frontend: [../../frontend/README.md](../../frontend/README.md)
 

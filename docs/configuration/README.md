@@ -141,14 +141,12 @@ These configure the `llamacpp` service itself and never reach the Python process
 |---|---|---|
 | `LLAMACPP_MODELS_DIR` | `~/.llama.cpp/models` | Host directory mounted read-only at `/models` |
 | `LLAMACPP_MODEL_FILE` | *(required)* | GGUF filename inside that directory |
-| `LLAMACPP_CTX_SIZE` | `16384` | Server context window (`-c`) |
-| `LLM_REASONING` | `auto` | `on` / `off` / `auto`; becomes `LLAMA_ARG_REASONING` |
-| `LLM_THINK_BUDGET` | `-1` | `-1` unrestricted / `0` immediate end / `N` token budget; becomes `LLAMA_ARG_THINK_BUDGET` |
+| `LLAMACPP_CTX_SIZE` | `65536` | Server context window (`-c`); sized for the measured Defensoria corpus |
 
-Reasoning is a **launch-time** concern: llama.cpp has no per-request thinking
-budget, and `enable_thinking` is model-dependent. If summaries come back empty,
-the model is spending its whole `max_tokens` on reasoning — raise `max_tokens`
-or set `LLM_THINK_BUDGET=0`.
+The Compose service pins llama.cpp to build `b10615`. Defensoria extraction
+sets `reasoning_effort: "none"` per request; summarization retains the model's
+default behaviour. Do not disable reasoning globally at server launch, because
+that changes the summarization route too.
 
 ## Defensoría del Pueblo (data extraction)
 
@@ -242,14 +240,14 @@ in the usual way, and are evaluated at import time:
 | `PDF_WATERMARK_FONT_REGULAR`, `PDF_WATERMARK_FONT_BOLD` | `aymurai/text/anonymization/pdf/watermark.py` (env takes precedence over the `Settings` field of the same name) |
 
 ## A note on `.env.schema`
-The `.env.schema` in the repository root was produced by `varlock init`, which
-scanned installed dependencies and emitted several hundred PyTorch, Jupyter and
-build-tool variables that AymurAI never reads. It still contains the placeholder
-`EXAMPLE_ITEM="delete me!"`. **Do not treat it as the configuration contract** —
-this page is. Start from `.env.common` and add only what you need.
+The root `.env.schema` is the machine-readable deployment contract: it contains
+only AymurAI and Compose settings, types, safe defaults, and sensitivity marks.
+Keep secret values in a deployment secret store or a gitignored local override,
+then validate the resolved configuration with `varlock load --agent`.
 
 ## Related docs
 - Documentation index: [../README.md](../README.md)
 - API reference: [../api/README.md](../api/README.md)
 - Internal database: [../database/README.md](../database/README.md)
 - Pipelines index: [../pipelines/README.md](../pipelines/README.md)
+- Defensoria deployment: [../deployment/defensoria.md](../deployment/defensoria.md)

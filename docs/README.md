@@ -7,6 +7,7 @@ Operational documentation for AymurAI `v2.0.0`.
 - Repository entrypoint: [../README.md](../README.md)
 - API reference: [api/README.md](api/README.md)
 - Configuration reference: [configuration/README.md](configuration/README.md)
+- Defensoria deployment runbook: [deployment/defensoria.md](deployment/defensoria.md)
 - Internal database schema: [database/README.md](database/README.md)
 - Frontend development and packaging: [../frontend/README.md](../frontend/README.md)
 

@@ -144,14 +144,12 @@ Configuran el servicio `llamacpp` en sí y nunca llegan al proceso Python.
 |---|---|---|
 | `LLAMACPP_MODELS_DIR` | `~/.llama.cpp/models` | Directorio del host montado read-only en `/models` |
 | `LLAMACPP_MODEL_FILE` | *(requerida)* | Nombre del GGUF dentro de ese directorio |
-| `LLAMACPP_CTX_SIZE` | `16384` | Ventana de contexto del server (`-c`) |
-| `LLM_REASONING` | `auto` | `on` / `off` / `auto`; se traduce a `LLAMA_ARG_REASONING` |
-| `LLM_THINK_BUDGET` | `-1` | `-1` sin límite / `0` corte inmediato / `N` presupuesto de tokens; se traduce a `LLAMA_ARG_THINK_BUDGET` |
+| `LLAMACPP_CTX_SIZE` | `65536` | Ventana de contexto del server (`-c`), dimensionada para el corpus medido de Defensoría |
 
-El razonamiento es un asunto **de arranque**: llama.cpp no tiene presupuesto de
-thinking por request, y `enable_thinking` depende del modelo. Si los resúmenes
-vuelven vacíos, el modelo está gastando todo su `max_tokens` en razonamiento —
-subí `max_tokens` o poné `LLM_THINK_BUDGET=0`.
+El servicio de Compose fija llama.cpp en el build `b10615`. La extracción de
+Defensoría manda `reasoning_effort: "none"` por request; la sumarización conserva
+el comportamiento por defecto del modelo. No desactives razonamiento globalmente
+al iniciar el server, porque también cambia la ruta de sumarización.
 
 ## Defensoría del Pueblo (extracción de datos)
 
@@ -246,14 +244,14 @@ manera habitual, y se evalúan al importar:
 | `PDF_WATERMARK_FONT_REGULAR`, `PDF_WATERMARK_FONT_BOLD` | `aymurai/text/anonymization/pdf/watermark.py` (el env tiene precedencia sobre el campo homónimo de `Settings`) |
 
 ## Sobre `.env.schema`
-El `.env.schema` de la raíz lo generó `varlock init`, que escaneó las dependencias
-instaladas y emitió varios cientos de variables de PyTorch, Jupyter y
-herramientas de build que AymurAI nunca lee. Todavía contiene el placeholder
-`EXAMPLE_ITEM="delete me!"`. **No lo trates como el contrato de configuración** —
-esta página lo es. Arrancá desde `.env.common` y agregá solo lo que necesites.
+El `.env.schema` de la raíz es el contrato de despliegue legible por máquinas:
+contiene sólo settings de AymurAI y Compose, tipos, defaults seguros y marcas de
+sensibilidad. Guardá los secretos en el secret store del despliegue o en un
+override local ignorado por Git y validá el resultado con `varlock load --agent`.
 
 ## Documentos relacionados
 - Índice de documentación: [../README.md](../README.md)
 - Referencia de API: [../api/README.md](../api/README.md)
 - Base de datos interna: [../database/README.md](../database/README.md)
 - Índice de pipelines: [../pipelines/README.md](../pipelines/README.md)
+- Despliegue de Defensoría: [../deployment/defensoria.md](../deployment/defensoria.md)
