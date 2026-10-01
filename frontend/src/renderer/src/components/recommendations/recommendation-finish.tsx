@@ -61,9 +61,10 @@ export default function RecommendationFinish({
   // The button itself is still gated by `isDefensoriaEnabled()` below, even
   // though this whole screen is already unreachable with the flag off (see
   // `$feature/route.tsx`'s `beforeLoad`). That route guard is an implicit,
-  // transitive gate; the explicit check here matches the other two entry
-  // points (features-menu.tsx, routes/home/features.tsx) so this component
-  // stays correct on its own if it's ever reached a different way.
+  // transitive gate; the explicit check here matches the other entry point
+  // (the Recommendations onboarding, `$feature/onboarding.tsx` -- ADR-0016)
+  // so this component stays correct on its own if it's ever reached a
+  // different way.
   const handleGoToGrilla = () => navigate({ to: "/home/dataset" });
 
   return (
