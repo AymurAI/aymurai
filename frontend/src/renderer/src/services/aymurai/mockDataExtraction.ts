@@ -1,16 +1,21 @@
+import { AxiosError } from "axios";
 import type {
   DataExtractionPrediction,
   DocumentExtractionEnvelope,
   RecipientDetail,
+  RecommendationDetail,
   RecommendationEnums,
   RecommendationPage,
   RecommendationRow,
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
-import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 import type { RecommendationsExportResult } from "./dataExtraction";
+import {
+  type MockRecommendationsQuery,
+  queryMockRecommendations,
+} from "./mockRecommendationsQuery";
 
 const now = "2026-08-28T00:00:00Z";
 
@@ -301,7 +306,7 @@ const RECOMMENDATION_STATUSES = ["Solucionado", "No solucionado"];
  * seguimiento fields set), so `unparsedDates`/empty-state UI has something
  * real to show against.
  */
-const recommendationRows = new Map<string, RecommendationRow>([
+const recommendationRows = new Map<string, RecommendationDetail>([
   [
     "recommendation-1",
     {
@@ -324,6 +329,29 @@ const recommendationRows = new Map<string, RecommendationRow>([
       link: null,
       created_at: now,
       updated_at: null,
+      source_text:
+        "El organismo destinatario deberá arbitrar los medios necesarios para garantizar el acceso a medicamentos esenciales a la población afectada.",
+      source_paragraphs: [
+        "El organismo destinatario deberá arbitrar los medios necesarios para garantizar el acceso a medicamentos esenciales a la población afectada.",
+      ],
+      // Deliberately the RAW extraction shape (`RawExtraction.model_dump()`
+      // in `aymurai/api/endpoints/routers/llm/data_extraction_engine.py`),
+      // NOT `DataExtractionPrediction` -- the backend stores this narrower
+      // dict (no `document_id`/`config`/`catalogs_stale`, and recipients
+      // without the resolved organigram fields), confirmed empirically
+      // against a real extract→validate→correct cycle. See task-2-report.md
+      // for why `predictionFromDetail` (Task 2 item 5) was not implemented
+      // against `dataExtractionPredictionSchema`.
+      prediction: {
+        recommendation_number: "123/2026",
+        recommendation_date: "22 de noviembre",
+        recipients: [],
+        topic: "Salud",
+        subtopic: "Acceso a medicamentos",
+        personal_data: false,
+        publishable_content:
+          "La Defensoría recomienda al organismo destinatario que arbitre los medios necesarios para garantizar el acceso a medicamentos esenciales.",
+      },
     },
   ],
   [
@@ -352,85 +380,34 @@ const recommendationRows = new Map<string, RecommendationRow>([
       link: "https://example.org/recomendacion-456",
       created_at: now,
       updated_at: now,
+      source_text:
+        "Durante el pasado mes se recibieron reclamos por demoras en el trámite de solicitudes de vivienda social.",
+      // A legacy row: extracted before the backend stored paragraphs.
+      source_paragraphs: null,
+      prediction: {
+        recommendation_number: "456/2026",
+        recommendation_date: "durante el pasado mes",
+        recipients: [],
+        topic: "Vivienda",
+        subtopic: null,
+        personal_data: null,
+        publishable_content:
+          "La Defensoría recomienda al organismo destinatario que agilice el trámite de la solicitud de vivienda.",
+      },
     },
   ],
 ]);
 
-export function mockRecommendationsList(params: {
-  page?: number;
-  pageSize?: number;
-  orderBy?: string;
-  orderDir?: "asc" | "desc";
-  unparsedDates?: boolean;
-  q?: string;
-  // `RecommendationRow` carries `topic`/`subtopic` names, not the ids the
-  // real endpoint filters by, and no sector at all (that lives on
-  // recipients) -- the seed data is too small for id-based filtering to mean
-  // anything client-side, so these two are accepted for signature parity
-  // with the real params but intentionally not applied below.
-  topicId?: string;
-  sectorId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}): Promise<RecommendationPage> {
+export async function mockRecommendationsList(
+  params: MockRecommendationsQuery & { page?: number; pageSize?: number },
+): Promise<RecommendationPage> {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 20;
 
-  let rows = Array.from(recommendationRows.values());
-
-  if (params.unparsedDates) {
-    // Both halves, exactly as the real filter does it: prose the model read
-    // but could not parse. A row with no date text at all was never a date
-    // to interpret, so it is not one a human has to correct.
-    rows = rows.filter(
-      (r) =>
-        r.recommendation_date_text !== null && r.recommendation_date === null,
-    );
-  }
-  // Folded like the real endpoint does it (`normalize_text` on both sides),
-  // so "area" finds "Área" here too.
-  const q = normalizeForSearch(params.q);
-  if (q) {
-    // The same four columns the real endpoint ORs over (see `_SEARCH_COLUMNS`
-    // in `database/crud/recommendation.py`). `topic` is deliberately NOT one
-    // of them -- matching it server-side would need a join (issue #58).
-    rows = rows.filter((r) =>
-      [
-        r.recommendation_number,
-        r.file_number,
-        r.recommendation_detail,
-        r.publishable_content,
-      ].some((field) => field != null && normalizeForSearch(field).includes(q)),
-    );
-  }
-  const dateFrom = params.dateFrom;
-  if (dateFrom) {
-    rows = rows.filter(
-      (r) =>
-        r.recommendation_date !== null && r.recommendation_date >= dateFrom,
-    );
-  }
-  const dateTo = params.dateTo;
-  if (dateTo) {
-    rows = rows.filter(
-      (r) => r.recommendation_date !== null && r.recommendation_date <= dateTo,
-    );
-  }
-
-  const orderBy = params.orderBy ?? "created_at";
-  const orderDir = params.orderDir ?? "desc";
-  // `last_edited` is not a field of the row: the real endpoint computes it
-  // as `COALESCE(updated_at, created_at)`.
-  const sortValue = (r: RecommendationRow): unknown =>
-    orderBy === "last_edited"
-      ? (r.updated_at ?? r.created_at)
-      : (r as unknown as Record<string, unknown>)[orderBy];
-  rows = [...rows].sort((a, b) => {
-    const cmp = String(sortValue(a) ?? "").localeCompare(
-      String(sortValue(b) ?? ""),
-    );
-    return orderDir === "asc" ? cmp : -cmp;
-  });
+  const rows = await queryMockRecommendations(
+    Array.from(recommendationRows.values()),
+    params,
+  );
 
   const total = rows.length;
   const start = (page - 1) * pageSize;
@@ -463,10 +440,96 @@ export function mockPatchRecommendationSeguimiento(input: {
   // Object spread only copies keys `payload` actually has, same
   // absent-vs-null semantics as the real PATCH -- an omitted field here
   // leaves `existing`'s value untouched, exactly as `exclude_unset` does
-  // server-side.
-  const updated: RecommendationRow = {
+  // server-side. `existing` carries `source_text`/`prediction` too (the map
+  // now stores the full detail, per mockRecommendationDetail below), so this
+  // preserves them even though the PATCH response itself only needs the row.
+  const updated: RecommendationDetail = {
     ...existing,
     ...input.payload,
+    updated_at: now,
+  };
+  recommendationRows.set(input.recommendationId, updated);
+  return delay(updated);
+}
+
+/**
+ * Single-recommendation detail (source text + raw prediction) for the
+ * correction screen -- mirrors `GET /llm/data-extraction/recommendations/{id}`.
+ */
+export function mockRecommendationDetail(
+  recommendationId: string,
+): Promise<RecommendationDetail> {
+  const existing = recommendationRows.get(recommendationId);
+  if (!existing) {
+    throw new Error(`Recommendation not found: ${recommendationId}`);
+  }
+  return delay(existing);
+}
+
+/**
+ * Saves a correction, simulating the real endpoint's `If-Match` optimistic
+ * concurrency check (mirrors `_etag` in
+ * `tests/api/routers/llm/data_extraction/test_recommendation_correction.py`:
+ * `updated_at` when set, else `created_at`). A mismatch rejects with an
+ * `AxiosError` shaped like the real 412 response
+ * (`error.response?.status === 412`), the same check the real branch's PUT
+ * would surface, so the Task 3 conflict UI has something to exercise here too.
+ */
+export function mockCorrectRecommendation(input: {
+  recommendationId: string;
+  ifMatch: string;
+  payload: RecommendationValidationInput;
+}): Promise<RecommendationDetail> {
+  const existing = recommendationRows.get(input.recommendationId);
+  if (!existing) {
+    throw new Error(`Recommendation not found: ${input.recommendationId}`);
+  }
+
+  const currentEtag = existing.updated_at ?? existing.created_at;
+  if (input.ifMatch !== currentEtag) {
+    return Promise.reject(
+      new AxiosError(
+        "Precondition Failed: the recommendation was modified since it was last read.",
+        "ERR_BAD_REQUEST",
+        undefined,
+        undefined,
+        {
+          status: 412,
+          statusText: "Precondition Failed",
+          data: { detail: "Precondition Failed" },
+          headers: {},
+          config: {},
+        } as never,
+      ),
+    );
+  }
+
+  const recipients: RecipientDetail[] = input.payload.recipients.map((r) => ({
+    id: r.id ?? makeId("recipient"),
+    source_index: r.source_index ?? null,
+    name: r.name,
+    position: r.position,
+    is_primary: r.is_primary,
+    macro_sector: r.macro_sector,
+    unit_id: r.unit_id,
+    unit_name: r.unit_id ? (UNIT_NAMES[r.unit_id] ?? null) : null,
+    sector_id: r.sector_id,
+    sector_name: r.sector_id ? (SECTOR_NAMES[r.sector_id] ?? null) : null,
+  }));
+
+  const updated: RecommendationDetail = {
+    ...existing,
+    recommendation_number: input.payload.recommendation_number,
+    recommendation_date_text: input.payload.recommendation_date_text,
+    // Same re-derive-unless-overridden rule as mockValidateRecommendation.
+    recommendation_date:
+      input.payload.recommendation_date ??
+      parseSpanishProseDate(input.payload.recommendation_date_text),
+    topic: input.payload.topic,
+    subtopic: input.payload.subtopic,
+    personal_data: input.payload.personal_data,
+    publishable_content: input.payload.publishable_content,
+    recipients,
     updated_at: now,
   };
   recommendationRows.set(input.recommendationId, updated);

@@ -48,7 +48,7 @@ def test_xlsx_writes_formula_like_values_as_literal_text(payload):
     recomendaciones = [
         _recomendacion(
             LINK=payload,
-            DETALLE_DE_LA_RECOMENDACION=payload,
+            DETALLE_DE_LA_SITUACION=payload,
             EXPEDIENTE=payload,
         )
     ]
@@ -58,7 +58,7 @@ def test_xlsx_writes_formula_like_values_as_literal_text(payload):
     try:
         workbook = openpyxl.load_workbook(path)
         recomendaciones_sheet = workbook["recomendaciones"]
-        for column in ("LINK", "DETALLE_DE_LA_RECOMENDACION", "EXPEDIENTE"):
+        for column in ("LINK", "DETALLE_DE_LA_SITUACION", "EXPEDIENTE"):
             cell = _cell(recomendaciones_sheet, column, RECOMENDACIONES_COLUMNS)
             assert cell.data_type == "s"
             # The visible value is exactly what was typed -- no added quote.
@@ -99,9 +99,7 @@ def test_xlsx_leaves_ordinary_values_alone():
 
 @pytest.mark.parametrize("payload", PAYLOADS)
 def test_csv_prefixes_formula_like_values_with_a_quote(payload):
-    path = write_csv(
-        [_recomendacion(LINK=payload, DETALLE_DE_LA_RECOMENDACION=payload)]
-    )
+    path = write_csv([_recomendacion(LINK=payload, DETALLE_DE_LA_SITUACION=payload)])
     try:
         with path.open(newline="", encoding="utf-8") as handle:
             [row] = list(csv.DictReader(handle))
@@ -111,7 +109,7 @@ def test_csv_prefixes_formula_like_values_with_a_quote(payload):
     # OWASP's CSV-injection advice: a leading `'` makes the spreadsheet read
     # the field as text. CSV has no cell type to carry that otherwise.
     assert row["LINK"] == f"'{payload}"
-    assert row["DETALLE_DE_LA_RECOMENDACION"] == f"'{payload}"
+    assert row["DETALLE_DE_LA_SITUACION"] == f"'{payload}"
 
 
 def test_csv_leaves_ordinary_values_alone():
@@ -143,12 +141,12 @@ def test_bullet_text_is_faithful_in_xlsx_and_quote_marked_in_csv():
     try to evaluate it (`#NAME?`). Deliberate trade-off: the xlsx -- the
     format the UI downloads -- keeps it byte-for-byte as text; the CSV marks
     it with a leading `'` because it has no other way to say "text"."""
-    rows = [_recomendacion(DETALLE_DE_LA_RECOMENDACION=BULLET)]
+    rows = [_recomendacion(DETALLE_DE_LA_SITUACION=BULLET)]
 
     xlsx = write_xlsx(rows, [])
     try:
         sheet = openpyxl.load_workbook(xlsx)["recomendaciones"]
-        cell = _cell(sheet, "DETALLE_DE_LA_RECOMENDACION", RECOMENDACIONES_COLUMNS)
+        cell = _cell(sheet, "DETALLE_DE_LA_SITUACION", RECOMENDACIONES_COLUMNS)
         assert cell.value == BULLET
         assert cell.data_type == "s"
     finally:
@@ -160,4 +158,4 @@ def test_bullet_text_is_faithful_in_xlsx_and_quote_marked_in_csv():
             [row] = list(csv.DictReader(handle))
     finally:
         csv_path.unlink()
-    assert row["DETALLE_DE_LA_RECOMENDACION"] == f"'{BULLET}"
+    assert row["DETALLE_DE_LA_SITUACION"] == f"'{BULLET}"

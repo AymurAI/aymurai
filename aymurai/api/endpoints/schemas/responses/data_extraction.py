@@ -149,6 +149,10 @@ class RecommendationResponse(BaseModel):
 
 class RecommendationDetailResponse(RecommendationResponse):
     source_text: str
+    # The document's paragraphs as extracted; `None` for an extraction stored
+    # before they were kept, where the client falls back to splitting
+    # `source_text` on newlines.
+    source_paragraphs: list[str] | None = None
     prediction: dict[str, Any]
 
 

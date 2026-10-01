@@ -10,8 +10,7 @@ import RecommendationFinish from "./recommendation-finish";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
-      if (key === "finish.download")
-        return "Descargar la base de recomendaciones";
+      if (key === "finish.download") return "Exportar set de datos";
       if (key === "finish.restart") return "Procesar otro documento";
       if (key === "finish.viewGrilla") return "Ir a seguimiento";
       return key;
@@ -71,7 +70,7 @@ describe("RecommendationFinish", () => {
 
   it("downloads the export from the server", async () => {
     renderFinish();
-    fireEvent.click(screen.getByRole("button", { name: /descargar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
     await waitFor(() => expect(mockDownloadBlob).toHaveBeenCalled());
     expect(mockDownload).toHaveBeenCalledWith("xlsx", expect.anything());
     expect(mockDownloadBlob).toHaveBeenCalledWith(
@@ -86,7 +85,7 @@ describe("RecommendationFinish", () => {
       excel: { write: vi.fn() },
     } as unknown as Window["filesystem"];
     renderFinish();
-    fireEvent.click(screen.getByRole("button", { name: /descargar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
     await waitFor(() => expect(mockDownloadBlob).toHaveBeenCalled());
     expect(window.filesystem?.excel?.write).not.toHaveBeenCalled();
   });
@@ -108,10 +107,10 @@ describe("RecommendationFinish", () => {
   it("shows an error and lets the person retry when the download fails", async () => {
     mockDownload.mockRejectedValueOnce(new Error("500"));
     renderFinish();
-    fireEvent.click(screen.getByRole("button", { name: /descargar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(
-      screen.getByRole("button", { name: /descargar/i }),
+      screen.getByRole("button", { name: /exportar/i }),
     ).not.toBeDisabled();
   });
 });

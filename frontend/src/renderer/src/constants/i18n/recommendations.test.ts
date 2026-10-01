@@ -50,3 +50,19 @@ describe("recommendations i18n — unvalidated-fields warning", () => {
     expect(recommendations.validation.validateAnyway.length).toBeGreaterThan(0);
   });
 });
+
+describe("recommendations i18n — editing", () => {
+  it("uses editing terminology and names the publishable-content column", () => {
+    expect(recommendations.correction.title).toBe(
+      "Recomendaciones · Editar validación",
+    );
+    expect(recommendations.correction.save).toBe("Guardar edición");
+    expect(recommendations.correction).not.toHaveProperty("subtitle");
+    expect(recommendations.correction.sectionTitle).toBe(
+      "Datos de la recomendación validada",
+    );
+    expect(recommendations.grilla.columns.publishableContent).toBe(
+      "Contenido para publicar",
+    );
+  });
+});

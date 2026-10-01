@@ -3,6 +3,7 @@ import { USE_MOCK_DATA_EXTRACTION } from "@/constants/config";
 import {
   dataExtractionPredictionSchema,
   documentExtractionEnvelopeSchema,
+  recommendationDetailSchema,
   recommendationEnumsSchema,
   recommendationPageSchema,
   recommendationRowSchema,
@@ -85,9 +86,17 @@ export const recommendationsList = (params: {
   unparsedDates?: boolean;
   q?: string;
   topicId?: string;
+  subtopicId?: string;
   sectorId?: string;
+  macroSectorId?: string;
+  recommendationSituation?: string;
+  status?: string;
+  approvedForPublication?: boolean;
+  publicationUnanswered?: boolean;
   dateFrom?: string;
   dateTo?: string;
+  editedFrom?: string;
+  editedTo?: string;
 }) =>
   queryOptions({
     queryKey: ["recommendations-list", params, api.defaults.baseURL],
@@ -104,9 +113,17 @@ export const recommendationsList = (params: {
                 unparsed_dates: params.unparsedDates,
                 q: params.q,
                 topic_id: params.topicId,
+                subtopic_id: params.subtopicId,
                 sector_id: params.sectorId,
+                macro_sector_id: params.macroSectorId,
+                recommendation_situation: params.recommendationSituation,
+                status: params.status,
+                approved_for_publication: params.approvedForPublication,
+                publication_unanswered: params.publicationUnanswered,
                 date_from: params.dateFrom,
                 date_to: params.dateTo,
+                edited_from: params.editedFrom,
+                edited_to: params.editedTo,
               },
             })
           ).data;
@@ -122,6 +139,61 @@ export const recommendationEnums = () =>
         ? await mock.mockRecommendationEnums()
         : (await api.get("/catalogs/recommendation-enums")).data;
       return recommendationEnumsSchema.parse(data);
+    },
+  });
+
+/** Single-recommendation detail (source text + raw prediction) for the correction screen. */
+export const recommendationDetail = (recommendationId: string) =>
+  queryOptions({
+    queryKey: ["recommendation-detail", recommendationId, api.defaults.baseURL],
+    // Deliberately NOT `staleTime: Infinity` (which documentExtractionEnvelope
+    // does use, for its own frozen-extraction reasons): this is a point-in-time
+    // editing read whose value doubles as the `If-Match` etag, so it has to
+    // revalidate on every mount. Holding a cached snapshot let an ordinary
+    // single-user sequence -- open "Corregir", go back, edit an inline
+    // seguimiento cell on the same row (which bumps `updated_at`), open
+    // "Corregir" again -- serve the old etag and earn a 412 reported as
+    // "modificado por otra persona" when nobody else had touched it. Refetching
+    // on mount is self-healing against ANY future writer of this row, which
+    // adding a second invalidation target to that one mutation would not be.
+    staleTime: 0,
+    retry: false,
+    queryFn: async () => {
+      const data = USE_MOCK_DATA_EXTRACTION
+        ? await mock.mockRecommendationDetail(recommendationId)
+        : (
+            await api.get(
+              `/llm/data-extraction/recommendations/${recommendationId}`,
+            )
+          ).data;
+      return recommendationDetailSchema.parse(data);
+    },
+  });
+
+/**
+ * Saves a correction to an existing recommendation, with an `If-Match` header
+ * for optimistic concurrency -- the caller supplies the etag it last read
+ * (`updated_at` falling back to `created_at`, mirroring the backend's own
+ * `_etag` convention), and a stale value is rejected (412) rather than
+ * silently overwriting a newer save.
+ */
+export const correctRecommendation = () =>
+  mutationOptions({
+    mutationFn: async (input: {
+      recommendationId: string;
+      ifMatch: string;
+      payload: RecommendationValidationInput;
+    }) => {
+      const data = USE_MOCK_DATA_EXTRACTION
+        ? await mock.mockCorrectRecommendation(input)
+        : (
+            await api.put(
+              `/llm/data-extraction/recommendations/${input.recommendationId}`,
+              input.payload,
+              { headers: { "If-Match": input.ifMatch } },
+            )
+          ).data;
+      return recommendationDetailSchema.parse(data);
     },
   });
 

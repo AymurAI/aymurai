@@ -81,16 +81,19 @@ export const subtopicUsage = (subtopicId: string) =>
     },
   });
 
-export const listSubtopics = (topicId: string) =>
+export const listSubtopics = (topicId?: string) =>
   queryOptions({
-    queryKey: ["subtopics", api.defaults.baseURL, topicId],
+    queryKey: ["subtopics", api.defaults.baseURL, topicId ?? null],
     queryFn: async () => {
       const data = USE_MOCK_CATALOGS
         ? await mock.mockListSubtopics(topicId)
         : (
             await api.get("/catalogs/subtopics", {
               // See listTopics on include_inactive.
-              params: { topic_id: topicId, include_inactive: true },
+              params: {
+                ...(topicId ? { topic_id: topicId } : {}),
+                include_inactive: true,
+              },
             })
           ).data;
       return subtopicsSchema.parse(data);

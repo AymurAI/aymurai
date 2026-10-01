@@ -37,7 +37,7 @@ RECOMENDACIONES_COLUMNS = (
     "DESTINATARIO",
     "DESTINATARIO_POR_SECTOR",
     "CONTENIDO_PARA_PUBLICAR",
-    "DETALLE_DE_LA_RECOMENDACION",
+    "DETALLE_DE_LA_SITUACION",
     "SITUACION_DE_LA_RECOMENDACION",
     "ESTADO",
     "PARA_PUBLICAR",
@@ -259,8 +259,7 @@ def build_recomendaciones_rows(session: Session) -> list[dict[str, Any]]:
                 "DESTINATARIO": destinatario,
                 "DESTINATARIO_POR_SECTOR": destinatario_por_sector,
                 "CONTENIDO_PARA_PUBLICAR": recommendation.publishable_content,
-                "DETALLE_DE_LA_RECOMENDACION": recommendation.recommendation_detail
-                or "",
+                "DETALLE_DE_LA_SITUACION": recommendation.recommendation_detail or "",
                 "SITUACION_DE_LA_RECOMENDACION": _format_closed_catalog(
                     recommendation.recommendation_situation
                 ),
@@ -445,5 +444,5 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     )
     fd, path = tempfile.mkstemp(suffix=".csv")
     os.close(fd)
-    frame.to_csv(path, index=False)
+    frame.to_csv(path, index=False, encoding="utf-8")
     return Path(path)

@@ -149,6 +149,23 @@ export interface RecommendationEnums {
   statuses: string[];
 }
 
+/**
+ * The full single-recommendation detail served by the `GET`/`PUT` detail
+ * endpoints -- a `RecommendationRow` widened with the two fields the
+ * correction screen needs to show the model's own source material:
+ * `source_text` (the paragraphs it read) and `prediction` (its raw output,
+ * before human correction). Mirrors `RecommendationDetailResponse`.
+ */
+export interface RecommendationDetail extends RecommendationRow {
+  source_text: string;
+  /**
+   * The paragraphs exactly as extracted; `null` on rows stored before the
+   * backend kept them, where only `source_text` (their `"\n"` join) exists.
+   */
+  source_paragraphs: string[] | null;
+  prediction: Record<string, unknown>;
+}
+
 export interface RecipientValidationInput {
   /** Present when correcting an already-saved recipient, absent for a new one. */
   id?: string | null;

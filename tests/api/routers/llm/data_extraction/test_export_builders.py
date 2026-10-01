@@ -1,3 +1,4 @@
+import csv
 import uuid
 from datetime import date, datetime
 
@@ -12,6 +13,7 @@ from aymurai.api.endpoints.routers.llm.data_extraction_export import (
     build_destinatarios_rows,
     build_recomendaciones_rows,
     write_xlsx,
+    write_csv,
 )
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.schema import (
@@ -96,7 +98,7 @@ def test_recomendaciones_columns_and_order(session):
     # tri-state/closed-catalog ones "" (unanswered), never "no".
     for unset_column in (
         "EXPEDIENTE",
-        "DETALLE_DE_LA_RECOMENDACION",
+        "DETALLE_DE_LA_SITUACION",
         "SITUACION_DE_LA_RECOMENDACION",
         "ESTADO",
         "PARA_PUBLICAR",
@@ -125,7 +127,7 @@ def test_recomendaciones_template_columns_export_populated_values(session):
     row = build_recomendaciones_rows(session)[0]
 
     assert row["EXPEDIENTE"] == "EXP-123/2024"
-    assert row["DETALLE_DE_LA_RECOMENDACION"] == "En trámite"
+    assert row["DETALLE_DE_LA_SITUACION"] == "En trámite"
     assert row["SITUACION_DE_LA_RECOMENDACION"] == "Respuesta parcial"
     assert row["ESTADO"] == "Solucionado"
     assert row["PARA_PUBLICAR"] == "no"
@@ -457,3 +459,35 @@ def test_write_xlsx_styles_the_header_and_sizes_columns():
         assert sheet.column_dimensions[expediente_letter].width >= 10
     finally:
         path.unlink()
+
+
+def test_exported_files_use_situation_detail_header(session):
+    dataset = get_or_create_default_dataset(session)
+    session.add(
+        Recommendation(
+            dataset_id=dataset.id,
+            document_id=uuid.uuid4(),
+            publishable_content="Contenido",
+            recommendation_detail="En trámite",
+        )
+    )
+    session.commit()
+    rows = build_recomendaciones_rows(session)
+    csv_path = write_csv(rows)
+    xlsx_path = write_xlsx(rows, [])
+    try:
+        with csv_path.open(encoding="utf-8", newline="") as handle:
+            csv_row = next(csv.DictReader(handle))
+        assert csv_row["DETALLE_DE_LA_SITUACION"] == "En trámite"
+        assert "DETALLE_DE_LA_RECOMENDACION" not in csv_row
+        workbook = openpyxl.load_workbook(xlsx_path)
+        try:
+            records = list(workbook["recomendaciones"].values)
+            headers = records[0]
+            assert "DETALLE_DE_LA_RECOMENDACION" not in headers
+            assert records[1][headers.index("DETALLE_DE_LA_SITUACION")] == "En trámite"
+        finally:
+            workbook.close()
+    finally:
+        csv_path.unlink()
+        xlsx_path.unlink()

@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRouter
 from sqlmodel import Session, select
@@ -26,8 +26,13 @@ from aymurai.api.endpoints.routers.llm.data_extraction_export import (
 )
 from aymurai.api.endpoints.routers.llm.organigram_matching import resolve_recipient_unit
 from aymurai.api.endpoints.routers.llm.summarization_engine import ContextTooSmallError
-from aymurai.api.exceptions import ConfigurationError, NotFoundError
+from aymurai.api.exceptions import (
+    ConfigurationError,
+    NotFoundError,
+    PreconditionFailedError,
+)
 from aymurai.api.endpoints.schemas.requests.data_extraction import (
+    CorrectRecommendationRequest,
     DataExtractionRequest,
     RecommendationSeguimientoUpdateRequest,
     ValidateRecommendationRequest,
@@ -48,8 +53,14 @@ from aymurai.database.crud.catalogs.macro_sector import macro_sector_list
 from aymurai.database.crud.catalogs.subtopic import subtopic_list
 from aymurai.database.crud.catalogs.topic import topic_list
 from aymurai.database.crud.llm_extraction import (
+    llm_extraction_backfill_paragraphs,
     llm_extraction_create_or_update,
     llm_extraction_get,
+)
+from aymurai.database.crud.recommendation_correction import (
+    RecommendationNotFoundError,
+    StaleRecommendationError,
+    recommendation_correct,
 )
 from aymurai.database.crud.recommendation import (
     InconsistentSectorError,
@@ -70,6 +81,8 @@ from aymurai.database.schema import (
     Recipient,
     Recommendation,
     RecommendationUpdate,
+    RecommendationSituation,
+    RecommendationStatus,
     Subtopic,
     Topic,
 )
@@ -162,6 +175,11 @@ async def api_data_extraction(
     if use_cache:
         existing = llm_extraction_get(document_id, session)
         if existing:
+            # A row extracted before paragraphs were stored can regain them
+            # here, when the same document comes back with the same text.
+            existing = llm_extraction_backfill_paragraphs(
+                existing, payload.document.document, session
+            )
             response = _response_from_record(existing, session)
             response.catalogs_stale = _catalogs_stale(existing, session)
             return response
@@ -219,6 +237,10 @@ async def api_data_extraction(
         raw_extraction.model_dump(),
         config,
         session,
+        # Stored alongside `document_text`, not derived from it later: a
+        # paragraph may contain its own `\n`, which the join makes
+        # indistinguishable from a boundary.
+        source_paragraphs=list(payload.document.document),
     )
     return _response_from_record(record, session)
 
@@ -296,22 +318,30 @@ def _recommendation_detail_response(
     return RecommendationDetailResponse(
         **response.model_dump(),
         source_text=extraction.source_text if extraction else "",
+        source_paragraphs=extraction.source_paragraphs if extraction else None,
         prediction=extraction.prediction if extraction else {},
     )
 
 
-@router.put(
-    "/data-extraction/{document_id}/validate",
-    response_model=RecommendationDetailResponse,
-)
-async def api_data_extraction_validate(
-    document_id: uuid.UUID, payload: ValidateRecommendationRequest, session: SessionDep
-):
-    extraction = llm_extraction_get(document_id, session)
-    if not extraction:
-        raise NotFoundError(detail=f"Extraction not found: {document_id}")
+def _validation_data(
+    payload: ValidateRecommendationRequest,
+) -> RecommendationValidationData:
+    """
+    Translates a validation payload into the CRUD layer's own input shape.
 
-    data = RecommendationValidationData(
+    Shared by `/validate` and the correction `PUT`: `CorrectRecommendationRequest`
+    IS a `ValidateRecommendationRequest` (it inherits with no added fields), so
+    both handlers need exactly this translation and had it duplicated
+    character-for-character.
+
+    Args:
+        payload (ValidateRecommendationRequest): The request body.
+
+    Returns:
+        RecommendationValidationData: The CRUD-layer input for
+            `recommendation_upsert`.
+    """
+    return RecommendationValidationData(
         recommendation_number=payload.recommendation_number,
         recommendation_date_text=payload.recommendation_date_text,
         recommendation_date=payload.recommendation_date,
@@ -333,6 +363,20 @@ async def api_data_extraction_validate(
             for r in payload.recipients
         ],
     )
+
+
+@router.put(
+    "/data-extraction/{document_id}/validate",
+    response_model=RecommendationDetailResponse,
+)
+async def api_data_extraction_validate(
+    document_id: uuid.UUID, payload: ValidateRecommendationRequest, session: SessionDep
+):
+    extraction = llm_extraction_get(document_id, session)
+    if not extraction:
+        raise NotFoundError(detail=f"Extraction not found: {document_id}")
+
+    data = _validation_data(payload)
     try:
         recommendation = recommendation_upsert(document_id, data, session)
     except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
@@ -346,9 +390,17 @@ async def api_data_extraction_validate(
 async def api_data_extraction_recommendations(
     session: SessionDep,
     topic_id: uuid.UUID | None = None,
+    subtopic_id: uuid.UUID | None = None,
     sector_id: uuid.UUID | None = None,
+    macro_sector_id: uuid.UUID | None = None,
+    recommendation_situation: RecommendationSituation | None = None,
+    status: RecommendationStatus | None = None,
+    approved_for_publication: bool | None = None,
+    publication_unanswered: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
+    edited_from: date | None = None,
+    edited_to: date | None = None,
     q: str | None = None,
     unparsed_dates: bool = False,
     order_by: RecommendationOrderColumn = "created_at",
@@ -356,12 +408,25 @@ async def api_data_extraction_recommendations(
     page: int = 1,
     page_size: int = 20,
 ):
+    if publication_unanswered and approved_for_publication is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="publication_unanswered cannot be combined with approved_for_publication",
+        )
     items, total = recommendation_list(
         session,
         topic_id=topic_id,
+        subtopic_id=subtopic_id,
         sector_id=sector_id,
+        macro_sector_id=macro_sector_id,
+        recommendation_situation=recommendation_situation,
+        status=status,
+        approved_for_publication=approved_for_publication,
+        publication_unanswered=publication_unanswered,
         date_from=date_from,
         date_to=date_to,
+        edited_from=edited_from,
+        edited_to=edited_to,
         q=q,
         unparsed_dates=unparsed_dates,
         order_by=order_by,
@@ -410,6 +475,75 @@ async def api_data_extraction_recommendation_update_seguimiento(
     except ValueError as exc:
         raise NotFoundError(detail=str(exc))
     return _recommendation_response(recommendation, session)
+
+
+@router.put(
+    "/data-extraction/recommendations/{recommendation_id}",
+    response_model=RecommendationDetailResponse,
+)
+async def api_data_extraction_recommendation_correct(
+    recommendation_id: uuid.UUID,
+    payload: CorrectRecommendationRequest,
+    session: SessionDep,
+    if_match: Annotated[str, Header(alias="If-Match")],
+) -> RecommendationDetailResponse:
+    """
+    Corrects the document-derived fields of an already-validated recommendation.
+
+    Unlike `/validate`, this is keyed on the recommendation rather than the
+    document and needs no re-upload: the row already exists, and the client is
+    fixing what the extraction got wrong (tema, subtema, destinatarios,
+    contenido publicable, número y fecha).
+
+    `If-Match` is required, not optional: the correction screen can only send a
+    whole replacement body, so a save built on a snapshot somebody else has
+    already replaced would silently undo their work. Making the header
+    mandatory means a client cannot opt out of the check by omitting it.
+
+    Args:
+        recommendation_id (uuid.UUID): The row to correct.
+        payload (CorrectRecommendationRequest): The full replacement body.
+        session (Session): Database session.
+        if_match (str): The `updated_at`/`created_at` etag the client last read.
+
+    Returns:
+        RecommendationDetailResponse: The corrected row, with a fresh etag.
+    """
+    # Parsed to a `datetime` and compared as one, NEVER string-compared: the
+    # same instant has several equally valid ISO-8601 spellings (trailing `Z`
+    # vs. `+00:00`, microseconds present or truncated, a `T` vs. a space
+    # separator). This exact drift already bit the same two columns once --
+    # b84d8ace fixed a grilla date rendered a day off because the API
+    # serializes these timestamps NAIVE while the client fixtures carried a
+    # fabricated `Z`. Under a string comparison that mismatch becomes a
+    # spurious 412 on a save nobody else raced. An aware spelling of the
+    # instant is normalized to naive UTC by `recommendation_correct`.
+    try:
+        expected = datetime.fromisoformat(if_match)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Malformed If-Match header: {if_match}"
+        ) from exc
+
+    data = _validation_data(payload)
+    try:
+        recommendation = recommendation_correct(
+            recommendation_id, expected, data, session
+        )
+    except RecommendationNotFoundError as exc:
+        raise NotFoundError(detail=str(exc)) from exc
+    except StaleRecommendationError as exc:
+        # 412, per RFC 7232: a failed `If-Match` precondition is exactly what
+        # this status means. Not 409 (which says the request conflicts with
+        # the resource's state, when the request itself is fine and only its
+        # precondition failed) and not 404 (the row is right here). The client
+        # keys its "recargá los datos" branch off this status.
+        raise PreconditionFailedError(detail=str(exc)) from exc
+    except (InconsistentSectorError, OrganigramReferenceNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    extraction = llm_extraction_get(recommendation.document_id, session)
+    return _recommendation_detail_response(recommendation, extraction, session)
 
 
 @router.get("/data-extraction/export")

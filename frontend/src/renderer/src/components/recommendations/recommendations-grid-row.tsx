@@ -1,15 +1,17 @@
 import { useTranslation } from "react-i18next";
 import { css, cx } from "@/styled/css";
-import type {
-  RecipientDetail,
-  RecommendationRow,
-} from "@/types/dataExtraction";
+import type { MacroSector } from "@/types/catalogs";
+import type { RecommendationRow } from "@/types/dataExtraction";
 import { formatDisplayDate, formatDisplayTimestamp } from "@/utils/format-date";
+import PublishableContentPreview from "./publishable-content-preview";
+import { primaryRecipient, RecipientDisplay } from "./recipient-display";
+import RecommendationEditLink from "./recommendation-edit-link";
 import {
   EditableSelectCell,
   EditableTextCell,
 } from "./recommendations-grid-cells";
 import type { ColumnId } from "./recommendations-grid-columns";
+import type { RecommendationsGridSearch } from "./recommendations-grid-search";
 
 /**
  * The body of one PATCH to `/recommendations/{id}`: only the keys the person
@@ -32,46 +34,30 @@ export type SeguimientoField = keyof RecommendationSeguimientoPatch;
 const cell = css({
   px: "3",
   py: "2",
-  verticalAlign: "top",
+  verticalAlign: "middle",
+  textAlign: "left",
   textStyle: "paragraph.sm.default",
   color: "text.default",
   borderBottomWidth: "1",
   borderBottomStyle: "solid",
-  borderBottomColor: "bg.primary",
+  borderBottomColor: "bg.secondary-highlight",
+});
+
+const stickyFirst = css({
+  position: "sticky",
+  left: "0",
+  zIndex: "[2]",
+  bg: "bg.secondary",
+  borderRightWidth: "1",
+  borderRightStyle: "solid",
+  borderRightColor: "bg.secondary-highlight",
 });
 
 const noWrap = css({ whiteSpace: "nowrap" });
 
 const muted = css({ color: "text.lighter" });
 
-const secondaryLine = css({
-  display: "block",
-  textStyle: "paragraph.xsm.default",
-  color: "text.lighter",
-});
-
-// Long prose in a narrow column: three lines on screen, the whole text on
-// hover (`title`) -- the cell is read-only, so there is nothing to open.
-const clamped = css({
-  minW: "[240px]",
-  maxW: "[320px]",
-  lineClamp: "3",
-  overflowWrap: "anywhere",
-});
-
 const EMPTY = "—";
-
-/** `is_primary` is the field the export reads as the main destinatario; the
- *  first recipient is the fallback for the rows saved before it existed. */
-function primaryRecipient(
-  recipients: RecipientDetail[],
-): RecipientDetail | null {
-  return (
-    recipients.find((recipient) => recipient.is_primary) ??
-    recipients[0] ??
-    null
-  );
-}
 
 /**
  * `approved_for_publication` is a tri-state (`true` / `false` / never
@@ -85,6 +71,7 @@ const APPROVED_NO = "no";
 
 interface RecommendationsGridRowProps {
   row: RecommendationRow;
+  macroSectors: MacroSector[];
   /** `recommendationEnums().situations`, never a list written in TS. */
   situations: string[];
   /** `recommendationEnums().statuses`, never a list written in TS. */
@@ -107,16 +94,20 @@ interface RecommendationsGridRowProps {
    * racing. A failure surfaces as the grid's own banner instead.
    */
   onEdit: (patch: RecommendationSeguimientoPatch) => void;
+  /** Carried by the Editar link, so the correction screen can come back. */
+  gridSearch: RecommendationsGridSearch;
 }
 
 export default function RecommendationsGridRow({
   row,
+  macroSectors,
   situations,
   statuses,
   catalogsReady,
   hasFailed,
   saveFailedMessage,
   onEdit,
+  gridSearch,
 }: RecommendationsGridRowProps) {
   const { t } = useTranslation("recommendations");
 
@@ -151,16 +142,15 @@ export default function RecommendationsGridRow({
 
   return (
     <tr>
-      <td className={cx(cell, noWrap)}>
+      <td className={cx(cell, noWrap, stickyFirst)}>
         {row.recommendation_number ?? <span className={muted}>{EMPTY}</span>}
       </td>
       <td className={cx(cell, noWrap)}>
         {row.recommendation_date ? (
           formatDisplayDate(row.recommendation_date)
         ) : (
-          // Nothing parsed: show the prose the model read, so the row is
-          // still identifiable while the `unparsedDates` filter is what
-          // gathers these up for fixing.
+          // Nothing parsed: show the prose the model read so the row remains
+          // identifiable and the original value is not hidden.
           <span className={muted}>{row.recommendation_date_text ?? EMPTY}</span>
         )}
       </td>
@@ -170,23 +160,19 @@ export default function RecommendationsGridRow({
       <td className={cell}>
         {row.subtopic ?? <span className={muted}>{EMPTY}</span>}
       </td>
-      <td className={cell}>
+      <td className={cx(cell, css({ minW: "[240px]", maxW: "[320px]" }))}>
         {recipient ? (
-          <>
-            {recipient.name ?? recipient.position ?? EMPTY}
-            {recipient.sector_name && (
-              <span className={secondaryLine}>{recipient.sector_name}</span>
-            )}
-          </>
+          <RecipientDisplay recipient={recipient} catalogs={macroSectors} />
         ) : (
           <span className={muted}>{EMPTY}</span>
         )}
       </td>
-      <td className={cell}>
+      <td className={cx(cell, css({ minW: "[300px]", maxW: "[360px]" }))}>
         {row.publishable_content ? (
-          <div className={clamped} title={row.publishable_content}>
-            {row.publishable_content}
-          </div>
+          <PublishableContentPreview
+            content={row.publishable_content}
+            label={t("grilla.columns.publishableContent")}
+          />
         ) : (
           <span className={muted}>{EMPTY}</span>
         )}
@@ -268,6 +254,13 @@ export default function RecommendationsGridRow({
         />
       </td>
       <td className={cx(cell, noWrap, muted)}>{lastEdited}</td>
+      <td className={cell}>
+        <RecommendationEditLink
+          recommendationId={row.id}
+          label={t("grilla.columns.edit")}
+          gridSearch={gridSearch}
+        />
+      </td>
     </tr>
   );
 }

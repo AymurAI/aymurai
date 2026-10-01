@@ -117,29 +117,56 @@ const recommendations = {
     saveFailed:
       "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },
-  // La grilla de seguimiento (`/home/dataset`): la pantalla compartida donde
-  // se completan los campos de seguimiento de cada recomendación publicada.
-  // Un solo namespace para la pantalla y para las puertas que llevan a ella
-  // (ítem del menú, tarjeta del home, botón de finalización): es una sola
-  // superficie y lleva un solo nombre, "Seguimiento". Deliberadamente no
-  // `dataset:title`: esa clave ya está en uso para la tarjeta y el ítem de
-  // menú de Set de Datos (ver features-menu.tsx y routes/home/features.tsx).
-  // El glosario (CONTEXT.md) descarta "base"/"planilla"/"set de datos" para
-  // nombrar el dataset, así que ninguna cadena de acá los usa.
+  // Seguimiento y destinatarios de las recomendaciones registradas.
   grilla: {
     title: "Seguimiento",
-    cardSubtitle: "Completá el seguimiento de las recomendaciones publicadas",
-    subtitle: "Seguimiento compartido de las recomendaciones ya registradas",
+    headerTitle: "Recomendaciones · Seguimiento",
+    tabs: {
+      label: "Vistas de recomendaciones",
+      seguimiento: "Recomendaciones",
+      recipients: "Destinatarios",
+    },
+    export: {
+      download: "Exportar set de datos",
+      pending: "Exportando set de datos…",
+      failed: "No se pudo exportar la base. Intentá nuevamente.",
+    },
+    recipients: {
+      role: "Tipo de destinatario",
+      primary: "Principal",
+      secondary: "Secundario",
+      empty: "Sin destinatarios registrados",
+      name: "Nombre",
+      position: "Cargo",
+      unit: "Unidad",
+      sector: "Destinatario por Sector",
+    },
+    subtitle:
+      "Seguimiento de las recomendaciones registradas en el Set de Datos",
     filters: {
       searchLabel: "Buscar recomendaciones",
-      // Exactamente las cuatro columnas que busca el backend
-      // (`_SEARCH_COLUMNS` en `database/crud/recommendation.py`). "Tema"
-      // queda afuera: filtrar por tema exige un join (issue #58).
-      searchPlaceholder: "Número, expediente, detalle o contenido",
+      searchPlaceholder:
+        "Destinatario, sector, tema, subtema, número, expediente, detalle, contenido o enlace",
+      title: "Filtros",
+      button: "Filtros",
+      open: "Mostrar filtros",
+      close: "Ocultar filtros",
+      topic: "Tema",
+      subtopic: "Subtema",
+      recipientSector: "Destinatario por Sector",
+      situation: "Situación",
+      status: "Estado",
+      publication: "Aprobada para publicar",
+      all: "Todos",
+      unanswered: "Sin informar",
+      catalogLoading: "Cargando sectores…",
+      catalogFailed: "No se pudieron cargar los sectores. Intentá nuevamente.",
+      sectorPlaceholder: "Buscar sector",
       clearSearch: "Limpiar la búsqueda",
       dateFrom: "Fecha desde",
       dateTo: "Fecha hasta",
-      unparsedDates: "Sólo fechas sin interpretar",
+      editedFrom: "Última edición desde",
+      editedTo: "Última edición hasta",
       reset: "Limpiar filtros",
     },
     columns: {
@@ -151,12 +178,13 @@ const recommendations = {
       publishableContent: "Contenido para publicar",
       personalData: "Datos personales",
       fileNumber: "Nº de expediente",
-      recommendationDetail: "Detalle del seguimiento",
+      recommendationDetail: "Detalle de la Situación",
       recommendationSituation: "Situación",
       status: "Estado",
       approvedForPublication: "Aprobada para publicar",
       link: "Enlace",
       lastEdited: "Última edición",
+      edit: "Editar",
     },
     approved: {
       yes: "Sí",
@@ -177,13 +205,47 @@ const recommendations = {
       next: "Página siguiente",
     },
   },
+  // Edición de una recomendación ya validada. Conserva un namespace propio:
+  // no es el paso 3 inicial, aunque reutilice su formulario y su composición.
+  correction: {
+    title: "Recomendaciones · Editar validación",
+    sectionTitle: "Datos de la recomendación validada",
+    originalDocumentLabel: "Documento original",
+    // El `<Spinner />` es un gráfico decorativo sin nombre accesible: sin este
+    // texto la pantalla de carga no anuncia nada.
+    loading: "Cargando la recomendación…",
+    save: "Guardar edición",
+    saveAnyway: "Guardar de todos modos",
+    cancel: "Cancelar",
+    back: "Volver a seguimiento",
+    loadFailed:
+      "No se pudo cargar la recomendación. Revisá tu conexión e intentá nuevamente.",
+    predictionUnavailable:
+      "No se pudo reconstruir la extracción original de esta recomendación, así que no se puede editar desde acá.",
+    // Dos mensajes, no uno: `saveFailed` es el caso en que la petición ni
+    // llegó a destino (sin `response`), donde hablar de la conexión ayuda;
+    // `saveRejected` es cuando el servidor SÍ respondió con un error (422,
+    // 500, 404 porque la fila se borró en otra ventana), donde culpar a la
+    // conexión manda a revisar lo único que seguro está bien.
+    saveFailed:
+      "No se pudo guardar la edición. Revisá tu conexión e intentá nuevamente.",
+    saveRejected:
+      "No se pudo guardar la edición. Revisá los datos e intentá nuevamente.",
+    // 412: el `If-Match` viajó con una versión que ya quedó vieja. Reintentar
+    // solo pisaría el guardado de la otra persona, así que hay que recargar.
+    conflict:
+      "Este registro fue modificado por otra persona mientras lo editabas. Recargá los datos para ver la versión más reciente antes de volver a guardar.",
+    reload: "Recargar datos",
+    reloadFailed:
+      "No se pudieron recargar los datos. Revisá tu conexión e intentá nuevamente.",
+  },
   finish: {
     sectionTitle: "4. Finalización",
     description:
       "Los datos encontrados por AymurAI y validados en el paso anterior ya son parte de la base estructurada de recomendaciones.",
     subtitle: "Archivo procesado",
     restart: "Procesar otro documento",
-    download: "Descargar la base de recomendaciones",
+    download: "Exportar set de datos",
     downloadFailed:
       "No se pudo descargar el archivo. Revisá tu conexión e intentá nuevamente.",
     viewGrilla: "Ir a seguimiento",

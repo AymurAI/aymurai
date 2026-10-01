@@ -94,6 +94,31 @@ describe("catalogs service — real (non-mock) implementation", () => {
     expect(result).toEqual(macroSectors);
   });
 
+  it("lists every subtopic when no topic is selected", async () => {
+    const subtopics = [
+      {
+        id: "s1",
+        topic_id: "t1",
+        code: "SAL-1",
+        name: "Hospitales",
+        active: true,
+        order: 1,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: subtopics });
+
+    const { queryFn } = catalogs.listSubtopics();
+    const result = await (queryFn as () => Promise<unknown>)();
+
+    expect(getSpy).toHaveBeenCalledWith("/catalogs/subtopics", {
+      params: { include_inactive: true },
+    });
+    expect(getSpy.mock.calls[0][1]?.params).not.toHaveProperty("topic_id");
+    expect(result).toEqual(subtopics);
+  });
+
   it("reassigns a subtopic via POST /catalogs/subtopics/{id}/reassign", async () => {
     const postSpy = vi
       .spyOn(api, "post")

@@ -2,9 +2,11 @@ import uuid
 from datetime import date, datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, UniqueConstraint, func, text
+from sqlalchemy import Column, DateTime, UniqueConstraint, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
+
+from aymurai.database.clock import utc_now
 
 
 class RecommendationSituation(str, Enum):
@@ -103,6 +105,9 @@ class Recommendation(RecommendationBase, table=True):
     created_at: datetime = Field(
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")}
     )
-    updated_at: datetime | None = Field(
-        sa_column=Column(DateTime(), onupdate=func.now())
-    )
+    # Python-side `onupdate`, not `func.now()`: it is the row's version for
+    # `If-Match`, and SQLite's clock has whole-second resolution (see
+    # `utc_now`). Only fires when this row itself is UPDATEd -- a write that
+    # only touches recipients must bump it explicitly
+    # (`recommendation_upsert`).
+    updated_at: datetime | None = Field(sa_column=Column(DateTime(), onupdate=utc_now))

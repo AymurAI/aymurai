@@ -113,20 +113,16 @@ describe("home/features — grilla card", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders a full-width grilla card linking to /home/dataset when the flag is on", () => {
+  it("keeps seguimiento inside recommendations when the flag is on", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
     const RouteComponent = Route.options.component as React.FC;
     render(<RouteComponent />);
-
-    const link = screen.getByText("recommendations:grilla.title").closest("a");
-    expect(link).toHaveAttribute("href", "/home/dataset");
     expect(
-      screen.getByText("recommendations:grilla.cardSubtitle"),
-    ).toBeInTheDocument();
-    expect(link?.className).toContain("grid-c_1_/_-1");
-    // Confirms the fix isn't dropping the wrapper's own fixed layout
-    // (display: block; h: full) in favor of the extra class.
-    expect(link?.className).toContain("d_block");
-    expect(link?.className).toContain("h_full");
+      screen.queryByText("recommendations:grilla.title"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("dataset:title").closest("a")).toHaveAttribute(
+      "href",
+      expect.stringContaining("RECOMMENDATIONS"),
+    );
   });
 });

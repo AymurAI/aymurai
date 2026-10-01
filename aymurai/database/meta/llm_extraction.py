@@ -9,6 +9,10 @@ from sqlmodel import Field, SQLModel
 class LLMExtractionBase(SQLModel):
     file_name: str | None = None
     source_text: str
+    # The paragraphs exactly as the extraction received them. `source_text`
+    # is their `"\n".join`, which can't be split back when a paragraph has a
+    # newline of its own; NULL on rows extracted before this was stored.
+    source_paragraphs: list[str] | None = Field(default=None, sa_column=Column(JSON))
     prediction: dict[str, Any] = Field(sa_column=Column(JSON))
     config: dict[str, Any] = Field(sa_column=Column(JSON))
 
@@ -31,6 +35,7 @@ class LLMExtractionCreate(LLMExtractionBase):
 class LLMExtractionUpdate(SQLModel):
     file_name: str | None = None
     source_text: str | None = None
+    source_paragraphs: list[str] | None = None
     prediction: dict[str, Any] | None = None
     config: dict[str, Any] | None = None
 

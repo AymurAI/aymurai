@@ -33,6 +33,24 @@ const SAMPLE_ROW = {
   updated_at: null,
 };
 
+const SAMPLE_DETAIL = {
+  ...SAMPLE_ROW,
+  source_text: "El organismo destinatario deberá arbitrar los medios.",
+  source_paragraphs: ["El organismo destinatario deberá arbitrar los medios."],
+  // The real raw stored shape (`RawExtraction.model_dump()`) -- see
+  // task-2-report.md: it is narrower than `DataExtractionPrediction`, which
+  // is why `predictionFromDetail` was not implemented in this task.
+  prediction: {
+    recommendation_number: "123/2026",
+    recommendation_date: "22 de noviembre",
+    recipients: [],
+    topic: "Salud",
+    subtopic: "Acceso a medicamentos",
+    personal_data: false,
+    publishable_content: "contenido",
+  },
+};
+
 describe("dataExtraction service — real (non-mock) implementation", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -265,9 +283,17 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
       unparsedDates: true,
       q: "salud",
       topicId: "topic-1",
+      subtopicId: "subtopic-1",
       sectorId: "sector-1",
+      macroSectorId: "macro-sector-0",
+      recommendationSituation: "Notificado",
+      status: "No solucionado",
+      approvedForPublication: false,
+      publicationUnanswered: false,
       dateFrom: "2026-01-01",
       dateTo: "2026-12-31",
+      editedFrom: "2026-02-01",
+      editedTo: "2026-02-28",
     });
     const result = await (queryFn as () => Promise<unknown>)();
 
@@ -282,9 +308,17 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
           unparsed_dates: true,
           q: "salud",
           topic_id: "topic-1",
+          subtopic_id: "subtopic-1",
           sector_id: "sector-1",
+          macro_sector_id: "macro-sector-0",
+          recommendation_situation: "Notificado",
+          status: "No solucionado",
+          approved_for_publication: false,
+          publication_unanswered: false,
           date_from: "2026-01-01",
           date_to: "2026-12-31",
+          edited_from: "2026-02-01",
+          edited_to: "2026-02-28",
         },
       },
     );
@@ -367,6 +401,94 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
     ]) {
       expect(Object.hasOwn(body, key)).toBe(false);
     }
+  });
+
+  it("fetches recommendation detail via GET /llm/data-extraction/recommendations/{id}", async () => {
+    const getSpy = vi
+      .spyOn(api, "get")
+      .mockResolvedValue({ data: SAMPLE_DETAIL });
+
+    const { queryFn } = dataExtraction.recommendationDetail("recommendation-1");
+    const result = await (queryFn as () => Promise<unknown>)();
+
+    expect(getSpy).toHaveBeenCalledWith(
+      "/llm/data-extraction/recommendations/recommendation-1",
+    );
+    expect(result).toEqual(SAMPLE_DETAIL);
+  });
+
+  it("accepts a legacy recommendation detail with no stored paragraphs", async () => {
+    const legacy = { ...SAMPLE_DETAIL, source_paragraphs: null };
+    vi.spyOn(api, "get").mockResolvedValue({ data: legacy });
+
+    const { queryFn } = dataExtraction.recommendationDetail("recommendation-1");
+
+    await expect((queryFn as () => Promise<unknown>)()).resolves.toEqual(
+      legacy,
+    );
+  });
+
+  /**
+   * The detail read doubles as the source of the `If-Match` etag, so a cache
+   * entry that never revalidates hands the correction screen an etag the
+   * server has already moved past. That is reachable with ONE user and zero
+   * concurrency: open "Corregir", go back, edit an inline seguimiento cell on
+   * the same row (the PATCH bumps `updated_at`), open "Corregir" again — the
+   * save then 412s and the screen blames "otra persona".
+   *
+   * Asserted on the options object rather than by driving two mounts: React
+   * Query's refetch-on-mount decision is read straight off `staleTime`, and
+   * `Infinity` is the one value that makes a second `useQuery` with the same
+   * key skip the fetch entirely.
+   */
+  it("lets the recommendation detail revalidate on a later mount", () => {
+    const options = dataExtraction.recommendationDetail("recommendation-1");
+
+    expect(options.staleTime).not.toBe(Number.POSITIVE_INFINITY);
+    expect(options.staleTime ?? 0).toBe(0);
+    // The wizard's frozen-extraction envelope is a different read with a real
+    // reason to never revalidate — pinned here so the two can't be conflated
+    // again in either direction.
+    expect(
+      dataExtraction.documentExtractionEnvelope("document-1").staleTime,
+    ).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("saves a correction via PUT /llm/data-extraction/recommendations/{id} with the If-Match header", async () => {
+    const putSpy = vi
+      .spyOn(api, "put")
+      .mockResolvedValue({ data: SAMPLE_DETAIL });
+
+    const payload: RecommendationValidationInput = {
+      recommendation_number: "123/2026",
+      recommendation_date_text: "22 de noviembre",
+      recommendation_date: "2026-11-22",
+      topic: "Salud",
+      subtopic: "Acceso a medicamentos",
+      personal_data: false,
+      publishable_content: "contenido",
+      recipients: [],
+    };
+
+    const { mutationFn } = dataExtraction.correctRecommendation();
+    const result = await (
+      mutationFn as (i: {
+        recommendationId: string;
+        ifMatch: string;
+        payload: RecommendationValidationInput;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      ifMatch: "2026-09-01T00:00:00",
+      payload,
+    });
+
+    expect(putSpy).toHaveBeenCalledWith(
+      "/llm/data-extraction/recommendations/recommendation-1",
+      payload,
+      { headers: { "If-Match": "2026-09-01T00:00:00" } },
+    );
+    expect(result).toEqual(SAMPLE_DETAIL);
   });
 });
 
@@ -475,6 +597,114 @@ describe("dataExtraction service — mock implementation", () => {
     expect(result.id).toBe("recommendation-1");
     expect(result.status).toBe("Solucionado");
   });
+
+  it("fetches the in-memory mock recommendation detail without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const getSpy = vi.spyOn(mockedApi, "get");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { queryFn } =
+      mockedDataExtraction.recommendationDetail("recommendation-1");
+    const result = (await (queryFn as () => Promise<unknown>)()) as {
+      id: string;
+      source_text: string;
+      prediction: Record<string, unknown>;
+    };
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(result.id).toBe("recommendation-1");
+    expect(typeof result.source_text).toBe("string");
+    expect(result.prediction).toBeTypeOf("object");
+  });
+
+  it("saves a correction against the in-memory mock without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const putSpy = vi.spyOn(mockedApi, "put");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { queryFn: detailQueryFn } =
+      mockedDataExtraction.recommendationDetail("recommendation-1");
+    const detail = (await (detailQueryFn as () => Promise<unknown>)()) as {
+      created_at: string;
+      updated_at: string | null;
+    };
+    const etag = detail.updated_at ?? detail.created_at;
+
+    const { mutationFn } = mockedDataExtraction.correctRecommendation();
+    const result = (await (
+      mutationFn as (i: {
+        recommendationId: string;
+        ifMatch: string;
+        payload: RecommendationValidationInput;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      ifMatch: etag,
+      payload: {
+        recommendation_number: "123/2026",
+        recommendation_date_text: "22 de noviembre",
+        recommendation_date: "2026-11-22",
+        topic: "Salud",
+        subtopic: "Corregido",
+        personal_data: false,
+        publishable_content: "corregido",
+        recipients: [],
+      },
+    })) as { subtopic: string | null; publishable_content: string };
+
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(result.subtopic).toBe("Corregido");
+    expect(result.publishable_content).toBe("corregido");
+  });
+
+  it("rejects a mock correction with a stale If-Match, mirroring the real endpoint's 412", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const mockedDataExtraction = await import("./dataExtraction");
+    const { AxiosError } = await import("axios");
+
+    const { mutationFn } = mockedDataExtraction.correctRecommendation();
+    const call = (
+      mutationFn as (i: {
+        recommendationId: string;
+        ifMatch: string;
+        payload: RecommendationValidationInput;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      ifMatch: "not-the-real-etag",
+      payload: {
+        recommendation_number: null,
+        recommendation_date_text: null,
+        recommendation_date: null,
+        topic: null,
+        subtopic: null,
+        personal_data: null,
+        publishable_content: "",
+        recipients: [],
+      },
+    });
+
+    await expect(call).rejects.toSatisfy(
+      (error) => error instanceof AxiosError && error.response?.status === 412,
+    );
+  });
 });
 
 describe("dataExtraction service — validates responses with zod", () => {
@@ -568,6 +798,47 @@ describe("dataExtraction service — validates responses with zod", () => {
       )({
         recommendationId: "recommendation-1",
         payload: { status: "Solucionado" },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a malformed recommendation detail instead of passing it through", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      // missing `source_text`/`prediction`
+      data: SAMPLE_ROW,
+    });
+
+    const { queryFn } = dataExtraction.recommendationDetail("recommendation-1");
+    await expect((queryFn as () => Promise<unknown>)()).rejects.toThrow();
+  });
+
+  it("rejects a malformed recommendation detail from the correction response instead of passing it through", async () => {
+    vi.spyOn(api, "put").mockResolvedValue({
+      // missing `source_text`/`prediction`
+      data: SAMPLE_ROW,
+    });
+
+    const { mutationFn } = dataExtraction.correctRecommendation();
+    await expect(
+      (
+        mutationFn as (i: {
+          recommendationId: string;
+          ifMatch: string;
+          payload: RecommendationValidationInput;
+        }) => Promise<unknown>
+      )({
+        recommendationId: "recommendation-1",
+        ifMatch: "2026-09-01T00:00:00",
+        payload: {
+          recommendation_number: null,
+          recommendation_date_text: null,
+          recommendation_date: null,
+          topic: null,
+          subtopic: null,
+          personal_data: null,
+          publishable_content: "",
+          recipients: [],
+        },
       }),
     ).rejects.toThrow();
   });

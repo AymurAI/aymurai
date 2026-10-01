@@ -12,10 +12,12 @@ import pytest
 from sqlmodel import col, update
 
 from aymurai.database.crud.recommendation import (
-    RecommendationOrderColumn,
     RecommendationValidationData,
-    recommendation_list,
     recommendation_upsert,
+)
+from aymurai.database.crud.recommendation_listing import (
+    RecommendationOrderColumn,
+    recommendation_list,
 )
 from aymurai.database.schema import Recommendation
 

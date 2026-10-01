@@ -22,6 +22,7 @@ Convención: ver [`../agents/domain.md`](../agents/domain.md).
 | [0013](0013-la-marca-de-sugerencia-es-el-acto-de-validar.md) | La marca de sugerencia es el acto de validar: un campo no validado queda vacío | Validación |
 | [0014](0014-workbook-exportado-de-solo-lectura.md) | El workbook exportado es un reporte de sólo lectura | Export |
 | [0015](0015-catalogos-cerrados-de-seguimiento-como-enums.md) | Situación y estado son catálogos cerrados en el código, no ABM | Persistencia |
+| [0016](0016-la-grilla-se-alcanza-desde-el-flujo-de-recomendaciones.md) | La grilla de seguimiento se alcanza desde el flujo de recomendaciones, no desde el menú de features | Navegación |
 
 0001–0007 surgieron del análisis en [`../defensoria/`](../defensoria/); 0008–0009 surgieron de testear la API
 real con documentos reales (ver la conversación de esa sesión para el detalle completo); 0010–0011 surgieron
@@ -37,3 +38,8 @@ había decidido.
 persistencia/exportación: ratificaron el rol del workbook exportado, que ADR-0004 dejaba implícito, y dejaron
 por escrito por qué dos catálogos de seguimiento no siguen el patrón administrable de los demás. El vocabulario
 que esa sesión fijó está en [`CONTEXT.md`](../../CONTEXT.md).
+
+0016 registra una decisión que se tomó en el código antes que en un documento: al construir la tajada A de la
+Fase 9 se sacaron dos de los tres accesos a la grilla que pedía el issue #58, para alinear con la
+implementación histórica de escritorio. Se escribió en la revisión del PR de la tajada B, cuando la diferencia
+con el issue apareció como hallazgo.

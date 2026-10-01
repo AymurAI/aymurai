@@ -1,15 +1,12 @@
 import { Button, Callout } from "@aymurai/ui";
-import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import FileCheck from "@/components/file-check";
 import FinishMainContent from "@/components/finish/finish-main-content";
 import Footer from "@/components/layout/footer";
 import { isDefensoriaEnabled } from "@/constants/config";
 import { useFiles } from "@/hooks";
-import { downloadRecommendationsExport } from "@/services/aymurai/dataExtraction";
-import { downloadBlob } from "@/services/export/download-blob";
+import { useExportRecommendations } from "@/services/export/use-export-recommendations";
 import { css } from "@/styled/css";
 import { HStack } from "@/styled/jsx";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
@@ -52,8 +49,7 @@ export default function RecommendationFinish({
   const files = useFiles();
   const navigate = useNavigate();
 
-  const [downloadFailed, setDownloadFailed] = useState(false);
-  const downloadMutation = useMutation(downloadRecommendationsExport());
+  const { download, isPending, isError } = useExportRecommendations();
 
   // A plain navigate, not a `<Link>`: `Button` from `@aymurai/ui` renders a
   // real `<button>` (`ButtonHTMLAttributes`) and has no `asChild` escape
@@ -65,20 +61,11 @@ export default function RecommendationFinish({
   // The button itself is still gated by `isDefensoriaEnabled()` below, even
   // though this whole screen is already unreachable with the flag off (see
   // `$feature/route.tsx`'s `beforeLoad`). That route guard is an implicit,
-  // transitive gate; the explicit check here matches the other two entry
-  // points (features-menu.tsx, routes/home/features.tsx) so this component
-  // stays correct on its own if it's ever reached a different way.
+  // transitive gate; the explicit check here matches the other entry point
+  // (the Recommendations onboarding, `$feature/onboarding.tsx` -- ADR-0016)
+  // so this component stays correct on its own if it's ever reached a
+  // different way.
   const handleGoToGrilla = () => navigate({ to: "/home/dataset" });
-
-  const handleDownload = async () => {
-    setDownloadFailed(false);
-    try {
-      const { blob, fileName } = await downloadMutation.mutateAsync("xlsx");
-      downloadBlob(blob, fileName);
-    } catch {
-      setDownloadFailed(true);
-    }
-  };
 
   return (
     <>
@@ -86,7 +73,7 @@ export default function RecommendationFinish({
         {files.map(({ data }) => (
           <FileCheck key={data.name} fileName={data.name} />
         ))}
-        {downloadFailed && (
+        {isError && (
           <Callout
             className={fullWidthCallout}
             message={t("finish.downloadFailed")}
@@ -102,9 +89,9 @@ export default function RecommendationFinish({
           </Button>
           <Button
             size="md"
-            onClick={handleDownload}
-            disabled={downloadMutation.isPending}
-            isLoading={downloadMutation.isPending}
+            onClick={download}
+            disabled={isPending}
+            isLoading={isPending}
           >
             {t("finish.download")}
           </Button>
