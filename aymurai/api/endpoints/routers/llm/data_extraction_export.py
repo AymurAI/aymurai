@@ -12,6 +12,10 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from sqlmodel import Session, select
 
+from aymurai.api.endpoints.routers.llm.spreadsheet_formula_guard import (
+    append_literal_row,
+    escape_csv_value,
+)
 from aymurai.database.schema import (
     MacroSector,
     OrganigramUnit,
@@ -383,11 +387,16 @@ def write_xlsx(
     workbook = openpyxl.Workbook()
 
     recomendaciones_sheet = workbook.active
+    # A fresh `Workbook()` always has one plain worksheet active; narrowed for
+    # the type checker, which sees `Worksheet | Chartsheet | None`.
+    assert isinstance(recomendaciones_sheet, Worksheet)
     recomendaciones_sheet.title = "recomendaciones"
     recomendaciones_sheet.append(RECOMENDACIONES_COLUMNS)
+    # Every data row goes through `append_literal_row`: free text that starts
+    # like a formula must open as the text that was typed, never run.
     for row in recomendaciones:
-        recomendaciones_sheet.append(
-            [row[column] for column in RECOMENDACIONES_COLUMNS]
+        append_literal_row(
+            recomendaciones_sheet, [row[column] for column in RECOMENDACIONES_COLUMNS]
         )
     _style_sheet(
         recomendaciones_sheet,
@@ -398,7 +407,9 @@ def write_xlsx(
     destinatarios_sheet = workbook.create_sheet("destinatarios")
     destinatarios_sheet.append(DESTINATARIOS_COLUMNS)
     for row in destinatarios:
-        destinatarios_sheet.append([row[column] for column in DESTINATARIOS_COLUMNS])
+        append_literal_row(
+            destinatarios_sheet, [row[column] for column in DESTINATARIOS_COLUMNS]
+        )
     _style_sheet(destinatarios_sheet, DESTINATARIOS_COLUMNS)
 
     fd, path = tempfile.mkstemp(suffix=".xlsx")
@@ -415,13 +426,23 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     `FECHA_RECOMENDACION` (a `date`/`None` column) serializes through pandas
     as plain ISO text in the CSV -- CSV has no native date type regardless.
 
+    Deliberately lossy for formula-like text: every string cell starting with
+    `=`, `+`, `-`, `@`, tab or CR gets a leading `'` (OWASP's CSV-injection
+    advice), so even a legitimate bullet such as `- Se solicita...` comes out
+    as `'- Se solicita...`. A CSV has no cell types, and without the quote a
+    spreadsheet would evaluate `-2+3` or show `#NAME?`. The `.xlsx` (the
+    format the UI downloads) is the faithful one: it keeps the exact text.
+
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` table.
 
     Returns:
         Path: Path to the written `.csv` temp file. Caller owns deleting it.
     """
-    frame = pd.DataFrame(recomendaciones, columns=RECOMENDACIONES_COLUMNS)
+    # Formula-like text gets a leading `'` (see `escape_csv_value`).
+    frame = pd.DataFrame(recomendaciones, columns=RECOMENDACIONES_COLUMNS).map(
+        escape_csv_value
+    )
     fd, path = tempfile.mkstemp(suffix=".csv")
     os.close(fd)
     frame.to_csv(path, index=False)

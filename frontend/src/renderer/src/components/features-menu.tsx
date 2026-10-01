@@ -10,7 +10,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { DotsNine, Gear } from "phosphor-react";
 import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
+import {
+  FEATURE_ICON,
+  GRILLA_ICON,
+  isDefensoriaEnabled,
+} from "@/constants/config";
 import { useFileDispatch } from "@/hooks/useFiles";
 import { removeAllFiles } from "@/reducers/file/actions";
 import { FeatureFlowEnum, featureNamespace } from "@/types/features";
@@ -62,6 +66,16 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
     handleClearFiles();
   };
 
+  // Same pattern as `goToSettings` above, not `goToFeature`: the grilla is a
+  // `/home/*` route (not a `/$feature/onboarding` wizard entry), reached the
+  // same way Configuración is. This still clears in-progress files on
+  // navigation -- issue #58 confirms that's expected, the same known
+  // property the four feature items and Configuración already have.
+  const goToDataset = async () => {
+    await navigate({ to: "/home/dataset", viewTransition: false });
+    handleClearFiles();
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -97,6 +111,13 @@ export default function FeaturesMenu({ trigger }: FeaturesMenuProps) {
               />
             );
           })}
+          {isDefensoriaEnabled() && (
+            <FeaturesMenuItem
+              icon={<GRILLA_ICON size={24} />}
+              label={t("grilla.title", { ns: "recommendations" })}
+              onClick={goToDataset}
+            />
+          )}
           <FeaturesMenuItem
             icon={<Gear size={24} />}
             label={t("settings")}

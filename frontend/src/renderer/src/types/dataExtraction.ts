@@ -113,6 +113,42 @@ export interface DocumentExtractionEnvelope {
   updated_at: string | null;
 }
 
+/** One row of the recommendations grilla -- mirrors `RecommendationResponse`. */
+export interface RecommendationRow {
+  id: string;
+  document_id: string;
+  recommendation_number: string | null;
+  recommendation_date_text: string | null;
+  recommendation_date: string | null;
+  topic: string | null;
+  subtopic: string | null;
+  personal_data: boolean | null;
+  publishable_content: string;
+  recipients: RecipientDetail[];
+  file_number: string | null;
+  recommendation_detail: string | null;
+  recommendation_situation: string | null;
+  status: string | null;
+  approved_for_publication: boolean | null;
+  link: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** A page of `RecommendationRow`s -- mirrors `RecommendationPageResponse`. */
+export interface RecommendationPage {
+  items: RecommendationRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+/** Mirrors `RecommendationEnumsResponse` (`GET /catalogs/recommendation-enums`). */
+export interface RecommendationEnums {
+  situations: string[];
+  statuses: string[];
+}
+
 export interface RecipientValidationInput {
   /** Present when correcting an already-saved recipient, absent for a new one. */
   id?: string | null;

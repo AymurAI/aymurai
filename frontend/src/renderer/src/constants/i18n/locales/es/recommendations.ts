@@ -117,6 +117,66 @@ const recommendations = {
     saveFailed:
       "No se pudo guardar la validación. Revisá tu conexión e intentá nuevamente antes de continuar.",
   },
+  // La grilla de seguimiento (`/home/dataset`): la pantalla compartida donde
+  // se completan los campos de seguimiento de cada recomendación publicada.
+  // Un solo namespace para la pantalla y para las puertas que llevan a ella
+  // (ítem del menú, tarjeta del home, botón de finalización): es una sola
+  // superficie y lleva un solo nombre, "Seguimiento". Deliberadamente no
+  // `dataset:title`: esa clave ya está en uso para la tarjeta y el ítem de
+  // menú de Set de Datos (ver features-menu.tsx y routes/home/features.tsx).
+  // El glosario (CONTEXT.md) descarta "base"/"planilla"/"set de datos" para
+  // nombrar el dataset, así que ninguna cadena de acá los usa.
+  grilla: {
+    title: "Seguimiento",
+    cardSubtitle: "Completá el seguimiento de las recomendaciones publicadas",
+    subtitle: "Seguimiento compartido de las recomendaciones ya registradas",
+    filters: {
+      searchLabel: "Buscar recomendaciones",
+      // Exactamente las cuatro columnas que busca el backend
+      // (`_SEARCH_COLUMNS` en `database/crud/recommendation.py`). "Tema"
+      // queda afuera: filtrar por tema exige un join (issue #58).
+      searchPlaceholder: "Número, expediente, detalle o contenido",
+      clearSearch: "Limpiar la búsqueda",
+      dateFrom: "Fecha desde",
+      dateTo: "Fecha hasta",
+      unparsedDates: "Sólo fechas sin interpretar",
+      reset: "Limpiar filtros",
+    },
+    columns: {
+      recommendationNumber: "Nº de recomendación",
+      recommendationDate: "Fecha",
+      topic: "Tema",
+      subtopic: "Subtema",
+      recipient: "Destinatario principal",
+      publishableContent: "Contenido para publicar",
+      personalData: "Datos personales",
+      fileNumber: "Nº de expediente",
+      recommendationDetail: "Detalle del seguimiento",
+      recommendationSituation: "Situación",
+      status: "Estado",
+      approvedForPublication: "Aprobada para publicar",
+      link: "Enlace",
+      lastEdited: "Última edición",
+    },
+    approved: {
+      yes: "Sí",
+      no: "No",
+    },
+    empty: "Todavía no hay recomendaciones registradas.",
+    emptyFiltered: "Ninguna recomendación coincide con los filtros aplicados.",
+    loadFailed:
+      "No se pudieron cargar las recomendaciones. Revisá tu conexión e intentá nuevamente.",
+    saveFailed:
+      "Quedaron cambios sin guardar (marcados en rojo). Revisá tu conexión y volvé a editar esas celdas.",
+    cellSaveFailed: "Sin guardar",
+    enumsFailed:
+      "No se pudieron cargar las listas de Situación y Estado. Esas dos columnas quedan bloqueadas hasta que se recuperen.",
+    pagination: {
+      range: "{{from}}-{{to}} de {{total}}",
+      previous: "Página anterior",
+      next: "Página siguiente",
+    },
+  },
   finish: {
     sectionTitle: "4. Finalización",
     description:
@@ -126,6 +186,7 @@ const recommendations = {
     download: "Descargar la base de recomendaciones",
     downloadFailed:
       "No se pudo descargar el archivo. Revisá tu conexión e intentá nuevamente.",
+    viewGrilla: "Ir a seguimiento",
   },
 };
 

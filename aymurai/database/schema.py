@@ -86,6 +86,7 @@ from .meta.recommendation import (
     Recommendation,
     RecommendationSituation,
     RecommendationStatus,
+    RecommendationUpdate,
 )
 from .meta.summarization import (
     Summarization,

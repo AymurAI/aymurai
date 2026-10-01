@@ -164,6 +164,8 @@ def llm_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # Same per-connection setup as production (FKs, `normalize_text`, ...).
+    sa_event.listen(engine, "connect", _configure_sqlite_connection)
     SQLModel.metadata.create_all(engine)
     yield engine
     engine.dispose()

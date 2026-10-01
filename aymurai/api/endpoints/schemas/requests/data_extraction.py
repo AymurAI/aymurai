@@ -4,6 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aymurai.database.meta.recommendation import (
+    RecommendationSituation,
+    RecommendationStatus,
+)
 from aymurai.meta.api_interfaces import Document
 
 
@@ -51,3 +55,14 @@ class ValidateRecommendationRequest(BaseModel):
     personal_data: bool | None = None
     publishable_content: str
     recipients: list[RecipientValidationRequest] = Field(default_factory=list)
+
+
+class RecommendationSeguimientoUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_number: str | None = None
+    recommendation_detail: str | None = None
+    recommendation_situation: RecommendationSituation | None = None
+    status: RecommendationStatus | None = None
+    approved_for_publication: bool | None = None
+    link: str | None = None

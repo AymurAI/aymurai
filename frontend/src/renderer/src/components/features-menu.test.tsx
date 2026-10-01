@@ -165,3 +165,48 @@ describe("FeaturesMenu — recommendations replaces Set de Datos", () => {
     }
   });
 });
+
+describe("FeaturesMenu — grilla entry", () => {
+  beforeEach(() => {
+    dispatch.mockClear();
+    navigate.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("does not render the grilla entry when the flag is off", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
+    render(<FeaturesMenu />);
+    fireEvent.click(screen.getByRole("button", { name: "Ir al inicio" }));
+    expect(
+      screen.queryByText("recommendations:grilla.title"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the grilla entry and navigates to /home/dataset when the flag is on", async () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
+    let resolveNavigate: () => void = () => {};
+    navigate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveNavigate = resolve;
+        }),
+    );
+
+    render(<FeaturesMenu />);
+    fireEvent.click(screen.getByRole("button", { name: "Ir al inicio" }));
+    fireEvent.click(screen.getByText("recommendations:grilla.title"));
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/home/dataset",
+      viewTransition: false,
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+
+    resolveNavigate();
+
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+  });
+});

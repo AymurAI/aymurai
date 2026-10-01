@@ -1,10 +1,12 @@
 import { Button, Callout } from "@aymurai/ui";
 import { useMutation } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import FileCheck from "@/components/file-check";
 import FinishMainContent from "@/components/finish/finish-main-content";
 import Footer from "@/components/layout/footer";
+import { isDefensoriaEnabled } from "@/constants/config";
 import { useFiles } from "@/hooks";
 import { downloadRecommendationsExport } from "@/services/aymurai/dataExtraction";
 import { downloadBlob } from "@/services/export/download-blob";
@@ -48,9 +50,25 @@ export default function RecommendationFinish({
   const feature = FeatureFlowEnum.Recommendations;
   const { t } = useTranslation(featureNamespace[feature]);
   const files = useFiles();
+  const navigate = useNavigate();
 
   const [downloadFailed, setDownloadFailed] = useState(false);
   const downloadMutation = useMutation(downloadRecommendationsExport());
+
+  // A plain navigate, not a `<Link>`: `Button` from `@aymurai/ui` renders a
+  // real `<button>` (`ButtonHTMLAttributes`) and has no `asChild` escape
+  // hatch the way Radix primitives in this repo do, so there's no way to
+  // make it *be* the anchor. This mirrors `handleBack` in
+  // `summary-finish.tsx`/`finish-anonymizer.tsx`, the established pattern
+  // for a Footer button that navigates.
+  //
+  // The button itself is still gated by `isDefensoriaEnabled()` below, even
+  // though this whole screen is already unreachable with the flag off (see
+  // `$feature/route.tsx`'s `beforeLoad`). That route guard is an implicit,
+  // transitive gate; the explicit check here matches the other two entry
+  // points (features-menu.tsx, routes/home/features.tsx) so this component
+  // stays correct on its own if it's ever reached a different way.
+  const handleGoToGrilla = () => navigate({ to: "/home/dataset" });
 
   const handleDownload = async () => {
     setDownloadFailed(false);
@@ -90,6 +108,11 @@ export default function RecommendationFinish({
           >
             {t("finish.download")}
           </Button>
+          {isDefensoriaEnabled() && (
+            <Button variant="secondary" onClick={handleGoToGrilla} size="md">
+              {t("finish.viewGrilla")}
+            </Button>
+          )}
         </HStack>
       </Footer>
     </>

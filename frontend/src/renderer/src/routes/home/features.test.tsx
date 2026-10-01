@@ -97,3 +97,36 @@ describe("recommendations feature replaces Set de Datos card", () => {
     expect(screen.getByText("recommendations:subtitle")).toBeInTheDocument();
   });
 });
+
+describe("home/features — grilla card", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("does not render the grilla card when the flag is off", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
+    const RouteComponent = Route.options.component as React.FC;
+    render(<RouteComponent />);
+
+    expect(
+      screen.queryByText("recommendations:grilla.title"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a full-width grilla card linking to /home/dataset when the flag is on", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
+    const RouteComponent = Route.options.component as React.FC;
+    render(<RouteComponent />);
+
+    const link = screen.getByText("recommendations:grilla.title").closest("a");
+    expect(link).toHaveAttribute("href", "/home/dataset");
+    expect(
+      screen.getByText("recommendations:grilla.cardSubtitle"),
+    ).toBeInTheDocument();
+    expect(link?.className).toContain("grid-c_1_/_-1");
+    // Confirms the fix isn't dropping the wrapper's own fixed layout
+    // (display: block; h: full) in favor of the extra class.
+    expect(link?.className).toContain("d_block");
+    expect(link?.className).toContain("h_full");
+  });
+});

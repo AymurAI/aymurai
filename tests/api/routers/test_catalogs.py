@@ -5,6 +5,7 @@ from sqlalchemy import event
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
 from aymurai.api.endpoints.routers.defensoria import catalogs
+from aymurai.database.schema import RecommendationSituation, RecommendationStatus
 from aymurai.database.session import _configure_sqlite_connection, get_session
 
 
@@ -155,3 +156,14 @@ def test_the_same_name_under_another_topic_is_not_a_conflict(catalogs_client):
 
     assert response.status_code == 200, response.text
     assert response.json()["name"] == "General"
+
+
+def test_recommendation_enums_list(catalogs_client):
+    """Recommendation situations and statuses are fixed enums. The endpoint
+    returns them as a list of their string values without hardcoding."""
+    response = catalogs_client.get("/catalogs/recommendation-enums")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["situations"] == [s.value for s in RecommendationSituation]
+    assert body["statuses"] == [s.value for s in RecommendationStatus]

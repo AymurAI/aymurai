@@ -53,11 +53,12 @@ class RecommendationBase(SQLModel):
     # Tri-state: None means "not yet answered", not "no personal data".
     personal_data: bool | None = None
     publishable_content: str
-    # Post-publication lifecycle fields from the legacy template. Read-only
-    # today -- only the export (`data_extraction_export.py`) reads them; the
-    # wizard (Fase 8) doesn't know them and must never write them. Their
-    # editing surface is a future, partial-update endpoint (issue #58), not
-    # this task. `recommendation_situation` and `status` are closed catalogs
+    # Post-publication lifecycle fields from the legacy template -- writable
+    # via `PATCH /data-extraction/recommendations/{id}` (issue #58), the
+    # grilla de seguimiento's editing surface, and read by the export
+    # (`data_extraction_export.py`). The validation wizard (Fase 8) doesn't
+    # know them and must never write them: `recommendation_upsert` leaves
+    # them alone. `recommendation_situation` and `status` are closed catalogs
     # (a DB-level CHECK constraint via `_closed_catalog_column`, on top of
     # the usual pydantic validation) -- any other value fails at
     # construction and at the DB layer, never silently stored.
@@ -75,6 +76,18 @@ class RecommendationBase(SQLModel):
             RecommendationStatus, "ck_recommendation_status"
         ),
     )
+    approved_for_publication: bool | None = None
+    link: str | None = None
+
+
+class RecommendationUpdate(SQLModel):
+    """Capa DB del PATCH de seguimiento -- todo opcional, `exclude_unset=True`
+    en el CRUD decide qué tocar. Nunca incluye campos de la extracción."""
+
+    file_number: str | None = None
+    recommendation_detail: str | None = None
+    recommendation_situation: RecommendationSituation | None = None
+    status: RecommendationStatus | None = None
     approved_for_publication: bool | None = None
     link: str | None = None
 

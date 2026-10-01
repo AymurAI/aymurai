@@ -132,16 +132,19 @@ class RecommendationResponse(BaseModel):
     personal_data: bool | None
     publishable_content: str
     recipients: list[RecipientDetailResponse]
-    # Post-publication lifecycle fields from the legacy template -- read-only
-    # here (see `Recommendation` in `database/meta/recommendation.py`). Only
-    # the export writes them today; a future, partial-update endpoint (#58)
-    # will let a human edit them.
+    # Post-publication lifecycle fields from the legacy template -- writable
+    # via `PATCH /data-extraction/recommendations/{id}` (issue #58), see
+    # `Recommendation` in `database/meta/recommendation.py`.
     file_number: str | None
     recommendation_detail: str | None
     recommendation_situation: RecommendationSituation | None
     status: RecommendationStatus | None
     approved_for_publication: bool | None
     link: str | None
+    created_at: datetime
+    # `onupdate` with no `server_default` -- null until the row is first
+    # updated after creation.
+    updated_at: datetime | None
 
 
 class RecommendationDetailResponse(RecommendationResponse):

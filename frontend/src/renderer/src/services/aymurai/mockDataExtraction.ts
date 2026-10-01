@@ -2,9 +2,13 @@ import type {
   DataExtractionPrediction,
   DocumentExtractionEnvelope,
   RecipientDetail,
+  RecommendationEnums,
+  RecommendationPage,
+  RecommendationRow,
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 import type { RecommendationsExportResult } from "./dataExtraction";
 
@@ -276,6 +280,197 @@ export function mockValidateRecommendation(input: {
   };
   validations.set(input.documentId, created);
   return delay(created);
+}
+
+/**
+ * Copied string literals of `RecommendationSituation`/`RecommendationStatus`
+ * (`aymurai/database/meta/recommendation.py`) — the mock has no Python
+ * import, so `GET /catalogs/recommendation-enums` is reproduced by hand here.
+ */
+const RECOMMENDATION_SITUATIONS = [
+  "Respuesta",
+  "Respuesta parcial",
+  "Notificado",
+];
+const RECOMMENDATION_STATUSES = ["Solucionado", "No solucionado"];
+
+/**
+ * Seed rows for the recommendations grilla (Task 5), keyed by `id`. Two rows
+ * on purpose: one fully worked (a parsed date, a situation, no status yet)
+ * and one still needing attention (date prose that did not parse, no
+ * seguimiento fields set), so `unparsedDates`/empty-state UI has something
+ * real to show against.
+ */
+const recommendationRows = new Map<string, RecommendationRow>([
+  [
+    "recommendation-1",
+    {
+      id: "recommendation-1",
+      document_id: "document-1",
+      recommendation_number: "123/2026",
+      recommendation_date_text: "22 de noviembre",
+      recommendation_date: "2026-11-22",
+      topic: "Salud",
+      subtopic: "Acceso a medicamentos",
+      personal_data: false,
+      publishable_content:
+        "La Defensoría recomienda al organismo destinatario que arbitre los medios necesarios para garantizar el acceso a medicamentos esenciales.",
+      recipients: [],
+      file_number: "EX-2026-00123",
+      recommendation_detail: null,
+      recommendation_situation: "Notificado",
+      status: null,
+      approved_for_publication: null,
+      link: null,
+      created_at: now,
+      updated_at: null,
+    },
+  ],
+  [
+    "recommendation-2",
+    {
+      id: "recommendation-2",
+      document_id: "document-2",
+      recommendation_number: "456/2026",
+      // Prose the model read but could not parse -- what an "unparsed date"
+      // actually is, and what the `unparsedDates` filter looks for (text
+      // present, no parsed date). A row with neither was never a date to
+      // interpret and the real endpoint would not return it here.
+      recommendation_date_text: "durante el pasado mes",
+      recommendation_date: null,
+      topic: "Vivienda",
+      subtopic: null,
+      personal_data: null,
+      publishable_content:
+        "La Defensoría recomienda al organismo destinatario que agilice el trámite de la solicitud de vivienda.",
+      recipients: [],
+      file_number: null,
+      recommendation_detail: null,
+      recommendation_situation: null,
+      status: "Solucionado",
+      approved_for_publication: true,
+      link: "https://example.org/recomendacion-456",
+      created_at: now,
+      updated_at: now,
+    },
+  ],
+]);
+
+export function mockRecommendationsList(params: {
+  page?: number;
+  pageSize?: number;
+  orderBy?: string;
+  orderDir?: "asc" | "desc";
+  unparsedDates?: boolean;
+  q?: string;
+  // `RecommendationRow` carries `topic`/`subtopic` names, not the ids the
+  // real endpoint filters by, and no sector at all (that lives on
+  // recipients) -- the seed data is too small for id-based filtering to mean
+  // anything client-side, so these two are accepted for signature parity
+  // with the real params but intentionally not applied below.
+  topicId?: string;
+  sectorId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<RecommendationPage> {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 20;
+
+  let rows = Array.from(recommendationRows.values());
+
+  if (params.unparsedDates) {
+    // Both halves, exactly as the real filter does it: prose the model read
+    // but could not parse. A row with no date text at all was never a date
+    // to interpret, so it is not one a human has to correct.
+    rows = rows.filter(
+      (r) =>
+        r.recommendation_date_text !== null && r.recommendation_date === null,
+    );
+  }
+  // Folded like the real endpoint does it (`normalize_text` on both sides),
+  // so "area" finds "Área" here too.
+  const q = normalizeForSearch(params.q);
+  if (q) {
+    // The same four columns the real endpoint ORs over (see `_SEARCH_COLUMNS`
+    // in `database/crud/recommendation.py`). `topic` is deliberately NOT one
+    // of them -- matching it server-side would need a join (issue #58).
+    rows = rows.filter((r) =>
+      [
+        r.recommendation_number,
+        r.file_number,
+        r.recommendation_detail,
+        r.publishable_content,
+      ].some((field) => field != null && normalizeForSearch(field).includes(q)),
+    );
+  }
+  const dateFrom = params.dateFrom;
+  if (dateFrom) {
+    rows = rows.filter(
+      (r) =>
+        r.recommendation_date !== null && r.recommendation_date >= dateFrom,
+    );
+  }
+  const dateTo = params.dateTo;
+  if (dateTo) {
+    rows = rows.filter(
+      (r) => r.recommendation_date !== null && r.recommendation_date <= dateTo,
+    );
+  }
+
+  const orderBy = params.orderBy ?? "created_at";
+  const orderDir = params.orderDir ?? "desc";
+  // `last_edited` is not a field of the row: the real endpoint computes it
+  // as `COALESCE(updated_at, created_at)`.
+  const sortValue = (r: RecommendationRow): unknown =>
+    orderBy === "last_edited"
+      ? (r.updated_at ?? r.created_at)
+      : (r as unknown as Record<string, unknown>)[orderBy];
+  rows = [...rows].sort((a, b) => {
+    const cmp = String(sortValue(a) ?? "").localeCompare(
+      String(sortValue(b) ?? ""),
+    );
+    return orderDir === "asc" ? cmp : -cmp;
+  });
+
+  const total = rows.length;
+  const start = (page - 1) * pageSize;
+  const items = rows.slice(start, start + pageSize);
+  return delay({ items, total, page, page_size: pageSize });
+}
+
+export function mockRecommendationEnums(): Promise<RecommendationEnums> {
+  return delay({
+    situations: [...RECOMMENDATION_SITUATIONS],
+    statuses: [...RECOMMENDATION_STATUSES],
+  });
+}
+
+export function mockPatchRecommendationSeguimiento(input: {
+  recommendationId: string;
+  payload: Partial<{
+    file_number: string | null;
+    recommendation_detail: string | null;
+    recommendation_situation: string | null;
+    status: string | null;
+    approved_for_publication: boolean | null;
+    link: string | null;
+  }>;
+}): Promise<RecommendationRow> {
+  const existing = recommendationRows.get(input.recommendationId);
+  if (!existing) {
+    throw new Error(`Recommendation not found: ${input.recommendationId}`);
+  }
+  // Object spread only copies keys `payload` actually has, same
+  // absent-vs-null semantics as the real PATCH -- an omitted field here
+  // leaves `existing`'s value untouched, exactly as `exclude_unset` does
+  // server-side.
+  const updated: RecommendationRow = {
+    ...existing,
+    ...input.payload,
+    updated_at: now,
+  };
+  recommendationRows.set(input.recommendationId, updated);
+  return delay(updated);
 }
 
 /**

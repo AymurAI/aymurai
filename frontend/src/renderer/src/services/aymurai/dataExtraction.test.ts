@@ -10,6 +10,29 @@ vi.mock("@/constants/config", async (importOriginal) => ({
 
 const DOCUMENT_ID = "11111111-1111-1111-1111-111111111111";
 
+const SAMPLE_ROW = {
+  id: "recommendation-1",
+  document_id: DOCUMENT_ID,
+  recommendation_number: "123/2026",
+  recommendation_date_text: "22 de noviembre",
+  recommendation_date: "2026-11-22",
+  topic: "Salud",
+  subtopic: "Acceso a medicamentos",
+  personal_data: false,
+  publishable_content: "contenido",
+  recipients: [],
+  file_number: "EX-2026-00123",
+  recommendation_detail: null,
+  recommendation_situation: "Notificado",
+  status: null,
+  approved_for_publication: null,
+  link: null,
+  // The real wire format: FastAPI serializes these naive, with no `Z` and
+  // no offset, even though the instant they carry is UTC.
+  created_at: "2026-09-01T00:00:00",
+  updated_at: null,
+};
+
 describe("dataExtraction service — real (non-mock) implementation", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -229,6 +252,122 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
     expect(result.blob).toBe(blob);
     expect(result.fileName).toBe("recomendaciones_20260921231500.csv");
   });
+
+  it("fetches recommendations via GET /llm/data-extraction/recommendations with all params", async () => {
+    const page = { items: [SAMPLE_ROW], total: 1, page: 2, page_size: 10 };
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: page });
+
+    const { queryFn } = dataExtraction.recommendationsList({
+      page: 2,
+      pageSize: 10,
+      orderBy: "recommendation_date",
+      orderDir: "asc",
+      unparsedDates: true,
+      q: "salud",
+      topicId: "topic-1",
+      sectorId: "sector-1",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-12-31",
+    });
+    const result = await (queryFn as () => Promise<unknown>)();
+
+    expect(getSpy).toHaveBeenCalledWith(
+      "/llm/data-extraction/recommendations",
+      {
+        params: {
+          page: 2,
+          page_size: 10,
+          order_by: "recommendation_date",
+          order_dir: "asc",
+          unparsed_dates: true,
+          q: "salud",
+          topic_id: "topic-1",
+          sector_id: "sector-1",
+          date_from: "2026-01-01",
+          date_to: "2026-12-31",
+        },
+      },
+    );
+    expect(result).toEqual(page);
+  });
+
+  it("fetches recommendation enums via GET /catalogs/recommendation-enums", async () => {
+    const enums = { situations: ["Respuesta"], statuses: ["Solucionado"] };
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: enums });
+
+    const { queryFn } = dataExtraction.recommendationEnums();
+    const result = await (queryFn as () => Promise<unknown>)();
+
+    expect(getSpy).toHaveBeenCalledWith("/catalogs/recommendation-enums");
+    expect(result).toEqual(enums);
+  });
+
+  it("patches seguimiento fields via PATCH /llm/data-extraction/recommendations/{id}", async () => {
+    const patchSpy = vi
+      .spyOn(api, "patch")
+      .mockResolvedValue({ data: SAMPLE_ROW });
+
+    const { mutationFn } = dataExtraction.patchRecommendationSeguimiento();
+    const result = await (
+      mutationFn as (i: {
+        recommendationId: string;
+        payload: Partial<{
+          file_number: string | null;
+          recommendation_detail: string | null;
+          recommendation_situation: string | null;
+          status: string | null;
+          approved_for_publication: boolean | null;
+          link: string | null;
+        }>;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      payload: { file_number: "EX-2026-00123", status: "Solucionado" },
+    });
+
+    expect(patchSpy).toHaveBeenCalledWith(
+      "/llm/data-extraction/recommendations/recommendation-1",
+      { file_number: "EX-2026-00123", status: "Solucionado" },
+    );
+    expect(result).toEqual(SAMPLE_ROW);
+  });
+
+  it("omits absent payload keys from the PATCH body instead of sending null/undefined", async () => {
+    const patchSpy = vi
+      .spyOn(api, "patch")
+      .mockResolvedValue({ data: SAMPLE_ROW });
+
+    const { mutationFn } = dataExtraction.patchRecommendationSeguimiento();
+    await (
+      mutationFn as (i: {
+        recommendationId: string;
+        payload: Partial<{ status: string | null }>;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      payload: { status: "Solucionado" },
+    });
+
+    const body = patchSpy.mock.calls[0]?.[1] as Record<string, unknown>;
+    // The other five seguimiento keys must not merely be `undefined` --
+    // `JSON.stringify` would still omit an `undefined` value, but they must
+    // not be own keys of the body at all, matching the brief's requirement
+    // that an absent field never travels (the backend reads `exclude_unset`,
+    // not "value is null/undefined").
+    expect(Object.keys(body)).toEqual(["status"]);
+    expect(JSON.stringify(body)).toBe(
+      JSON.stringify({ status: "Solucionado" }),
+    );
+    for (const key of [
+      "file_number",
+      "recommendation_detail",
+      "recommendation_situation",
+      "approved_for_publication",
+      "link",
+    ]) {
+      expect(Object.hasOwn(body, key)).toBe(false);
+    }
+  });
 });
 
 // Isolated from the describe blocks above: the file-level `vi.mock` pins
@@ -262,6 +401,79 @@ describe("dataExtraction service — mock implementation", () => {
     expect(getSpy).not.toHaveBeenCalled();
     expect(result.blob).toBeInstanceOf(Blob);
     expect(result.fileName).toMatch(/^recomendaciones_\d{14}\.csv$/);
+  });
+
+  it("lists recommendations from the in-memory mock without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const getSpy = vi.spyOn(mockedApi, "get");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { queryFn } = mockedDataExtraction.recommendationsList({});
+    const result = (await (queryFn as () => Promise<unknown>)()) as {
+      items: unknown[];
+      page: number;
+      page_size: number;
+    };
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ page: 1, page_size: 20 });
+    expect(result.items.length).toBeGreaterThan(0);
+  });
+
+  it("returns mock recommendation enums without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const getSpy = vi.spyOn(mockedApi, "get");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { queryFn } = mockedDataExtraction.recommendationEnums();
+    const result = (await (queryFn as () => Promise<unknown>)()) as {
+      situations: string[];
+      statuses: string[];
+    };
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(result.situations).toContain("Notificado");
+    expect(result.statuses).toContain("Solucionado");
+  });
+
+  it("patches the in-memory mock recommendation without calling the real API when USE_MOCK_DATA_EXTRACTION is true", async () => {
+    vi.resetModules();
+    vi.doMock("@/constants/config", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/constants/config")>()),
+      USE_MOCK_DATA_EXTRACTION: true,
+    }));
+
+    const { default: mockedApi } = await import("@/services/api");
+    const patchSpy = vi.spyOn(mockedApi, "patch");
+    const mockedDataExtraction = await import("./dataExtraction");
+
+    const { mutationFn } =
+      mockedDataExtraction.patchRecommendationSeguimiento();
+    const result = (await (
+      mutationFn as (i: {
+        recommendationId: string;
+        payload: Partial<{ status: string | null }>;
+      }) => Promise<unknown>
+    )({
+      recommendationId: "recommendation-1",
+      payload: { status: "Solucionado" },
+    })) as { id: string; status: string | null };
+
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(result.id).toBe("recommendation-1");
+    expect(result.status).toBe("Solucionado");
   });
 });
 
@@ -317,6 +529,45 @@ describe("dataExtraction service — validates responses with zod", () => {
           publishable_content: "",
           recipients: [],
         },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a malformed recommendations page instead of passing it through", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      // missing `page`/`page_size`
+      data: { items: [SAMPLE_ROW], total: 1 },
+    });
+
+    const { queryFn } = dataExtraction.recommendationsList({});
+    await expect((queryFn as () => Promise<unknown>)()).rejects.toThrow();
+  });
+
+  it("rejects a malformed recommendation-enums response instead of passing it through", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({
+      // missing `statuses`
+      data: { situations: ["Respuesta"] },
+    });
+
+    const { queryFn } = dataExtraction.recommendationEnums();
+    await expect((queryFn as () => Promise<unknown>)()).rejects.toThrow();
+  });
+
+  it("rejects a malformed recommendation row from the PATCH response instead of passing it through", async () => {
+    vi.spyOn(api, "patch").mockResolvedValue({
+      data: { id: "recommendation-1" },
+    });
+
+    const { mutationFn } = dataExtraction.patchRecommendationSeguimiento();
+    await expect(
+      (
+        mutationFn as (i: {
+          recommendationId: string;
+          payload: Partial<{ status: string | null }>;
+        }) => Promise<unknown>
+      )({
+        recommendationId: "recommendation-1",
+        payload: { status: "Solucionado" },
       }),
     ).rejects.toThrow();
   });

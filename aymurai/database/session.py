@@ -4,10 +4,35 @@ from sqlalchemy import event
 from sqlmodel import Session, create_engine
 
 from aymurai.settings import settings
+from aymurai.text.matching import normalize_text
+
+# Name of the SQL function every SQLite connection carries for case- and
+# accent-insensitive matching (see `_sql_normalize_text`).
+NORMALIZE_TEXT_SQL_FUNCTION = "normalize_text"
+
+
+def _sql_normalize_text(value: str | None) -> str | None:
+    """
+    `normalize_text` as a SQL scalar function.
+
+    SQLite's built-in `lower()` only folds ASCII, so `lower('Área')` keeps the
+    `Á` and a search for "área" or "area" misses it. Registering the Python
+    normalization lets a query fold case and accents on the column side too.
+
+    Args:
+        value (str | None): The SQL argument.
+
+    Returns:
+        str | None: The normalized text, or None for SQL NULL -- so a NULL
+            column keeps never matching a LIKE, instead of becoming "" (which
+            `normalize_text` returns for None).
+    """
+    if value is None:
+        return None
+    return normalize_text(value)
 
 
 def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
-    del connection_record
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     # WAL lets readers never block the writer (or vice versa) -- without
@@ -20,6 +45,31 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     # makes the wait configurable via SQLITE_BUSY_TIMEOUT_MS.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
+    register_sql_functions(dbapi_connection, connection_record)
+
+
+def register_sql_functions(dbapi_connection, connection_record) -> None:
+    """
+    Registers the Python SQL functions queries rely on (`normalize_text`).
+
+    Called by `_configure_sqlite_connection`; also usable on its own as a
+    `connect` listener where the rest of that setup (FK enforcement, WAL)
+    can't apply yet, so the functions are never registered two ways.
+
+    Args:
+        dbapi_connection: The raw `sqlite3` connection.
+        connection_record: SQLAlchemy's pool record (unused).
+    """
+    del connection_record
+    # Query-time only. NEVER reference `normalize_text` from an index, view,
+    # CHECK, generated column or anything else persisted in the schema: the
+    # function exists only on connections opened through this listener, so
+    # Alembic's own engine, the `sqlite3` CLI or an ad hoc script would then
+    # fail with "no such function" on reads or writes. `deterministic=True`
+    # merely tells the planner the result depends only on the input.
+    dbapi_connection.create_function(
+        NORMALIZE_TEXT_SQL_FUNCTION, 1, _sql_normalize_text, deterministic=True
+    )
 
 
 def get_engine(echo: bool = False):

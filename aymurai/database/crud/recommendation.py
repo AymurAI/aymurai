@@ -1,9 +1,12 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Literal
 
-from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlalchemy import func, or_
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import Session, col, select
 
 from aymurai.database.crud.dataset import get_or_create_default_dataset
 from aymurai.database.crud.organigram.sector import is_sector_ancestor_of
@@ -12,12 +15,53 @@ from aymurai.database.schema import (
     OrganigramUnit,
     Recipient,
     Recommendation,
+    RecommendationUpdate,
     Subtopic,
     Topic,
 )
+from aymurai.database.session import NORMALIZE_TEXT_SQL_FUNCTION
 from aymurai.text.matching import normalize_text
 from aymurai.transforms.datetime_formatter.recommendation_prose import (
     parse_recommendation_date,
+)
+
+# issue #58: columnas propias de la recomendación ordenables desde la grilla.
+# Los órdenes que exigen join (tema, sector) quedan fuera. `Literal` es lo que
+# hace que FastAPI devuelva 422 automáticamente ante cualquier valor fuera de
+# esta whitelist -- no hace falta validar a mano.
+RecommendationOrderColumn = Literal[
+    "created_at",
+    "recommendation_date",
+    "recommendation_number",
+    "status",
+    "recommendation_situation",
+    "file_number",
+    "last_edited",
+]
+
+# `last_edited` is what the grilla's "Última edición" column shows:
+# `updated_at` once anybody touched the row, `created_at` otherwise
+# (`updated_at` stays NULL until the first update after creation).
+_ORDER_COLUMNS: dict[str, InstrumentedAttribute | ColumnElement] = {
+    "created_at": Recommendation.created_at,
+    "recommendation_date": Recommendation.recommendation_date,
+    "recommendation_number": Recommendation.recommendation_number,
+    "status": Recommendation.status,
+    "recommendation_situation": Recommendation.recommendation_situation,
+    "file_number": Recommendation.file_number,
+    "last_edited": func.coalesce(Recommendation.updated_at, Recommendation.created_at),
+}
+
+# The columns the free-text search (`q`) spans. Kept to columns owned by
+# `Recommendation` itself so one search stays one table scan -- `topic`/
+# `sector` would each need a join, which issue #58 rules out for this tajada.
+# The frontend's mock (`mockDataExtraction.ts`) and the search box's
+# placeholder copy both mirror exactly this list.
+_SEARCH_COLUMNS: tuple[InstrumentedAttribute, ...] = (
+    Recommendation.recommendation_number,
+    Recommendation.file_number,
+    Recommendation.recommendation_detail,
+    Recommendation.publishable_content,
 )
 
 
@@ -311,6 +355,32 @@ def recommendation_get_by_document(
     ).first()
 
 
+def recommendation_update_seguimiento(
+    recommendation_id: uuid.UUID, update: RecommendationUpdate, session: Session
+) -> Recommendation:
+    """
+    Actualiza sólo los seis campos de seguimiento de una recomendación existente.
+
+    Ausente en `update` = no toca ese campo (por `exclude_unset=True`); presente
+    en `None` = lo limpia. Nunca toca los campos que vienen del documento --
+    ésos son responsabilidad exclusiva de `recommendation_upsert`.
+
+    Raises:
+        ValueError: Si la recomendación no existe.
+    """
+    recommendation = session.get(Recommendation, recommendation_id)
+    if not recommendation:
+        raise ValueError(f"Recommendation not found: {recommendation_id}")
+
+    for field_name, value in update.model_dump(exclude_unset=True).items():
+        setattr(recommendation, field_name, value)
+
+    session.add(recommendation)
+    session.commit()
+    session.refresh(recommendation)
+    return recommendation
+
+
 def recommendation_list(
     session: Session,
     *,
@@ -319,6 +389,9 @@ def recommendation_list(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
+    unparsed_dates: bool = False,
+    order_by: RecommendationOrderColumn = "created_at",
+    order_dir: Literal["asc", "desc"] = "desc",
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Recommendation], int]:
@@ -332,8 +405,19 @@ def recommendation_list(
             least one recipient resolved to this sector.
         date_from (date | None): Minimum `recommendation_date` (inclusive).
         date_to (date | None): Maximum `recommendation_date` (inclusive).
-        q (str | None): Case-insensitive substring search over
-            `publishable_content`.
+        q (str | None): Case- and accent-insensitive substring search,
+            matched against any of `_SEARCH_COLUMNS`. Normalized with
+            `normalize_text` (which also strips it), so a whitespace-only
+            `q` applies no filter at all.
+        unparsed_dates (bool): Restrict to rows with prose
+            (`recommendation_date_text`) but no successfully parsed
+            `recommendation_date` -- exactly the rows that need human
+            correction.
+        order_by (RecommendationOrderColumn): Column to sort by, whitelisted
+            (issue #58) to columns that don't require a join.
+        order_dir (Literal["asc", "desc"]): Sort direction. Nulls always
+            sort last, in both directions; ties are broken by `id`
+            ascending so pagination is deterministic.
         page (int): 1-indexed page number.
         page_size (int): Rows per page.
 
@@ -350,13 +434,26 @@ def recommendation_list(
         statement = statement.where(Recommendation.recommendation_date >= date_from)
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
-    if q:
+    # Folded with the same `normalize_text` the SQL side applies, so case and
+    # accents never decide a match ("area" finds "Área", "ÁREA" finds "área").
+    needle = normalize_text(q) if q else ""
+    if needle:
         # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
         # match themselves rather than being reinterpreted as wildcards.
-        needle = _like_escape(q.lower())
+        pattern = f"%{_like_escape(needle)}%"
+        # The four text columns that live directly on `Recommendation`: one
+        # search box, no joins. `tema`/`sector` are deliberately out (issue
+        # #58 keeps join-bound columns out of ordering, and filtering has the
+        # same cost). The SQL `normalize_text` (registered per connection in
+        # `database/session.py`) maps NULL to NULL and `NULL LIKE ...` is
+        # NULL, so a nullable column simply never matches -- no null guard.
+        normalize = getattr(func, NORMALIZE_TEXT_SQL_FUNCTION)
         statement = statement.where(
-            func.lower(Recommendation.publishable_content).like(
-                f"%{needle}%", escape="\\"
+            or_(
+                *(
+                    normalize(column).like(pattern, escape="\\")
+                    for column in _SEARCH_COLUMNS
+                )
             )
         )
     if sector_id is not None:
@@ -367,11 +464,21 @@ def recommendation_list(
                 )
             )
         )
+    if unparsed_dates:
+        statement = statement.where(
+            Recommendation.recommendation_date_text.is_not(None),
+            Recommendation.recommendation_date.is_(None),
+        )
 
-    total = len(session.exec(statement).all())
+    total = session.exec(select(func.count()).select_from(statement.subquery())).one()
 
+    column = _ORDER_COLUMNS[order_by]
+    order_clause = column.asc() if order_dir == "asc" else column.desc()
     statement = (
-        statement.order_by(Recommendation.created_at.desc())
+        # `id` breaks ties: without a total order, SQLite may return tied rows
+        # in a different order on each query, so consecutive pages could
+        # repeat some rows and skip others.
+        statement.order_by(order_clause.nullslast(), col(Recommendation.id))
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

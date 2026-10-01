@@ -101,3 +101,40 @@ export const documentExtractionEnvelopeSchema = z.object({
   catalogs_stale: z.boolean(),
   updated_at: z.string().nullable(),
 });
+
+/**
+ * Mirrors `RecommendationResponse` -- the row shape `GET
+ * /llm/data-extraction/recommendations` serves for the grilla. A sibling of
+ * `recommendationValidationSchema` (which mirrors `RecommendationDetailResponse`,
+ * the `source_text`/`prediction` superset returned by the single-document
+ * validate/detail endpoints): reuses that schema's shared base fields via
+ * `.omit()` + `.extend()` rather than duplicating them, and adds the six
+ * post-publication seguimiento fields plus `created_at`/`updated_at` the
+ * backend started serving in Task 1.
+ */
+export const recommendationRowSchema = recommendationValidationSchema
+  .omit({ source_text: true, prediction: true })
+  .extend({
+    file_number: z.string().nullable(),
+    recommendation_detail: z.string().nullable(),
+    recommendation_situation: z.string().nullable(),
+    status: z.string().nullable(),
+    approved_for_publication: z.boolean().nullable(),
+    link: z.string().nullable(),
+    created_at: z.string(),
+    updated_at: z.string().nullable(),
+  });
+
+/** Mirrors `RecommendationPageResponse`. */
+export const recommendationPageSchema = z.object({
+  items: z.array(recommendationRowSchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+/** Mirrors `RecommendationEnumsResponse` (`GET /catalogs/recommendation-enums`). */
+export const recommendationEnumsSchema = z.object({
+  situations: z.array(z.string()),
+  statuses: z.array(z.string()),
+});
