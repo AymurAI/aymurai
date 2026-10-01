@@ -425,6 +425,13 @@ def write_csv(recomendaciones: list[dict[str, Any]]) -> Path:
     `FECHA_RECOMENDACION` (a `date`/`None` column) serializes through pandas
     as plain ISO text in the CSV -- CSV has no native date type regardless.
 
+    Deliberately lossy for formula-like text: every string cell starting with
+    `=`, `+`, `-`, `@`, tab or CR gets a leading `'` (OWASP's CSV-injection
+    advice), so even a legitimate bullet such as `- Se solicita...` comes out
+    as `'- Se solicita...`. A CSV has no cell types, and without the quote a
+    spreadsheet would evaluate `-2+3` or show `#NAME?`. The `.xlsx` (the
+    format the UI downloads) is the faithful one: it keeps the exact text.
+
     Args:
         recomendaciones (list[dict[str, Any]]): Rows for the `recomendaciones` table.
 

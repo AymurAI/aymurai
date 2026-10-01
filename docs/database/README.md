@@ -53,7 +53,9 @@ The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
 in the container). The `<timestamp>` is `YYYYMMDDHHMMSS` in **UTC** — unlike
 the exported workbook's filename, which uses `EXPORT_TIMEZONE` (Buenos Aires
 time by default), so a backup taken at 14:00 local time is named `…170000`.
-Configuration, with the defaults shipped in
+An existing backup is never overwritten: a second backup within the same
+UTC second gets a suffix (`database_<timestamp>_01.db`, `_02`, …), which
+still sorts after the first one and before the next second. Configuration, with the defaults shipped in
 `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
 - `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
@@ -64,7 +66,9 @@ Configuration, with the defaults shipped in
 A run whose copy is byte-identical (sha256) to the most recent backup is
 discarded instead of written (the sidecar logs `unchanged since …, skipped`),
 so backups only accumulate in hours when the database actually changed.
-With the hourly default, `336` retained backups therefore cover:
+With the hourly default, `336` retained backups therefore cover (not
+counting manual `make db-backup` runs and pre-restore snapshots, which take
+slots too):
 - **at least 14 days** even if the database changed every single hour, day
   and night;
 - **about 7 weeks** at a realistic pace — grid edits during working hours
@@ -97,7 +101,9 @@ Stopping is graceful: the service runs under `init: true` and the script
 handles SIGTERM by finishing any backup in progress and exiting before the
 next one, so `make db-backup-stop` returns within about a second instead of
 waiting out Docker's 10s grace period. A copy is written as a hidden
-`.database_<timestamp>.db.partial` file and only renamed once complete; if a
+`.database_<timestamp>_<random>.db.partial` file (unique per run, so a
+`make db-backup` running alongside the loop never touches the loop's file)
+and only gets its final name once complete; if a
 run is ever killed outright, the leftover `.partial` is never a restore
 candidate, and the loop deletes any such file when it next starts.
 
@@ -116,11 +122,32 @@ separate file (or, if nothing changed since the latest backup, the snapshot
 is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
 
-Once the restored file is in place, `db-restore` starts the `db-backup`
-sidecar again (`docker compose up -d db-backup`, the same as
-`make db-backup-up`), so automatic backups resume — the first run backs up
-the restored database. The API is left stopped on purpose: start it yourself
+Whenever `db-restore` exits after stopping the containers, it starts the
+`db-backup` sidecar again (`docker compose up -d db-backup`, the same as
+`make db-backup-up`) — after a successful restore, and also when it stops
+early: refusing because a container is still running, a failed pre-restore
+snapshot, or a `cp`/`mv` permission error. A failure prints
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; if the
+restart itself fails, it prints a warning telling you to run
+`make db-backup-up`. A failure never leaves a half-written database: the
+backup is copied to `database.db.restoring` first, and only once that copy
+succeeded are the old `-wal`/`-shm` removed and the copy moved into place,
+so `database.db` is always either the untouched old file or the restored
+one. After a successful restore the sidecar's first run backs up the
+restored database. The API is left stopped on purpose: start it yourself
 with `make api-up` or `make api-full-up` after checking the restore.
+
+**Pruning right after a restore.** The pre-restore snapshot is taken with
+pruning disabled, but the restarted sidecar immediately backs up the
+restored database and prunes back to `BACKUP_RETENTION`. With a full set,
+the snapshot plus that first run push it two over the cap, so the two
+**oldest** backups are deleted right away — and they may be the file you
+just restored from, or ones you meant to try next. Before restoring, copy
+any backup you may still need out of `./resources/backups` (e.g.
+`cp resources/backups/database_<timestamp>.db ~/restore-candidates/`), and
+copy it back when you want to restore it. If you are going to try several
+restores in a row, also run `make db-backup-stop` right after each one, so
+the sidecar doesn't keep adding backups and pruning between attempts.
 
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,
 `resources/backups/`) may be root-owned by Docker; `db-restore`'s host-side

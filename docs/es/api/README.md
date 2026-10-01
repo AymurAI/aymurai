@@ -694,6 +694,12 @@ curl -s "http://localhost:8899/api/llm/data-extraction/recommendations?topic_id=
 - Respuesta `200`: archivo binario (`recomendaciones.xlsx` con una segunda
   hoja `destinatarios`, o `recomendaciones.csv` con solo las filas de
   recomendaciones)
+- El texto con forma de fórmula (una celda que empieza con `=`, `+`, `-`,
+  `@`, tabulación o CR) nunca se exporta como fórmula activa. El `.xlsx` es el
+  formato fiel: esas celdas se guardan como texto con su valor exacto. El
+  `.csv` no tiene tipos de celda, así que esas celdas llevan una `'` adelante
+  (recomendación de OWASP contra la inyección en CSV), lo que también se ve en
+  texto legítimo como una viñeta `- `.
 
 ```bash
 curl -s "http://localhost:8899/api/llm/data-extraction/export?format=xlsx" -o recomendaciones.xlsx

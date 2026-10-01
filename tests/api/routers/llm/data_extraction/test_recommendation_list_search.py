@@ -245,3 +245,13 @@ def test_search_treats_underscore_literally(
     # `_` is LIKE's single-char wildcard: escaped, it matches only itself.
     assert _search(extraction_client, "_") == []
     assert _search(extraction_client, "%rea") == []
+
+
+def test_whitespace_only_search_returns_everything(
+    extraction_client, seeded_search_recommendations
+):
+    ids = seeded_search_recommendations
+
+    # `q` is normalized (and so stripped) before matching: a query of only
+    # spaces is no query at all, not a search for literal spaces.
+    assert set(_search(extraction_client, "   ")) == {ids.number, ids.file, ids.detail}

@@ -688,6 +688,11 @@ curl -s "http://localhost:8899/api/llm/data-extraction/recommendations?topic_id=
 - Response `200`: binary file (`recomendaciones.xlsx` with a second
   `destinatarios` sheet, or `recomendaciones.csv` with only the
   recommendations rows)
+- Formula-like text (a cell starting with `=`, `+`, `-`, `@`, tab or CR) is
+  never exported as a live formula. The `.xlsx` is the faithful format: such
+  cells are stored as text with their exact value. The `.csv` has no cell
+  types, so those cells get a leading `'` (OWASP's CSV-injection advice) --
+  which also shows on legitimate text such as a `- ` bullet.
 
 ```bash
 curl -s "http://localhost:8899/api/llm/data-extraction/export?format=xlsx" -o recomendaciones.xlsx

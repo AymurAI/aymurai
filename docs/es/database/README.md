@@ -54,7 +54,11 @@ snapshots fechados `database_<timestamp>.db` en `./resources/backups`
 (montado como `/backups` en el contenedor). El `<timestamp>` es
 `YYYYMMDDHHMMSS` en **UTC** — a diferencia del nombre del workbook exportado,
 que usa `EXPORT_TIMEZONE` (hora de Buenos Aires por default), así que un
-respaldo tomado a las 14:00 hora local se llama `…170000`. Configuración, con los defaults
+respaldo tomado a las 14:00 hora local se llama `…170000`. Nunca se
+sobrescribe un respaldo existente: un segundo respaldo dentro del mismo
+segundo UTC lleva un sufijo (`database_<timestamp>_01.db`, `_02`, …), que
+igual queda ordenado después del primero y antes del segundo siguiente.
+Configuración, con los defaults
 que quedaron en `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
 - `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
@@ -66,7 +70,9 @@ Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
 reciente se descarta en vez de escribirse (el sidecar loguea
 `unchanged since …, skipped`), así que los respaldos solo se acumulan en las
 horas en que la base efectivamente cambió. Con el intervalo horario por
-default, los `336` respaldos conservados cubren:
+default, los `336` respaldos conservados cubren (sin contar las corridas
+manuales de `make db-backup` ni los snapshots previos a una restauración,
+que también ocupan lugares):
 - **al menos 14 días** aunque la base cambiara todas las horas, de día y de
   noche;
 - **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
@@ -101,8 +107,9 @@ La parada es ordenada: el servicio corre con `init: true` y el script maneja
 SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
 siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
 vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
-como un archivo oculto `.database_<timestamp>.db.partial` y solo se renombra
-cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+como un archivo oculto `.database_<timestamp>_<aleatorio>.db.partial` (único
+por corrida, así que un `make db-backup` que corre junto al loop nunca toca
+el archivo del loop) y solo recibe su nombre final cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
 que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
 así la próxima vez que arranca.
 
@@ -122,12 +129,36 @@ respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
 exactamente los mismos bytes). Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
 
-Una vez que el archivo restaurado está en su lugar, `db-restore` vuelve a
-levantar el sidecar `db-backup` (`docker compose up -d db-backup`, lo mismo
-que `make db-backup-up`), así que los respaldos automáticos se reanudan — la
-primera corrida respalda la base restaurada. La API queda parada a
-propósito: levantala vos con `make api-up` o `make api-full-up` después de
-revisar la restauración.
+Siempre que `db-restore` termina después de haber parado los containers,
+vuelve a levantar el sidecar `db-backup` (`docker compose up -d db-backup`,
+lo mismo que `make db-backup-up`) — después de una restauración exitosa, y
+también cuando corta antes: al negarse porque un container sigue corriendo,
+si falla el snapshot previo a la restauración, o ante un error de permisos
+en `cp`/`mv`. Un fallo imprime
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; si el
+reinicio mismo falla, imprime un aviso indicando que corras
+`make db-backup-up`. Un fallo nunca deja una base a medio escribir: el
+respaldo se copia primero a `database.db.restoring`, y solo cuando esa copia
+salió bien se borran los `-wal`/`-shm` viejos y se mueve la copia a su
+lugar, así que `database.db` siempre es o el archivo viejo intacto o el
+restaurado. Después de una restauración exitosa, la primera corrida del
+sidecar respalda la base restaurada. La API queda parada a propósito:
+levantala vos con `make api-up` o `make api-full-up` después de revisar la
+restauración.
+
+**Poda justo después de restaurar.** El snapshot previo a la restauración
+se toma con la poda desactivada, pero el sidecar reiniciado respalda
+enseguida la base restaurada y poda de vuelta a `BACKUP_RETENTION`. Con el
+conjunto completo, el snapshot más esa primera corrida lo dejan dos por
+encima del tope, así que los dos respaldos **más viejos** se borran en el
+acto — y pueden ser justo el archivo desde el que restauraste, o los que
+pensabas probar después. Antes de restaurar, copiá fuera de
+`./resources/backups` cualquier respaldo que todavía puedas necesitar (por
+ejemplo `cp resources/backups/database_<timestamp>.db ~/candidatos-restore/`),
+y volvé a copiarlo cuando quieras restaurarlo. Si vas a probar varias
+restauraciones seguidas, corré también `make db-backup-stop` justo después
+de cada una, para que el sidecar no siga agregando respaldos y podando entre
+intentos.
 
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
 `resources/backups/`) pueden quedar con dueño root por Docker; las

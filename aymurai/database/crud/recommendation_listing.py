@@ -163,6 +163,8 @@ def recommendation_list(
         edited_to (date | None): Maximum local day of the last edit, inclusive.
         q (str | None): Case- and accent-insensitive substring search,
             matched against recommendation text and all recipients and their resolved names.
+            Normalized with `normalize_text` (which also strips it), so a
+            whitespace-only `q` applies no filter at all.
         unparsed_dates (bool): Restrict to rows with prose
             (`recommendation_date_text`) but no successfully parsed
             `recommendation_date` -- exactly the rows that need human

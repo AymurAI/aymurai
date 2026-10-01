@@ -7,6 +7,15 @@ document. Excel and LibreOffice evaluate a cell that starts with `=`, `+`,
 `-` or `@` (and some leading whitespace variants of those), which turns a
 value such as `=HYPERLINK(...)` into a live formula on whoever opens the file
 -- OWASP's "CSV injection".
+
+The two formats are protected differently, on purpose:
+
+- `.xlsx` is the faithful format: the cell is typed as text, so its value
+  stays exactly what was typed (`- Se solicita...` included).
+- `.csv` has no cell types, so a formula-like value gets a leading `'`. This
+  visibly alters legitimate text starting with `-`/`+` (bullets, signs); it
+  is accepted because the UI only downloads the xlsx and an unescaped CSV
+  would evaluate it (`-2+3`) or show `#NAME?`.
 """
 
 from typing import Any
@@ -62,7 +71,8 @@ def escape_csv_value(value: Any) -> Any:
     """
     Prefixes a formula-like string with `'`, per OWASP's CSV-injection
     guidance. A CSV has no cell types, so the quote is the only way to tell
-    the spreadsheet the field is text.
+    the spreadsheet the field is text -- at the cost of showing it on
+    legitimate text too (e.g. a `- ` bullet); see the module docstring.
 
     Args:
         value (Any): The field value.

@@ -4,6 +4,7 @@ import diskcache
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
 os.environ.setdefault("DISKCACHE_ROOT", "/tmp/aymurai-test-diskcache")
@@ -15,7 +16,7 @@ from aymurai.api.endpoints.routers.datapublic import datapublic
 from aymurai.api.endpoints.routers.misc import convert, document_extract
 from aymurai.database.meta.anonymization.paragraph import AnonymizationParagraphCreate
 from aymurai.database.meta.datapublic.paragraph import DataPublicParagraphCreate
-from aymurai.database.session import get_session
+from aymurai.database.session import get_session, register_sql_functions
 from aymurai.database.utils import text_to_uuid
 from aymurai.meta.api_interfaces import DocLabel
 from aymurai.meta.entities import EntityAttributes
@@ -65,6 +66,11 @@ def db_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # Only the SQL functions (`normalize_text`), not the full production
+    # setup: with `PRAGMA foreign_keys=ON` the datapublic save path fails
+    # (it inserts the document-paragraph link before its parents), which is
+    # a pre-existing bug to fix on its own, not to paper over here.
+    event.listen(test_engine, "connect", register_sql_functions)
     SQLModel.metadata.create_all(test_engine)
 
     return test_engine

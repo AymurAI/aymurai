@@ -131,3 +131,31 @@ def test_csv_leaves_ordinary_values_alone():
     assert row["LINK"] == "https://example.org/r"
     assert row["EXPEDIENTE"] == "EX-1"
     assert row["FECHA_RECOMENDACION"] == "2024-01-02"
+
+
+BULLET = "- Se solicita a la viñeta que responda."
+
+
+def test_bullet_text_is_faithful_in_xlsx_and_quote_marked_in_csv():
+    """A leading `-` bullet is legitimate prose, but a spreadsheet may still
+    try to evaluate it (`#NAME?`). Deliberate trade-off: the xlsx -- the
+    format the UI downloads -- keeps it byte-for-byte as text; the CSV marks
+    it with a leading `'` because it has no other way to say "text"."""
+    rows = [_recomendacion(DETALLE_DE_LA_SITUACION=BULLET)]
+
+    xlsx = write_xlsx(rows, [])
+    try:
+        sheet = openpyxl.load_workbook(xlsx)["recomendaciones"]
+        cell = _cell(sheet, "DETALLE_DE_LA_SITUACION", RECOMENDACIONES_COLUMNS)
+        assert cell.value == BULLET
+        assert cell.data_type == "s"
+    finally:
+        xlsx.unlink()
+
+    csv_path = write_csv(rows)
+    try:
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            [row] = list(csv.DictReader(handle))
+    finally:
+        csv_path.unlink()
+    assert row["DETALLE_DE_LA_SITUACION"] == f"'{BULLET}"
