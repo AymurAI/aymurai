@@ -18,6 +18,7 @@ from aymurai.database.schema import (
     Subtopic,
     Topic,
 )
+from aymurai.database.session import NORMALIZE_TEXT_SQL_FUNCTION
 from aymurai.text.matching import normalize_text
 from aymurai.transforms.datetime_formatter.recommendation_prose import (
     parse_recommendation_date,
@@ -424,20 +425,24 @@ def recommendation_list(
         statement = statement.where(Recommendation.recommendation_date >= date_from)
     if date_to is not None:
         statement = statement.where(Recommendation.recommendation_date <= date_to)
-    if q:
+    # Folded with the same `normalize_text` the SQL side applies, so case and
+    # accents never decide a match ("area" finds "Área", "ÁREA" finds "área").
+    needle = normalize_text(q) if q else ""
+    if needle:
         # Escaped, not raw: `q` is the caller's literal text, so `%`/`_` must
         # match themselves rather than being reinterpreted as wildcards.
-        needle = _like_escape(q.lower())
-        pattern = f"%{needle}%"
+        pattern = f"%{_like_escape(needle)}%"
         # The four text columns that live directly on `Recommendation`: one
         # search box, no joins. `tema`/`sector` are deliberately out (issue
         # #58 keeps join-bound columns out of ordering, and filtering has the
-        # same cost). `func.lower(NULL)` and `NULL LIKE ...` are both NULL in
-        # SQL, so a nullable column simply never matches -- no null guard.
+        # same cost). The SQL `normalize_text` (registered per connection in
+        # `database/session.py`) maps NULL to NULL and `NULL LIKE ...` is
+        # NULL, so a nullable column simply never matches -- no null guard.
+        normalize = getattr(func, NORMALIZE_TEXT_SQL_FUNCTION)
         statement = statement.where(
             or_(
                 *(
-                    func.lower(column).like(pattern, escape="\\")
+                    normalize(column).like(pattern, escape="\\")
                     for column in _SEARCH_COLUMNS
                 )
             )

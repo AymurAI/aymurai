@@ -4,6 +4,32 @@ from sqlalchemy import event
 from sqlmodel import Session, create_engine
 
 from aymurai.settings import settings
+from aymurai.text.matching import normalize_text
+
+# Name of the SQL function every SQLite connection carries for case- and
+# accent-insensitive matching (see `_sql_normalize_text`).
+NORMALIZE_TEXT_SQL_FUNCTION = "normalize_text"
+
+
+def _sql_normalize_text(value: str | None) -> str | None:
+    """
+    `normalize_text` as a SQL scalar function.
+
+    SQLite's built-in `lower()` only folds ASCII, so `lower('Área')` keeps the
+    `Á` and a search for "área" or "area" misses it. Registering the Python
+    normalization lets a query fold case and accents on the column side too.
+
+    Args:
+        value (str | None): The SQL argument.
+
+    Returns:
+        str | None: The normalized text, or None for SQL NULL -- so a NULL
+            column keeps never matching a LIKE, instead of becoming "" (which
+            `normalize_text` returns for None).
+    """
+    if value is None:
+        return None
+    return normalize_text(value)
 
 
 def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
@@ -19,6 +45,11 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     # immediately.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
+    # Deterministic: same input, same output -- lets SQLite use it anywhere a
+    # deterministic function is required (indexes on expressions, etc.).
+    dbapi_connection.create_function(
+        NORMALIZE_TEXT_SQL_FUNCTION, 1, _sql_normalize_text, deterministic=True
+    )
 
 
 def get_engine(echo: bool = False):

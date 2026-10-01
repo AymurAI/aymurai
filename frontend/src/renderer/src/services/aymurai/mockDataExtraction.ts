@@ -8,6 +8,7 @@ import type {
   RecommendationValidation,
   RecommendationValidationInput,
 } from "@/types/dataExtraction";
+import { normalizeForSearch } from "@/utils/organigram/normalize-for-search";
 import { parseSpanishProseDate } from "@/utils/recommendations/parse-spanish-date";
 import type { RecommendationsExportResult } from "./dataExtraction";
 
@@ -386,8 +387,10 @@ export function mockRecommendationsList(params: {
         r.recommendation_date_text !== null && r.recommendation_date === null,
     );
   }
-  if (params.q) {
-    const q = params.q.toLowerCase();
+  // Folded like the real endpoint does it (`normalize_text` on both sides),
+  // so "area" finds "Área" here too.
+  const q = normalizeForSearch(params.q);
+  if (q) {
     // The same four columns the real endpoint ORs over (see `_SEARCH_COLUMNS`
     // in `database/crud/recommendation.py`). `topic` is deliberately NOT one
     // of them -- matching it server-side would need a join (issue #58).
@@ -397,7 +400,7 @@ export function mockRecommendationsList(params: {
         r.file_number,
         r.recommendation_detail,
         r.publishable_content,
-      ].some((field) => field?.toLowerCase().includes(q)),
+      ].some((field) => field != null && normalizeForSearch(field).includes(q)),
     );
   }
   const dateFrom = params.dateFrom;
