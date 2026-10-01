@@ -505,7 +505,8 @@ async def api_data_extraction_recommendation_correct(
     # b84d8ace fixed a grilla date rendered a day off because the API
     # serializes these timestamps NAIVE while the client fixtures carried a
     # fabricated `Z`. Under a string comparison that mismatch becomes a
-    # spurious 412 on a save nobody else raced.
+    # spurious 412 on a save nobody else raced. An aware spelling of the
+    # instant is normalized to naive UTC by `recommendation_correct`.
     try:
         expected = datetime.fromisoformat(if_match)
     except ValueError as exc:

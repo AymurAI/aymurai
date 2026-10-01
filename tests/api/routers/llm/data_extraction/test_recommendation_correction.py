@@ -1,5 +1,8 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from aymurai.database.utils import text_to_uuid
 
@@ -332,3 +335,34 @@ def test_put_corrections_in_quick_succession_get_distinct_etags(
         headers={"If-Match": _etag(first.json())},
     )
     assert replay.status_code == 412
+
+
+@pytest.mark.parametrize(
+    "spell",
+    [
+        lambda naive: naive.isoformat() + "Z",
+        lambda naive: naive.isoformat() + "+00:00",
+        lambda naive: (
+            (naive - timedelta(hours=3))
+            .replace(tzinfo=timezone(timedelta(hours=-3)))
+            .isoformat()
+        ),
+    ],
+    ids=["zulu", "utc-offset", "buenos-aires-offset"],
+)
+def test_put_correction_accepts_timezone_aware_spellings_of_the_etag(
+    extraction_client, seeded_catalogs, spell
+):
+    # The server stores and serializes naive UTC; an aware spelling of the
+    # same instant must match it, not compare unequal forever.
+    validated = _validated_recommendation(
+        extraction_client, "Documento de corrección diez."
+    )
+    naive = datetime.fromisoformat(_etag(validated))
+
+    response = extraction_client.put(
+        f"/llm/data-extraction/recommendations/{validated['id']}",
+        json=_validate_payload(publishable_content="Con zona horaria."),
+        headers={"If-Match": spell(naive)},
+    )
+    assert response.status_code == 200

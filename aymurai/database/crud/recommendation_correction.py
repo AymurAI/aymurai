@@ -1,7 +1,7 @@
 """Optimistic-concurrency correction of an already-validated recommendation."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import update
 from sqlmodel import Session, col
@@ -38,6 +38,25 @@ def recommendation_version(recommendation: Recommendation) -> datetime:
     return recommendation.updated_at or recommendation.created_at
 
 
+def _as_naive_utc(value: datetime) -> datetime:
+    """
+    Normalizes a version timestamp to the naive UTC the base stores.
+
+    An aware value (`...Z`, `...+00:00`, `...-03:00`) never compares equal to
+    a naive one, so without this an etag spelled with a timezone would be a
+    412 forever, however many times the client reloaded.
+
+    Args:
+        value (datetime): Naive (assumed UTC) or aware timestamp.
+
+    Returns:
+        datetime: The same instant, naive UTC.
+    """
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
 def recommendation_lock_current(
     recommendation_id: uuid.UUID, expected_version: datetime, session: Session
 ) -> Recommendation:
@@ -61,7 +80,8 @@ def recommendation_lock_current(
 
     Args:
         recommendation_id (uuid.UUID): Row to lock.
-        expected_version (datetime): The version the caller last read.
+        expected_version (datetime): The version the caller last read, naive
+            (UTC) or aware.
         session (Session): Database session; left inside the open transaction
             on success, rolled back on failure.
 
@@ -88,10 +108,9 @@ def recommendation_lock_current(
     recommendation = session.get(
         Recommendation, recommendation_id, populate_existing=True
     )
-    if (
-        recommendation is None
-        or recommendation_version(recommendation) != expected_version
-    ):
+    if recommendation is None or recommendation_version(
+        recommendation
+    ) != _as_naive_utc(expected_version):
         session.rollback()
         raise StaleRecommendationError(
             "Recommendation was modified since it was last read"
@@ -116,7 +135,8 @@ def recommendation_correct(
 
     Args:
         recommendation_id (uuid.UUID): Row to correct.
-        expected_version (datetime): The `If-Match` version.
+        expected_version (datetime): The `If-Match` version, naive (UTC) or
+            aware.
         data (RecommendationValidationData): Full replacement body.
         session (Session): Database session.
 
