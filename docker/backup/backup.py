@@ -32,6 +32,9 @@ from pathlib import Path
 
 def log(message: str) -> None:
     """Writes one flushed line to stdout, which `docker compose logs` collects."""
+    # Standalone sidecar script, not importable library code: there is no
+    # house get_logger outside the `aymurai` package, and stdout is the log.
+    # ast-grep-ignore: log-no-print
     print(f"[backup] {message}", flush=True)
 
 
@@ -45,6 +48,8 @@ class BackupConfig:
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "BackupConfig":
         """Builds the config from `BACKUP_*` env vars (defaults match docker-compose.yml)."""
+        # The sidecar image has no `aymurai.settings`; this is its only env read.
+        # ast-grep-ignore: settings-module
         env = os.environ if env is None else env
         return cls(
             source_db=Path(
@@ -144,6 +149,9 @@ def run(config: BackupConfig, *, once: bool) -> None:
 
 def main() -> None:
     """Entrypoint: reads the config from env and `--once` from the command line."""
+    # A single boolean flag; a CLI framework would be a new dependency for
+    # a stdlib-only image.
+    # ast-grep-ignore: cli-typed-framework
     run(BackupConfig.from_env(), once="--once" in sys.argv[1:])
 
 
