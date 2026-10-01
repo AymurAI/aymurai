@@ -54,10 +54,29 @@ snapshots fechados `database_<timestamp>.db` en `./resources/backups`
 (montado como `/backups` en el contenedor). Configuración, con los defaults
 que quedaron en `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
-- `BACKUP_INTERVAL_SECONDS` — default `3600` (un respaldo por hora)
-- `BACKUP_RETENTION` — default `30`; conserva los N respaldos fechados más
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
+- `BACKUP_RETENTION` — default `336`; conserva los N respaldos fechados más
   recientes y borra los demás. `BACKUP_RETENTION <= 0` desactiva la poda —
   **no** significa "borrar todo."
+
+Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
+reciente se descarta en vez de escribirse (el sidecar loguea
+`unchanged since …, skipped`), así que los respaldos solo se acumulan en las
+horas en que la base efectivamente cambió. Con el intervalo horario por
+default, los `336` respaldos conservados cubren:
+- **al menos 14 días** aunque la base cambiara todas las horas, de día y de
+  noche;
+- **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
+  horario laboral (~9 horas con cambios por día, 5 días por semana ≈ 45
+  respaldos por semana);
+- todavía más a través de períodos sin actividad (feriados, fines de
+  semana), que ya no consumen lugares.
+
+El uso de disco es aproximadamente `BACKUP_RETENTION × tamaño de la base`:
+una base de pocos MB (una base de desarrollo con un puñado de documentos y
+transcripciones pesa ~4,5 MB) ocupa ~1,5 GB con la retención completa. Bajar
+`BACKUP_RETENTION` si la base crece mucho más que eso, o subirlo para tener
+más historia.
 
 Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
 que corre el mismo script una sola vez (`--once`) y termina.
@@ -78,7 +97,9 @@ Como red de seguridad, si existe un `database.db` vivo cuando corre
 `db-restore`, primero toma un snapshot automático invocando una vez el
 sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
 estado previo a la restauración queda en `./resources/backups` como un
-respaldo fechado más, no en un archivo aparte. Esto corre además de
+respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
+último respaldo, el snapshot se saltea porque ese último respaldo ya tiene
+exactamente los mismos bytes). Esto corre además de
 cualquier verificación manual que hayas hecho antes, no en su lugar.
 
 En un deploy nuevo, los directorios con bind mount (`resources/cache/`,

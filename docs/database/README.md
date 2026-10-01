@@ -53,10 +53,26 @@ The `db-backup` sidecar (`docker/backup/backup.py`) runs in a loop, using
 in the container). Configuration, with the defaults shipped in
 `docker-compose.yml`:
 - `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
-- `BACKUP_INTERVAL_SECONDS` — default `3600` (one backup per hour)
-- `BACKUP_RETENTION` — default `30`; keeps the newest N dated backups and
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (at most one backup per hour)
+- `BACKUP_RETENTION` — default `336`; keeps the newest N dated backups and
   deletes older ones. `BACKUP_RETENTION <= 0` disables pruning — it does
   **not** mean "delete everything."
+
+A run whose copy is byte-identical (sha256) to the most recent backup is
+discarded instead of written (the sidecar logs `unchanged since …, skipped`),
+so backups only accumulate in hours when the database actually changed.
+With the hourly default, `336` retained backups therefore cover:
+- **at least 14 days** even if the database changed every single hour, day
+  and night;
+- **about 7 weeks** at a realistic pace — grid edits during working hours
+  only (~9 changed hours a day, 5 days a week ≈ 45 backups a week);
+- longer still across idle stretches (holidays, weekends), which no longer
+  consume slots.
+
+Disk use is roughly `BACKUP_RETENTION × database size`: a few-MB database
+(a development database holding a handful of documents and transcriptions
+is ~4.5 MB) costs ~1.5 GB at the cap. Lower `BACKUP_RETENTION` if the
+database grows much larger than that, or raise it for a longer history.
 
 For a manual, immediate backup outside the interval: `make db-backup`, which
 runs the same script once (`--once`) and exits.
@@ -77,7 +93,8 @@ As a safety net, if a live `database.db` exists when `db-restore` runs, it
 first takes an automatic snapshot by invoking the `db-backup` sidecar once
 (the same as `make db-backup`) before touching anything — the pre-restore
 state lands in `./resources/backups` as an ordinary dated backup, not a
-separate file. This runs in addition to whatever manual verification you did
+separate file (or, if nothing changed since the latest backup, the snapshot
+is skipped because that latest backup already holds the same bytes). This runs in addition to whatever manual verification you did
 beforehand, not instead of it.
 
 On a fresh deployment, the bind-mounted directories (`resources/cache/`,

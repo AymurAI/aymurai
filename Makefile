@@ -71,7 +71,8 @@ db-backup-logs:
 # pre-restore safety snapshot reuses the db-backup sidecar's one-shot backup
 # instead of a plain `cp`, for the same WAL-safety reason backup.py itself
 # doesn't use `cp` -- it lands as an ordinary database_<timestamp>.db in the
-# normal backup set rather than a distinctly-named pre-restore_ file. That
+# normal backup set rather than a distinctly-named pre-restore_ file (or is
+# skipped when the latest backup already holds identical bytes). That
 # snapshot overrides BACKUP_RETENTION=0 for this one invocation only: at
 # steady state the backup set is already at the retention cap, so taking one
 # more snapshot without disabling pruning would make the sidecar's own prune

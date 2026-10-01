@@ -68,8 +68,8 @@ Configuran el servicio sidecar `db-backup` y nunca llegan al proceso Python. A d
 |---|---|---|
 | `BACKUP_SOURCE_DB` | `/resources/cache/sqlite/database.db` | Path a la base SQLite dentro del container `db-backup` |
 | `BACKUP_DEST_DIR` | `/backups` | Dónde se escriben los backups fechados dentro del container |
-| `BACKUP_INTERVAL_SECONDS` | `3600` | Segundos entre backups automáticos mientras el sidecar está corriendo (ver `make db-backup-up`) |
-| `BACKUP_RETENTION` | `30` | Cuántos backups fechados conservar; `0` o negativo desactiva la poda |
+| `BACKUP_INTERVAL_SECONDS` | `3600` | Segundos entre backups automáticos mientras el sidecar está corriendo (ver `make db-backup-up`); una corrida idéntica al último backup se saltea |
+| `BACKUP_RETENTION` | `336` | Cuántos backups fechados conservar; `0` o negativo desactiva la poda. Con corridas horarias que solo escriben si hubo cambios, `336` cubre al menos 14 días de cambios ininterrumpidos y ~7 semanas de ediciones en horario laboral — ver [Respaldos automáticos](../database/README.md#respaldos-automáticos) |
 
 ## Inferencia
 

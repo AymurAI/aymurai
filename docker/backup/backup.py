@@ -4,9 +4,11 @@
 Runs `sqlite3.Connection.backup()` on an interval -- the correct method
 under WAL, unlike copying the file with `cp` (which can capture the
 database mid-checkpoint and produce a corrupt copy). Writes a new dated
-file on every run and prunes down to the configured retention count --
-oldest first, no other logic (deliberately "dumb" retention: see
-ADR-0014 and the design session that decided it).
+file whenever the database changed since the latest backup -- a run whose
+copy is byte-identical (sha256) to the latest one is discarded, so an idle
+installation doesn't burn a retention slot every hour -- and prunes down to
+the configured retention count, oldest first, no other logic (deliberately
+"dumb" retention: see ADR-0014 and the design session that decided it).
 
 Not part of the `aymurai` package: runs as a standalone entrypoint in its
 own lightweight image, which is why it reads its env vars directly via
@@ -20,6 +22,7 @@ Usage:
     python backup.py --once     # a single backup and exit (used by `make db-backup`)
 """
 
+import hashlib
 import os
 import sqlite3
 import sys
@@ -57,8 +60,23 @@ class BackupConfig:
             ),
             dest_dir=Path(env.get("BACKUP_DEST_DIR", "/backups")),
             interval_seconds=int(env.get("BACKUP_INTERVAL_SECONDS", "3600")),
-            retention=int(env.get("BACKUP_RETENTION", "30")),
+            retention=int(env.get("BACKUP_RETENTION", "336")),
         )
+
+
+def latest_backup(dest_dir: Path) -> Path | None:
+    """The most recent dated backup in `dest_dir`, or `None` if there is none.
+
+    The timestamp in the name is fixed-width and zero-padded, so the last
+    name in sorted order is the newest.
+    """
+    backups = sorted(dest_dir.glob("database_*.db"))
+    return backups[-1] if backups else None
+
+
+def _sha256(path: Path) -> str:
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path | None:
@@ -79,8 +97,9 @@ def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path
     Returns:
         Path | None: The written backup's path, or `None` if there was no
             source database yet (a machine that has never run the API has
-            nothing to back up, and that's not an error for the sidecar) or
-            the backup failed in non-strict mode.
+            nothing to back up, and that's not an error for the sidecar),
+            the copy was identical to the latest backup and was discarded,
+            or the backup failed in non-strict mode.
     """
     if not source_db.exists():
         log(f"no database at {source_db}, skipping this run")
@@ -101,6 +120,11 @@ def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path
                 dest_conn.close()
         finally:
             source_conn.close()
+        latest = latest_backup(dest_dir)
+        if latest is not None and _sha256(latest) == _sha256(tmp_path):
+            tmp_path.unlink()
+            log(f"unchanged since {latest.name}, skipped")
+            return None
         tmp_path.replace(dest_path)  # atomic: only a complete copy gets the real name
     except (sqlite3.Error, OSError) as exc:
         tmp_path.unlink(missing_ok=True)

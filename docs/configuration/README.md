@@ -66,8 +66,8 @@ These configure the `db-backup` sidecar service and never reach the Python proce
 |---|---|---|
 | `BACKUP_SOURCE_DB` | `/resources/cache/sqlite/database.db` | Path to the SQLite database inside the `db-backup` container |
 | `BACKUP_DEST_DIR` | `/backups` | Where dated backup files are written inside the container |
-| `BACKUP_INTERVAL_SECONDS` | `3600` | Seconds between automatic backups when the sidecar is running (see `make db-backup-up`) |
-| `BACKUP_RETENTION` | `30` | How many dated backups to keep; `0` or negative disables pruning |
+| `BACKUP_INTERVAL_SECONDS` | `3600` | Seconds between automatic backups when the sidecar is running (see `make db-backup-up`); a run identical to the latest backup is skipped |
+| `BACKUP_RETENTION` | `336` | How many dated backups to keep; `0` or negative disables pruning. With hourly runs that only write on change, `336` spans at least 14 days of non-stop changes and ~7 weeks of working-hours edits — see [Automatic backups](../database/README.md#automatic-backups) |
 
 ## Inference
 

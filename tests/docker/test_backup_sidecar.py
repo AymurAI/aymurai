@@ -8,6 +8,7 @@ WAL, which only a real database can show.
 
 import hashlib
 import importlib.util
+import re
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
@@ -95,6 +96,32 @@ def test_missing_source_is_skipped_without_error(tmp_path, dest_dir):
     assert _backups(dest_dir) == []
 
 
+def test_identical_content_is_not_written_twice(wal_db, dest_dir):
+    source, _writer = wal_db
+    first = backup.run_backup(source, dest_dir)
+
+    second = backup.run_backup(source, dest_dir)
+
+    assert first is not None
+    assert second is None
+    assert _backups(dest_dir) == [first]
+    assert _partials(dest_dir) == []
+
+
+def test_only_the_latest_backup_counts_as_unchanged(wal_db, dest_dir):
+    """Content equal to an *older* backup (e.g. after a restore) is still written."""
+    source, _writer = wal_db
+    older = backup.run_backup(source, dest_dir)
+    assert older is not None
+    older = older.rename(dest_dir / "database_20000101000000.db")
+    newer = _fake_backup(dest_dir, "20000101000001", b"a later, different state")
+
+    written = backup.run_backup(source, dest_dir)
+
+    assert written is not None
+    assert _backups(dest_dir) == [older, newer, written]
+
+
 def test_changed_content_is_written(wal_db, dest_dir):
     source, _writer = wal_db
     older = _fake_backup(dest_dir, "20000101000000", b"not the same bytes")
@@ -170,3 +197,11 @@ def test_from_env_reads_overrides_and_defaults():
     assert config.retention == 7
     assert config.source_db == Path("/resources/cache/sqlite/database.db")
     assert config.interval_seconds == 3600
+
+
+def test_default_retention_spans_weeks_and_matches_compose():
+    compose = (BACKUP_SCRIPT.parents[2] / "docker-compose.yml").read_text()
+    match = re.search(r"BACKUP_RETENTION:-(\d+)", compose)
+
+    assert match is not None
+    assert backup.BackupConfig.from_env({}).retention == int(match.group(1)) == 336
