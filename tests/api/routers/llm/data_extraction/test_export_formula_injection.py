@@ -99,9 +99,7 @@ def test_xlsx_leaves_ordinary_values_alone():
 
 @pytest.mark.parametrize("payload", PAYLOADS)
 def test_csv_prefixes_formula_like_values_with_a_quote(payload):
-    path = write_csv(
-        [_recomendacion(LINK=payload, DETALLE_DE_LA_SITUACION=payload)]
-    )
+    path = write_csv([_recomendacion(LINK=payload, DETALLE_DE_LA_SITUACION=payload)])
     try:
         with path.open(newline="", encoding="utf-8") as handle:
             [row] = list(csv.DictReader(handle))
