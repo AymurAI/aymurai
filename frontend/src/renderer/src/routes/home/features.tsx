@@ -9,13 +9,9 @@ import { useTranslation } from "react-i18next";
 import AppCredits from "@/components/brand/app-credits";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
-import {
-  FEATURE_ICON,
-  GRILLA_ICON,
-  isDefensoriaEnabled,
-} from "@/constants/config";
+import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
-import { css, cx } from "@/styled/css";
+import { css } from "@/styled/css";
 import { Grid, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
 
@@ -27,20 +23,15 @@ interface FeatureCardLinkProps extends LinkComponentProps {
   title: string;
   subtitle: string;
   icon: Icon;
-  /** Extra class on the `<Link>` wrapper -- e.g. `gridColumn: "1 / -1"` to
-   * span the grid, without disturbing the fixed `display: block; h: full`
-   * every card needs. */
-  className?: string;
 }
 function FeatureCardLink({
   title,
   subtitle,
   icon: Icon,
-  className,
   ...props
 }: FeatureCardLinkProps) {
   return (
-    <Link className={cx(cardLink, className)} {...props}>
+    <Link className={cardLink} {...props}>
       <CardTool
         className={featureCard}
         icon={<Icon />}
@@ -151,15 +142,6 @@ function RouteComponent() {
                   subtitle={t("summarizer:subtitle")}
                   icon={FEATURE_ICON.SUMMARIZER}
                 />
-                {isDefensoriaEnabled() && (
-                  <FeatureCardLink
-                    to="/home/dataset"
-                    title={t("recommendations:grilla.title")}
-                    subtitle={t("recommendations:grilla.cardSubtitle")}
-                    icon={GRILLA_ICON}
-                    className={css({ gridColumn: "1 / -1" })}
-                  />
-                )}
               </Grid>
               <AppCredits className={builtBy} />
             </div>

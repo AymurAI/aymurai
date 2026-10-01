@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import Header from "@/components/layout/header";
+import MainContent from "@/components/layout/main-content";
 import RecommendationsGrid from "@/components/recommendations/recommendations-grid";
 import APIProtected from "@/features/APIProtected";
-import HomeLayout from "@/layout/home";
+import { Stack } from "@/styled/jsx";
 
 /**
  * The grilla de seguimiento. Not to be confused with the `dataset` segment of
@@ -18,11 +21,22 @@ export const Route = createFileRoute("/home/dataset")({
 });
 
 function RouteComponent() {
+  const { t } = useTranslation("recommendations");
   return (
     <APIProtected>
-      <HomeLayout variant="wide">
-        <RecommendationsGrid />
-      </HomeLayout>
+      <Stack width="full" height="[100dvh]" gap="0">
+        <Header title={t("grilla.headerTitle")} />
+        <MainContent full>
+          <Stack
+            gap="6"
+            p={{ base: "4", md: "8" }}
+            height="[calc(100dvh - 96px)]"
+            minH="0"
+          >
+            <RecommendationsGrid />
+          </Stack>
+        </MainContent>
+      </Stack>
     </APIProtected>
   );
 }

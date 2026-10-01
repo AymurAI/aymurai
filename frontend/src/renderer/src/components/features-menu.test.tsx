@@ -185,28 +185,13 @@ describe("FeaturesMenu — grilla entry", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the grilla entry and navigates to /home/dataset when the flag is on", async () => {
+  it("does not add an independent seguimiento entry when enabled", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
-    let resolveNavigate: () => void = () => {};
-    navigate.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveNavigate = resolve;
-        }),
-    );
-
     render(<FeaturesMenu />);
     fireEvent.click(screen.getByRole("button", { name: "Ir al inicio" }));
-    fireEvent.click(screen.getByText("recommendations:grilla.title"));
-
-    expect(navigate).toHaveBeenCalledWith({
-      to: "/home/dataset",
-      viewTransition: false,
-    });
-    expect(dispatch).not.toHaveBeenCalled();
-
-    resolveNavigate();
-
-    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByText("recommendations:grilla.title"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("dataset:title")).toBeInTheDocument();
   });
 });

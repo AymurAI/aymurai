@@ -34,14 +34,13 @@ function renderRoute() {
 }
 
 describe("/home/dataset — the grilla route", () => {
-  it("mounts the grilla inside the wide home layout", () => {
+  it("mounts seguimiento with its own functional header", () => {
     const { container } = renderRoute();
 
     expect(screen.getByTestId("recommendations-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("navigate-away")).not.toBeInTheDocument();
-    // `HomeLayout variant="wide"`: the same stretched, top-aligned children
-    // area the Configuración screens use, not the centred `narrow` default.
-    expect(container.innerHTML).toContain("ai_stretch");
+    expect(screen.getByText("grilla.headerTitle")).toBeInTheDocument();
+    expect(container.innerHTML).not.toContain("bg_bg.primary-highlight");
   });
 
   // The Defensoría flag gates the *entry points* (Task 6), not the route --

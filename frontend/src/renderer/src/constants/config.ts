@@ -5,7 +5,6 @@ import {
   FileAudio,
   type Icon,
   Megaphone,
-  Table,
 } from "phosphor-react";
 import { FeatureFlowEnum } from "@/types/features";
 
@@ -40,13 +39,6 @@ export const FEATURE_ICON: Record<FeatureFlowEnum, Icon> = {
   [FeatureFlowEnum.Summarizer]: Article,
   [FeatureFlowEnum.Recommendations]: Megaphone,
 };
-
-// Not a `FeatureFlowEnum` member (the grilla is a `/home/*` route, not a
-// wizard flow), so it doesn't fit `FEATURE_ICON`. Deliberately distinct from
-// `FEATURE_ICON.DATA_SET`/`Database`: the grilla's entry points sit right
-// next to the Set de Datos/Recomendaciones entry (same icon there would
-// route to two different destinations under one indistinguishable glyph).
-export const GRILLA_ICON: Icon = Table;
 
 export const USE_MOCK_STT = import.meta.env.VITE_USE_MOCK_STT === "true";
 export const STT_MOCK_DELAY_MS = Number(
