@@ -8,7 +8,12 @@ WAL, which only a real database can show.
 
 import hashlib
 import importlib.util
+import os
 import re
+import signal
+import subprocess
+import sys
+import time
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
@@ -205,3 +210,55 @@ def test_default_retention_spans_weeks_and_matches_compose():
 
     assert match is not None
     assert backup.BackupConfig.from_env({}).retention == int(match.group(1)) == 336
+
+
+def test_remove_stale_partials(dest_dir):
+    real = _fake_backup(dest_dir, "20260101000000")
+    stale = dest_dir / ".database_20260101000001.db.partial"
+    stale.write_bytes(b"half a copy")
+
+    backup.remove_stale_partials(dest_dir)
+
+    assert not stale.exists()
+    assert _backups(dest_dir) == [real]
+
+
+def test_remove_stale_partials_tolerates_missing_dir(tmp_path):
+    backup.remove_stale_partials(tmp_path / "does-not-exist")
+
+
+def test_loop_cleans_stale_partials_and_exits_cleanly_on_sigterm(wal_db, dest_dir):
+    source, _writer = wal_db
+    dest_dir.mkdir()
+    stale = dest_dir / ".database_20000101000000.db.partial"
+    stale.write_bytes(b"left behind by a SIGKILL")
+    env = {
+        **os.environ,
+        "BACKUP_SOURCE_DB": str(source),
+        "BACKUP_DEST_DIR": str(dest_dir),
+        "BACKUP_INTERVAL_SECONDS": "3600",
+        "BACKUP_RETENTION": "5",
+    }
+    proc = subprocess.Popen(
+        [sys.executable, str(BACKUP_SCRIPT)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 15
+        while not _backups(dest_dir) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert _backups(dest_dir), "the loop never wrote its first backup"
+
+        proc.send_signal(signal.SIGTERM)
+        output, _ = proc.communicate(timeout=5)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+    assert proc.returncode == 0, output
+    assert not stale.exists()
+    assert _partials(dest_dir) == []

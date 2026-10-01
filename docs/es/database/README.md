@@ -86,6 +86,15 @@ El loop en sí no arranca solo — hay que iniciarlo una vez con
 entre reinicios del host y del container (`make db-backup-stop` lo para,
 `make db-backup-logs` sigue su output).
 
+La parada es ordenada: el servicio corre con `init: true` y el script maneja
+SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
+siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
+vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
+como un archivo oculto `.database_<timestamp>.db.partial` y solo se renombra
+cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
+así la próxima vez que arranca.
+
 ### Restaurar un respaldo
 Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
 parando cada variante de la API más `db-backup` y negándose a continuar si

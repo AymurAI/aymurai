@@ -82,6 +82,14 @@ The loop itself does not start on its own — start it once with
 host reboots and container restarts (`make db-backup-stop` stops it,
 `make db-backup-logs` tails its output).
 
+Stopping is graceful: the service runs under `init: true` and the script
+handles SIGTERM by finishing any backup in progress and exiting before the
+next one, so `make db-backup-stop` returns within about a second instead of
+waiting out Docker's 10s grace period. A copy is written as a hidden
+`.database_<timestamp>.db.partial` file and only renamed once complete; if a
+run is ever killed outright, the leftover `.partial` is never a restore
+candidate, and the loop deletes any such file when it next starts.
+
 ### Restoring a backup
 Stop the API before restoring — `make db-restore` does this itself, stopping
 every API variant plus `db-backup` and refusing to proceed if any of them is
