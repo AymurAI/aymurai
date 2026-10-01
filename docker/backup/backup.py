@@ -11,7 +11,9 @@ ADR-0014 and the design session that decided it).
 Not part of the `aymurai` package: runs as a standalone entrypoint in its
 own lightweight image, which is why it reads its env vars directly via
 `os.environ` instead of through `aymurai.settings` -- that module isn't
-available here, and there's no need for it to be.
+available here, and there's no need for it to be. Env is read only in
+`BackupConfig.from_env`; every other function takes its paths and limits
+as parameters so tests can drive it against a temporary directory.
 
 Usage:
     python backup.py            # infinite loop, one backup per BACKUP_INTERVAL_SECONDS
@@ -22,19 +24,40 @@ import os
 import sqlite3
 import sys
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-SOURCE_DB = Path(
-    os.environ.get("BACKUP_SOURCE_DB", "/resources/cache/sqlite/database.db")
-)
-DEST_DIR = Path(os.environ.get("BACKUP_DEST_DIR", "/backups"))
-INTERVAL_SECONDS = int(os.environ.get("BACKUP_INTERVAL_SECONDS", "3600"))
-RETENTION = int(os.environ.get("BACKUP_RETENTION", "30"))
+
+def log(message: str) -> None:
+    """Writes one flushed line to stdout, which `docker compose logs` collects."""
+    print(f"[backup] {message}", flush=True)
 
 
-def run_backup() -> Path | None:
-    """Writes one dated backup.
+@dataclass(frozen=True)
+class BackupConfig:
+    source_db: Path
+    dest_dir: Path
+    interval_seconds: int
+    retention: int
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> "BackupConfig":
+        """Builds the config from `BACKUP_*` env vars (defaults match docker-compose.yml)."""
+        env = os.environ if env is None else env
+        return cls(
+            source_db=Path(
+                env.get("BACKUP_SOURCE_DB", "/resources/cache/sqlite/database.db")
+            ),
+            dest_dir=Path(env.get("BACKUP_DEST_DIR", "/backups")),
+            interval_seconds=int(env.get("BACKUP_INTERVAL_SECONDS", "3600")),
+            retention=int(env.get("BACKUP_RETENTION", "30")),
+        )
+
+
+def run_backup(source_db: Path, dest_dir: Path, *, strict: bool = False) -> Path | None:
+    """Writes one dated backup of `source_db` into `dest_dir`.
 
     Writes to a temporary file outside the `database_*.db` glob first, and
     only renames it once the copy finishes -- so a backup that fails
@@ -42,23 +65,29 @@ def run_backup() -> Path | None:
     valid backup, never consumes a retention slot, and never shows up as a
     restore candidate.
 
+    Args:
+        source_db: The live database to copy.
+        dest_dir: Directory the dated backup is written to (created if missing).
+        strict: Re-raise a failed backup instead of logging it -- a manual
+            `--once` run must fail loudly, not report success.
+
     Returns:
         Path | None: The written backup's path, or `None` if there was no
-            source database yet -- a machine that has never run the API
-            has nothing to back up, and that's not an error for the
-            sidecar.
+            source database yet (a machine that has never run the API has
+            nothing to back up, and that's not an error for the sidecar) or
+            the backup failed in non-strict mode.
     """
-    if not SOURCE_DB.exists():
-        print(f"[backup] no database at {SOURCE_DB}, skipping this run", flush=True)
+    if not source_db.exists():
+        log(f"no database at {source_db}, skipping this run")
         return None
 
-    DEST_DIR.mkdir(parents=True, exist_ok=True)
+    dest_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    dest_path = DEST_DIR / f"database_{timestamp}.db"
-    tmp_path = DEST_DIR / f".database_{timestamp}.db.partial"
+    dest_path = dest_dir / f"database_{timestamp}.db"
+    tmp_path = dest_dir / f".database_{timestamp}.db.partial"
 
     try:
-        source_conn = sqlite3.connect(str(SOURCE_DB))
+        source_conn = sqlite3.connect(str(source_db))
         try:
             dest_conn = sqlite3.connect(str(tmp_path))
             try:
@@ -70,49 +99,52 @@ def run_backup() -> Path | None:
         tmp_path.replace(dest_path)  # atomic: only a complete copy gets the real name
     except (sqlite3.Error, OSError) as exc:
         tmp_path.unlink(missing_ok=True)
-        print(f"[backup] FAILED to back up {SOURCE_DB}: {exc}", flush=True)
-        if "--once" in sys.argv:
-            raise  # a manual run must fail loudly, not report success
+        log(f"FAILED to back up {source_db}: {exc}")
+        if strict:
+            raise
         return None  # the loop keeps running and pruning continues
 
-    print(f"[backup] wrote {dest_path}", flush=True)
+    log(f"wrote {dest_path}")
     return dest_path
 
 
-def prune_old_backups() -> None:
-    """Keeps the RETENTION most recent dated copies, deletes the rest.
+def prune_old_backups(dest_dir: Path, retention: int) -> None:
+    """Keeps the `retention` most recent dated copies, deletes the rest.
 
     Sorting by filename is enough to sort chronologically: the timestamp
     is fixed-width, zero-padded. No logic beyond "oldest first" -- see the
     module docstring.
 
-    `RETENTION <= 0` means "don't prune anything" -- the safe direction,
+    `retention <= 0` means "don't prune anything" -- the safe direction,
     rather than reading it as "prune everything" (which would delete the
     backup just written).
     """
-    if RETENTION <= 0:
+    if retention <= 0:
         return
-    backups = sorted(DEST_DIR.glob("database_*.db"))
-    for path in backups[:-RETENTION]:
+    backups = sorted(dest_dir.glob("database_*.db"))
+    for path in backups[:-retention]:
         path.unlink()
-        print(f"[backup] pruned {path}", flush=True)
+        log(f"pruned {path}")
+
+
+def run(config: BackupConfig, *, once: bool) -> None:
+    """Runs one backup+prune cycle, or loops forever on `config.interval_seconds`.
+
+    `once` selects the single-cycle mode `make db-backup` and `db-restore`'s
+    pre-restore safety snapshot use; it also makes a failed backup raise.
+    """
+    while True:
+        run_backup(config.source_db, config.dest_dir, strict=once)
+        prune_old_backups(config.dest_dir, config.retention)
+        if once:
+            return
+        log(f"sleeping {config.interval_seconds}s")
+        time.sleep(config.interval_seconds)
 
 
 def main() -> None:
-    """Entrypoint: runs one backup+prune cycle, or loops forever on an interval.
-
-    `--once` in `sys.argv` selects the single-cycle mode `make db-backup`
-    and `db-restore`'s pre-restore safety snapshot use; otherwise this
-    loops until the container is stopped.
-    """
-    once = "--once" in sys.argv
-    while True:
-        run_backup()
-        prune_old_backups()
-        if once:
-            return
-        print(f"[backup] sleeping {INTERVAL_SECONDS}s", flush=True)
-        time.sleep(INTERVAL_SECONDS)
+    """Entrypoint: reads the config from env and `--once` from the command line."""
+    run(BackupConfig.from_env(), once="--once" in sys.argv[1:])
 
 
 if __name__ == "__main__":
