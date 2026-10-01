@@ -12,6 +12,8 @@ export type ColumnId =
   | "topic"
   | "subtopic"
   | "recipient"
+  | "publishableContent"
+  | "personalData"
   | "fileNumber"
   | "recommendationDetail"
   | "recommendationSituation"
@@ -50,6 +52,11 @@ export const COLUMNS: ColumnSpec[] = [
   { id: "topic" },
   { id: "subtopic" },
   { id: "recipient" },
+  // Read-only: both come from the document (validated, not tracked), so the
+  // grilla shows them -- the workbook has them -- but only correcting the
+  // recommendation can change them.
+  { id: "publishableContent" },
+  { id: "personalData" },
   { id: "fileNumber", sortBy: "file_number" },
   { id: "recommendationDetail" },
   { id: "recommendationSituation", sortBy: "recommendation_situation" },

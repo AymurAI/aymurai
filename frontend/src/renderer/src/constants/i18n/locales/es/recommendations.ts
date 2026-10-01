@@ -148,6 +148,8 @@ const recommendations = {
       topic: "Tema",
       subtopic: "Subtema",
       recipient: "Destinatario principal",
+      publishableContent: "Contenido para publicar",
+      personalData: "Datos personales",
       fileNumber: "Nº de expediente",
       recommendationDetail: "Detalle del seguimiento",
       recommendationSituation: "Situación",

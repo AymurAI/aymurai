@@ -50,6 +50,15 @@ const secondaryLine = css({
   color: "text.lighter",
 });
 
+// Long prose in a narrow column: three lines on screen, the whole text on
+// hover (`title`) -- the cell is read-only, so there is nothing to open.
+const clamped = css({
+  minW: "[240px]",
+  maxW: "[320px]",
+  lineClamp: "3",
+  overflowWrap: "anywhere",
+});
+
 const EMPTY = "—";
 
 /** `is_primary` is the field the export reads as the main destinatario; the
@@ -171,6 +180,26 @@ export default function RecommendationsGridRow({
           </>
         ) : (
           <span className={muted}>{EMPTY}</span>
+        )}
+      </td>
+      <td className={cell}>
+        {row.publishable_content ? (
+          <div className={clamped} title={row.publishable_content}>
+            {row.publishable_content}
+          </div>
+        ) : (
+          <span className={muted}>{EMPTY}</span>
+        )}
+      </td>
+      <td className={cx(cell, noWrap)}>
+        {/* Tri-state, like the export's DATOS_PERSONALES: never answered is
+            blank, not "No". Same wording as the validation form. */}
+        {row.personal_data === null ? (
+          <span className={muted}>{EMPTY}</span>
+        ) : row.personal_data ? (
+          t("validation.personalDataYes")
+        ) : (
+          t("validation.personalDataNo")
         )}
       </td>
 
