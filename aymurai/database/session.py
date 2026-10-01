@@ -46,8 +46,12 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     # makes the wait configurable via SQLITE_BUSY_TIMEOUT_MS.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
-    # Deterministic: same input, same output -- lets SQLite use it anywhere a
-    # deterministic function is required (indexes on expressions, etc.).
+    # Query-time only. NEVER reference `normalize_text` from an index, view,
+    # CHECK, generated column or anything else persisted in the schema: the
+    # function exists only on connections opened through this listener, so
+    # Alembic's own engine, the `sqlite3` CLI or an ad hoc script would then
+    # fail with "no such function" on reads or writes. `deterministic=True`
+    # merely tells the planner the result depends only on the input.
     dbapi_connection.create_function(
         NORMALIZE_TEXT_SQL_FUNCTION, 1, _sql_normalize_text, deterministic=True
     )
