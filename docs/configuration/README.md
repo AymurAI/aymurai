@@ -33,10 +33,24 @@ and is split on commas.
 
 > `CORS_ORIGINS` must also permit the desktop app's origin: Chromium sends
 > `Origin: null` when the Electron renderer loads a page via `file://`. Without
-> `null` in the allow-list, cross-origin response headers — including
-> `Content-Disposition` for the export filename feature, and any future one —
-> silently fail to reach the desktop client, and the app falls back to a
-> generic filename instead of erroring.
+> `null` in the allow-list, the API answers without (or, for a preflight,
+> rejects with 400 instead of granting) `Access-Control-Allow-Origin`, and the
+> browser blocks the **whole** cross-origin response — the desktop client's
+> request fails as a network error and it never sees the status, the body or
+> any header (including `Content-Disposition` for the export filename). With `null` allowed, the
+> headers listed in `expose_headers` (today only `Content-Disposition`) are
+> readable too.
+>
+> **Security trade-off.** `null` is not a private origin: every sandboxed
+> iframe, `data:` URL and local file page sends `Origin: null` too. Because the
+> API is configured with `allow_credentials=True`
+> (`aymurai/api/main.py`, `CORSMiddleware`), allowing `null` lets *any* web
+> page the user visits embed a sandboxed iframe that calls the local API and
+> reads its responses — and the local API has no authentication. It is
+> allowed today only because the Electron app loads its UI via `file://`; the
+> planned fix is to serve the renderer from a custom protocol (e.g. `app://`)
+> and allow that specific origin instead of `null`. Leave `null` out of
+> `CORS_ORIGINS` on any deployment that is not the desktop app.
 
 > `LOG_LEVEL` is looked up once at import time and indexes a fixed map. A value
 > outside the four listed keys raises `KeyError` on the first `get_logger` call
@@ -60,7 +74,9 @@ container restarts.
 ## Backups
 
 ### Variables consumed by Compose, not by the API
-These configure the `db-backup` sidecar service and never reach the Python process. Unlike `env_file`-sourced variables, Compose interpolation reads these from a `.env` file in the project directory only — setting them in `.env.common` has no effect.
+These configure the `db-backup` sidecar service and never reach the API process. Compose substitutes them into `docker-compose.yml` (`${BACKUP_RETENTION:-336}` etc.) from the shell environment first, then from the `.env` file in the project directory; `env_file` entries play no part in that substitution. Where you set them therefore depends on how you invoke Compose:
+- **Through `make`** (`make db-backup-up`, `make db-restore`, …): the Makefile does `include .env` and `include .env.common` and `export`s every variable named in them, so values from **either** file reach Compose interpolation (a variable in both takes the `.env.common` value, which is included last).
+- **Plain `docker compose …`**: only the shell environment and the project `.env` are read — a value set only in `.env.common` has no effect.
 
 | Variable | Default | Purpose |
 |---|---|---|
