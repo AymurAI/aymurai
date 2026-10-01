@@ -61,7 +61,7 @@ import {
  * viewport, including "768x1024".
  */
 
-test("Taxonomía: master and detail panels render side by side", async ({
+test("Nomenclador: master and detail panels render side by side", async ({
   mount,
   page,
 }, testInfo) => {
@@ -162,7 +162,7 @@ test("Organigrama: tree and detail panel render side by side", async ({
   );
   await expect(detailEmpty).toBeVisible();
 
-  // Same side-by-side check as the Taxonomía test above, same `lg` gating.
+  // Same side-by-side check as the Nomenclador test above, same `lg` gating.
   const viewportWidth = testInfo.project.use.viewport?.width ?? 0;
   if (viewportWidth < 1024) {
     return;

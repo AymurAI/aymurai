@@ -7,7 +7,7 @@ const settings = {
   confirmDeactivate: "Confirmar baja",
   nav: {
     server: "Servidor",
-    taxonomy: "Taxonomía",
+    taxonomy: "Nomenclador",
     organigram: "Organigrama",
   },
   server: {

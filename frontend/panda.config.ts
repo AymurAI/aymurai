@@ -7,7 +7,7 @@ const globalCss = defineGlobalStyles({
   // of an open dialog, and `@aymurai/ui` stamps it with an inline z-index of
   // 10 while its dialog overlay and content are both 50 — so a dropdown
   // opened inside a dialog paints *underneath* it, visible only where it
-  // overhangs the dialog's edge. First seen on Configuración → Taxonomía →
+  // overhangs the dialog's edge. First seen on Configuración → Nomenclador →
   // "Reasignar registros", whose target Select was effectively unusable.
   //
   // A popper belongs above whatever it was opened from, so this is

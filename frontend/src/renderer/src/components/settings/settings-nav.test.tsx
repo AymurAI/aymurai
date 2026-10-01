@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import "@/constants/i18n";
 import SettingsNav from "./settings-nav";
 
 // `Link` needs a `<RouterProvider>` to render at all outside a full router
@@ -21,10 +22,6 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ),
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
-
 describe("SettingsNav", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -40,16 +37,17 @@ describe("SettingsNav", () => {
     vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
     render(<SettingsNav />);
 
-    expect(screen.getByRole("link", { name: "nav.server" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Servidor" })).toHaveAttribute(
       "href",
       "/home/settings/server",
     );
-    expect(screen.getByRole("link", { name: "nav.taxonomy" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Nomenclador" })).toHaveAttribute(
       "href",
       "/home/settings/taxonomy",
     );
-    expect(
-      screen.getByRole("link", { name: "nav.organigram" }),
-    ).toHaveAttribute("href", "/home/settings/organigram");
+    expect(screen.getByRole("link", { name: "Organigrama" })).toHaveAttribute(
+      "href",
+      "/home/settings/organigram",
+    );
   });
 });
