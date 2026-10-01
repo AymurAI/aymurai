@@ -79,15 +79,18 @@ const NOOP_DISPATCH: Dispatch<Action> = () => {};
  * seven `useCallback`s on every render — regardless of `isAnnotable` — so a
  * missing `data` crashes the whole screen synchronously on mount.
  *
- * The paragraph split is the exact inverse of how the backend composed
- * `source_text` in the first place (`"\n".join(payload.document.document)`,
- * `routers/defensoria/data_extraction.py`), so it round-trips exactly —
- * except for the one documented case where a paragraph contained its own
- * newline, which the join made indistinguishable from a paragraph boundary
- * and no split can recover (issue #58). See this component's test suite,
- * which pins both halves of that statement.
+ * Paragraphs come from `source_paragraphs`, the exact list the extraction
+ * received, when the server has it. Rows extracted before the backend stored
+ * it only have `source_text` (`"\n".join(payload.document.document)`,
+ * `routers/defensoria/data_extraction.py`), so for those the split on `"\n"`
+ * is the best available inverse — exact except where a paragraph contained
+ * its own newline, which the join made indistinguishable from a boundary
+ * (issue #58). This component's test suite pins both paths.
  */
 function syntheticDocFile(detail: RecommendationDetail): DocFile {
+  // Legacy fallback, deliberately kept: there is nothing else to rebuild
+  // paragraphs from on a row stored before `source_paragraphs` existed.
+  const paragraphs = detail.source_paragraphs ?? detail.source_text.split("\n");
   return {
     data: new File([detail.source_text], `recomendacion-${detail.id}.txt`, {
       type: "text/plain",
@@ -95,7 +98,7 @@ function syntheticDocFile(detail: RecommendationDetail): DocFile {
     // Deterministic ids: the annotator keys paragraphs (and the highlight map
     // from `buildAnnotations`) by them, so they must be stable across renders
     // and across a refetch of the same recommendation.
-    paragraphs: detail.source_text.split("\n").map((value, index) => ({
+    paragraphs: paragraphs.map((value, index) => ({
       value,
       id: `${detail.id}-p${index}`,
       document_id: detail.document_id,

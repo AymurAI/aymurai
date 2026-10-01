@@ -32,6 +32,7 @@ const REAL_DETAIL_FIXTURE: RecommendationDetail = {
   created_at: "2026-09-23T19:43:59",
   updated_at: null,
   source_text: "Documento de captura de fixture.",
+  source_paragraphs: ["Documento de captura de fixture."],
   prediction: {
     recommendation_number: "5/2024",
     recommendation_date: "01 de enero de 2024",

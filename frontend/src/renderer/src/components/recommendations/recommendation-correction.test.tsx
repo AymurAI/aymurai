@@ -316,6 +316,8 @@ function aDetail(
     created_at: "2026-11-22T10:00:00Z",
     updated_at: "2026-11-23T09:30:00Z",
     source_text: REAL_SOURCE_TEXT,
+    // A legacy row by default: stored before the backend kept paragraphs.
+    source_paragraphs: null,
     prediction: {
       recommendation_number: "123/2026",
       recommendation_date: "22 de noviembre de 2026",
@@ -443,7 +445,29 @@ describe("RecommendationCorrection", () => {
     );
   });
 
-  it("rebuilds the document's paragraphs from source_text, exactly", async () => {
+  it("uses the stored paragraphs when present, keeping a paragraph's own newline", async () => {
+    const paragraphs = [
+      "Artículo 1º.-\nRecomendar al organismo.",
+      "Artículo 2º.-",
+    ];
+    mockDetail.mockResolvedValue(
+      aDetail({
+        source_text: paragraphs.join("\n"),
+        source_paragraphs: paragraphs,
+      }),
+    );
+    renderCorrection();
+
+    await screen.findByTestId("file-annotator");
+
+    expect(annotatorFile?.paragraphs?.map((p) => p.value)).toEqual(paragraphs);
+    expect(annotatorFile?.paragraphs?.[1]).toMatchObject({
+      id: "rec-1-p1",
+      document_id: "doc-1",
+    });
+  });
+
+  it("falls back to splitting source_text on a legacy row, exactly", async () => {
     renderCorrection();
 
     await screen.findByTestId("file-annotator");
@@ -464,11 +488,11 @@ describe("RecommendationCorrection", () => {
     });
   });
 
-  // The one documented limitation (issue #58): the join that produced
-  // `source_text` made a paragraph's own newline indistinguishable from a
-  // paragraph boundary, so no split can recover it. Pinned here as the known
-  // behaviour rather than left as a comment nobody re-checks.
-  it("splits a paragraph that contained its own newline in two (known gap)", async () => {
+  // The limitation `source_paragraphs` exists to close, still present for rows
+  // extracted before it was stored: the join that produced `source_text` made
+  // a paragraph's own newline indistinguishable from a paragraph boundary, so
+  // no split can recover it. Pinned as the known legacy behaviour.
+  it("on a legacy row, splits a paragraph that contained its own newline in two (known gap)", async () => {
     mockDetail.mockResolvedValue(
       aDetail({ source_text: "Artículo 1º.-\nRecomendar al organismo." }),
     );

@@ -332,6 +332,9 @@ const recommendationRows = new Map<string, RecommendationDetail>([
       updated_at: null,
       source_text:
         "El organismo destinatario deberá arbitrar los medios necesarios para garantizar el acceso a medicamentos esenciales a la población afectada.",
+      source_paragraphs: [
+        "El organismo destinatario deberá arbitrar los medios necesarios para garantizar el acceso a medicamentos esenciales a la población afectada.",
+      ],
       // Deliberately the RAW extraction shape (`RawExtraction.model_dump()`
       // in `aymurai/api/endpoints/routers/llm/data_extraction_engine.py`),
       // NOT `DataExtractionPrediction` -- the backend stores this narrower
@@ -380,6 +383,8 @@ const recommendationRows = new Map<string, RecommendationDetail>([
       updated_at: now,
       source_text:
         "Durante el pasado mes se recibieron reclamos por demoras en el trámite de solicitudes de vivienda social.",
+      // A legacy row: extracted before the backend stored paragraphs.
+      source_paragraphs: null,
       prediction: {
         recommendation_number: "456/2026",
         recommendation_date: "durante el pasado mes",

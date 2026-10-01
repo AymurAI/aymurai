@@ -158,6 +158,11 @@ export interface RecommendationEnums {
  */
 export interface RecommendationDetail extends RecommendationRow {
   source_text: string;
+  /**
+   * The paragraphs exactly as extracted; `null` on rows stored before the
+   * backend kept them, where only `source_text` (their `"\n"` join) exists.
+   */
+  source_paragraphs: string[] | null;
   prediction: Record<string, unknown>;
 }
 

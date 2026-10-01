@@ -36,6 +36,7 @@ const SAMPLE_ROW = {
 const SAMPLE_DETAIL = {
   ...SAMPLE_ROW,
   source_text: "El organismo destinatario deberá arbitrar los medios.",
+  source_paragraphs: ["El organismo destinatario deberá arbitrar los medios."],
   // The real raw stored shape (`RawExtraction.model_dump()`) -- see
   // task-2-report.md: it is narrower than `DataExtractionPrediction`, which
   // is why `predictionFromDetail` was not implemented in this task.
@@ -414,6 +415,17 @@ describe("dataExtraction service — real (non-mock) implementation", () => {
       "/llm/data-extraction/recommendations/recommendation-1",
     );
     expect(result).toEqual(SAMPLE_DETAIL);
+  });
+
+  it("accepts a legacy recommendation detail with no stored paragraphs", async () => {
+    const legacy = { ...SAMPLE_DETAIL, source_paragraphs: null };
+    vi.spyOn(api, "get").mockResolvedValue({ data: legacy });
+
+    const { queryFn } = dataExtraction.recommendationDetail("recommendation-1");
+
+    await expect((queryFn as () => Promise<unknown>)()).resolves.toEqual(
+      legacy,
+    );
   });
 
   /**

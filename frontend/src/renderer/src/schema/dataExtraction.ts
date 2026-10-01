@@ -143,11 +143,13 @@ export const recommendationEnumsSchema = z.object({
  * Mirrors `RecommendationDetailResponse` as served by the single-recommendation
  * `GET`/`PUT` detail endpoints -- a `recommendationRowSchema` row (the six
  * seguimiento fields plus `created_at`/`updated_at`, needed here for the
- * `If-Match` value) widened with `source_text`/`prediction`. Deliberately NOT
+ * `If-Match` value) widened with `source_text`/`source_paragraphs`/`prediction`. Deliberately NOT
  * built on `recommendationValidationSchema`, which mirrors the same response
  * shape but lacks those seven fields.
  */
 export const recommendationDetailSchema = recommendationRowSchema.extend({
   source_text: z.string(),
+  // Null on rows extracted before the backend stored paragraphs.
+  source_paragraphs: z.array(z.string()).nullable(),
   prediction: z.record(z.string(), z.unknown()),
 });
