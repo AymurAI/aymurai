@@ -33,7 +33,6 @@ def _sql_normalize_text(value: str | None) -> str | None:
 
 
 def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
-    del connection_record
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     # WAL lets readers never block the writer (or vice versa) -- without
@@ -46,6 +45,22 @@ def _configure_sqlite_connection(dbapi_connection, connection_record) -> None:
     # makes the wait configurable via SQLITE_BUSY_TIMEOUT_MS.
     cursor.execute(f"PRAGMA busy_timeout={settings.SQLITE_BUSY_TIMEOUT_MS}")
     cursor.close()
+    register_sql_functions(dbapi_connection, connection_record)
+
+
+def register_sql_functions(dbapi_connection, connection_record) -> None:
+    """
+    Registers the Python SQL functions queries rely on (`normalize_text`).
+
+    Called by `_configure_sqlite_connection`; also usable on its own as a
+    `connect` listener where the rest of that setup (FK enforcement, WAL)
+    can't apply yet, so the functions are never registered two ways.
+
+    Args:
+        dbapi_connection: The raw `sqlite3` connection.
+        connection_record: SQLAlchemy's pool record (unused).
+    """
+    del connection_record
     # Query-time only. NEVER reference `normalize_text` from an index, view,
     # CHECK, generated column or anything else persisted in the schema: the
     # function exists only on connections opened through this listener, so
