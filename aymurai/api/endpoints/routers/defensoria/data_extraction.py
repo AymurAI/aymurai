@@ -53,6 +53,7 @@ from aymurai.database.crud.catalogs.macro_sector import macro_sector_list
 from aymurai.database.crud.catalogs.subtopic import subtopic_list
 from aymurai.database.crud.catalogs.topic import topic_list
 from aymurai.database.crud.llm_extraction import (
+    llm_extraction_backfill_paragraphs,
     llm_extraction_create_or_update,
     llm_extraction_get,
 )
@@ -174,6 +175,11 @@ async def api_data_extraction(
     if use_cache:
         existing = llm_extraction_get(document_id, session)
         if existing:
+            # A row extracted before paragraphs were stored can regain them
+            # here, when the same document comes back with the same text.
+            existing = llm_extraction_backfill_paragraphs(
+                existing, payload.document.document, session
+            )
             response = _response_from_record(existing, session)
             response.catalogs_stale = _catalogs_stale(existing, session)
             return response

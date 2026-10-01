@@ -11,7 +11,10 @@ from aymurai.api.endpoints.routers.misc.document_extract import (
     _split_document_paragraphs,
     extraction,
 )
-from aymurai.database.crud.llm_extraction import llm_extraction_create_or_update
+from aymurai.database.crud.llm_extraction import (
+    llm_extraction_create_or_update,
+    llm_extraction_get,
+)
 from aymurai.database.utils import text_to_uuid
 
 from .conftest import FakeProvider, patched_provider
@@ -110,3 +113,63 @@ def test_detail_of_a_legacy_extraction_has_no_paragraphs(
 
     assert detail["source_paragraphs"] is None
     assert detail["source_text"] == "Extracción anterior a los párrafos."
+
+
+def _legacy_extraction(engine, source_text: str):
+    document_id = text_to_uuid(source_text)
+    with Session(engine) as session:
+        record = llm_extraction_create_or_update(
+            document_id,
+            None,
+            source_text,
+            json.loads(EXTRACTION),
+            # The full config shape: a cache hit serves it back as-is.
+            {"model": "fake-model", "options": {}, "catalogs_hash": "legacy"},
+            session,
+        )
+        return document_id, record.updated_at
+
+
+def _stored(engine, document_id):
+    with Session(engine) as session:
+        record = llm_extraction_get(document_id, session)
+        assert record is not None
+        return record.source_paragraphs, record.updated_at
+
+
+def test_cache_hit_backfills_paragraphs_on_a_legacy_extraction(
+    extraction_client, extraction_engine, seeded_catalogs
+):
+    paragraphs = ["Visto el expediente,\ny considerando:", "Se recomienda."]
+    document_id, updated_at = _legacy_extraction(
+        extraction_engine, "\n".join(paragraphs)
+    )
+
+    response = extraction_client.post(
+        "/llm/data-extraction",
+        json={"document": {"document": paragraphs, "document_id": str(document_id)}},
+    )
+
+    assert response.status_code == 200
+    # Same text, so these are the paragraphs it was joined from -- and the
+    # extraction's own timestamp stays put: nothing was re-extracted.
+    assert _stored(extraction_engine, document_id) == (paragraphs, updated_at)
+
+
+def test_cache_hit_leaves_a_legacy_extraction_alone_when_the_text_differs(
+    extraction_client, extraction_engine, seeded_catalogs
+):
+    document_id, updated_at = _legacy_extraction(extraction_engine, "Texto guardado.")
+
+    response = extraction_client.post(
+        "/llm/data-extraction",
+        json={
+            "document": {
+                "document": ["Otro texto."],
+                "document_id": str(document_id),
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert _stored(extraction_engine, document_id) == (None, updated_at)
