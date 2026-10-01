@@ -405,8 +405,10 @@ def recommendation_list(
             least one recipient resolved to this sector.
         date_from (date | None): Minimum `recommendation_date` (inclusive).
         date_to (date | None): Maximum `recommendation_date` (inclusive).
-        q (str | None): Case-insensitive substring search, matched against
-            any of `_SEARCH_COLUMNS`.
+        q (str | None): Case- and accent-insensitive substring search,
+            matched against any of `_SEARCH_COLUMNS`. Normalized with
+            `normalize_text` (which also strips it), so a whitespace-only
+            `q` applies no filter at all.
         unparsed_dates (bool): Restrict to rows with prose
             (`recommendation_date_text`) but no successfully parsed
             `recommendation_date` -- exactly the rows that need human
