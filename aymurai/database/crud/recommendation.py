@@ -408,7 +408,8 @@ def recommendation_list(
         order_by (RecommendationOrderColumn): Column to sort by, whitelisted
             (issue #58) to columns that don't require a join.
         order_dir (Literal["asc", "desc"]): Sort direction. Nulls always
-            sort last, in both directions.
+            sort last, in both directions; ties are broken by `id`
+            ascending so pagination is deterministic.
         page (int): 1-indexed page number.
         page_size (int): Rows per page.
 
@@ -466,7 +467,10 @@ def recommendation_list(
     column = _ORDER_COLUMNS[order_by]
     order_clause = column.asc() if order_dir == "asc" else column.desc()
     statement = (
-        statement.order_by(order_clause.nullslast())
+        # `id` breaks ties: without a total order, SQLite may return tied rows
+        # in a different order on each query, so consecutive pages could
+        # repeat some rows and skip others.
+        statement.order_by(order_clause.nullslast(), Recommendation.id)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
