@@ -29,6 +29,8 @@ def llm_extraction_create_or_update(
     prediction: dict[str, Any],
     config: dict[str, Any],
     session: Session,
+    *,
+    source_paragraphs: list[str] | None = None,
 ) -> LLMExtraction:
     """
     Create or update an extraction record.
@@ -43,6 +45,9 @@ def llm_extraction_create_or_update(
         prediction (dict[str, Any]): Raw model output, verbatim.
         config (dict[str, Any]): Generation config used for this run.
         session (Session): SQLAlchemy session.
+        source_paragraphs (list[str] | None): The paragraphs `source_text` was
+            joined from. Replaced together with `source_text` on update, since
+            the two describe the same run.
 
     Returns:
         LLMExtraction: The created or updated extraction record.
@@ -54,6 +59,7 @@ def llm_extraction_create_or_update(
             id=extraction_id,
             file_name=file_name,
             source_text=source_text,
+            source_paragraphs=source_paragraphs,
             prediction=prediction,
             config=config,
         )
@@ -61,6 +67,7 @@ def llm_extraction_create_or_update(
         if file_name is not None:
             record.file_name = file_name
         record.source_text = source_text
+        record.source_paragraphs = source_paragraphs
         record.prediction = prediction
         record.config = config
 

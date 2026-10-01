@@ -231,6 +231,10 @@ async def api_data_extraction(
         raw_extraction.model_dump(),
         config,
         session,
+        # Stored alongside `document_text`, not derived from it later: a
+        # paragraph may contain its own `\n`, which the join makes
+        # indistinguishable from a boundary.
+        source_paragraphs=list(payload.document.document),
     )
     return _response_from_record(record, session)
 
@@ -308,6 +312,7 @@ def _recommendation_detail_response(
     return RecommendationDetailResponse(
         **response.model_dump(),
         source_text=extraction.source_text if extraction else "",
+        source_paragraphs=extraction.source_paragraphs if extraction else None,
         prediction=extraction.prediction if extraction else {},
     )
 

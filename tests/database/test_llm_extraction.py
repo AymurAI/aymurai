@@ -78,3 +78,40 @@ def test_create_or_update_preserves_file_name_when_none_passed(session):
     # File name should survive (not be erased by None)
     assert updated.file_name == original_file_name
     assert llm_extraction_get(extraction_id, session).file_name == original_file_name
+
+
+def test_create_or_update_stores_and_replaces_source_paragraphs(session):
+    extraction_id = text_to_uuid("doc-4")
+    paragraphs = ["Primer párrafo\ncon un salto interno.", "Segundo párrafo."]
+
+    created = llm_extraction_create_or_update(
+        extraction_id,
+        None,
+        "\n".join(paragraphs),
+        {"topic": "SALUD"},
+        {"model": "a"},
+        session,
+        source_paragraphs=paragraphs,
+    )
+    assert created.source_paragraphs == paragraphs
+
+    updated = llm_extraction_create_or_update(
+        extraction_id,
+        None,
+        "Otro.",
+        {"topic": "SALUD"},
+        {"model": "a"},
+        session,
+        source_paragraphs=["Otro."],
+    )
+    stored = llm_extraction_get(extraction_id, session)
+    assert stored is not None
+    assert stored.source_paragraphs == ["Otro."]
+    assert updated.source_text == "Otro."
+
+
+def test_create_without_source_paragraphs_leaves_them_null(session):
+    record = llm_extraction_create_or_update(
+        text_to_uuid("doc-5"), None, "texto", {}, {}, session
+    )
+    assert record.source_paragraphs is None
