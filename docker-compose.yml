@@ -1,5 +1,5 @@
 x-api-lite: &api-lite
-    image: ghcr.io/aymurai/api:latest
+    image: ghcr.io/aymurai/aymurai:latest
     build:
         context: .
         dockerfile: ./docker/api/Dockerfile
@@ -16,7 +16,7 @@ x-api-lite: &api-lite
         - .env.common
 
 x-api-full: &api-full
-    image: ghcr.io/aymurai/api:full
+    image: ghcr.io/aymurai/aymurai:full
     build:
         context: .
         dockerfile: ./docker/api/Dockerfile

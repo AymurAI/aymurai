@@ -56,7 +56,7 @@ make api-up          # lightweight profile
 Or run the published image directly:
 
 ```sh
-docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/api:full
+docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/aymurai:full
 ```
 
 See the [repository README](../README.md) for GPU variants, cache volumes and

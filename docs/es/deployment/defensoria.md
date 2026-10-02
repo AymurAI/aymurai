@@ -5,10 +5,10 @@ Un tag de release produce estas etiquetas:
 
 | Variante | Versionada | Flotante |
 |---|---|---|
-| Estándar | `ghcr.io/aymurai/api:<tag>` | `latest` |
-| Defensoría | `ghcr.io/aymurai/api:<tag>-defensoria` | `defensoria` |
-| Full estándar | `ghcr.io/aymurai/api:full-<tag>` | `full` |
-| Full Defensoría | `ghcr.io/aymurai/api:full-<tag>-defensoria` | `full-defensoria` |
+| Estándar | `ghcr.io/aymurai/aymurai:<tag>` | `latest` |
+| Defensoría | `ghcr.io/aymurai/aymurai:<tag>-defensoria` | `defensoria` |
+| Full estándar | `ghcr.io/aymurai/aymurai:full-<tag>` | `full` |
+| Full Defensoría | `ghcr.io/aymurai/aymurai:full-<tag>-defensoria` | `full-defensoria` |
 
 En producción usá siempre una etiqueta versionada. La variante liviana es la
 recomendada para Defensoría: la extracción usa el `llama-server` externo y no

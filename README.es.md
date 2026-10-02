@@ -35,7 +35,7 @@ El frontend puede ejecutarse como aplicación web servida por FastAPI o como apl
 Ejecutar la imagen full de la API (incluye recursos de producción):
 
 ```bash
-docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/api:full
+docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/aymurai:full
 ```
 
 Opcional: persistir DB/cache fuera del container (volumen host montado en `/resources/cache`):
@@ -45,7 +45,7 @@ mkdir -p ./aymurai-cache
 
 docker run -d --name aymurai-backend -p 8899:8899 \
   -v "$(pwd)/aymurai-cache:/resources/cache" \
-  ghcr.io/aymurai/api:full
+  ghcr.io/aymurai/aymurai:full
 ```
 
 Opcional: runtime con GPU (requiere NVIDIA Container Toolkit):
@@ -53,7 +53,7 @@ Opcional: runtime con GPU (requiere NVIDIA Container Toolkit):
 ```bash
 docker run -d --name aymurai-backend-gpu --gpus all \
   -p 8899:8899 \
-  ghcr.io/aymurai/api:full
+  ghcr.io/aymurai/aymurai:full
 ```
 
 > Exponer una GPU al container no alcanza para correr inferencia en ella. Las dos
@@ -171,7 +171,7 @@ Para contratos request/response y ejemplos completos, ver [docs/es/api/README.md
 Para mover una imagen a un entorno sin internet:
 
 ```bash
-docker image save ghcr.io/aymurai/api:full -o aymurai-api-full.tar
+docker image save ghcr.io/aymurai/aymurai:full -o aymurai-api-full.tar
 docker load -i aymurai-api-full.tar
 ```
 

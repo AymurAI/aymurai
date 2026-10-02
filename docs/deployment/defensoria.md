@@ -3,7 +3,7 @@
 Language: **English** | [Español](../es/deployment/defensoria.md)
 
 A release tag publishes separate standard and Defensoria images. Production
-must use the versioned `ghcr.io/aymurai/api:<tag>-defensoria` tag; the floating
+must use the versioned `ghcr.io/aymurai/aymurai:<tag>-defensoria` tag; the floating
 `defensoria` tag is only a convenience. A manual branch dispatch publishes only
 immutable `dev-<sha>` tags and never moves floating tags. The
 `full-<tag>-defensoria` variant is also published, but the lite image is

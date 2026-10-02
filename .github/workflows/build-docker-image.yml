@@ -74,15 +74,15 @@ jobs:
         run: |
           {
             echo 'LITE_TAGS<<EOF'
-            echo "ghcr.io/aymurai/api:${VERSION_TAG}${TAG_SUFFIX}"
+            echo "ghcr.io/aymurai/aymurai:${VERSION_TAG}${TAG_SUFFIX}"
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              echo "ghcr.io/aymurai/api:${FLOATING_LITE_TAG}"
+              echo "ghcr.io/aymurai/aymurai:${FLOATING_LITE_TAG}"
             fi
             echo 'EOF'
             echo 'FULL_TAGS<<EOF'
-            echo "ghcr.io/aymurai/api:full-${VERSION_TAG}${TAG_SUFFIX}"
+            echo "ghcr.io/aymurai/aymurai:full-${VERSION_TAG}${TAG_SUFFIX}"
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              echo "ghcr.io/aymurai/api:${FLOATING_FULL_TAG}"
+              echo "ghcr.io/aymurai/aymurai:${FLOATING_FULL_TAG}"
             fi
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
