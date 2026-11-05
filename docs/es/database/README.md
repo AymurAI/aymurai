@@ -19,7 +19,179 @@ Código relacionado:
 - `aymurai/api/main.py`
 - `aymurai/database/versions/13f78d08e925_create_database.py` (esquema base)
 - `aymurai/database/versions/49b3f24f7ad0_add_audio_transcription_table.py`
-- `aymurai/database/versions/8f2c6a10b7d3_add_llm_summarization_table.py` (head)
+- `aymurai/database/versions/8f2c6a10b7d3_add_llm_summarization_table.py`
+- `aymurai/database/versions/dd89f40c7c3e_add_catalogs_tables.py`
+- `aymurai/database/versions/ddf5877c18e3_add_organigram_tables.py`
+- `aymurai/database/versions/fb3a0fa1490d_add_llm_extraction_table.py`
+- `aymurai/database/versions/bd2987fdfc0e_add_dataset_recommendation_recipient_tables.py` (head)
+
+Las últimas cuatro son la feature de la Defensoría del Pueblo (CABA) (ver
+[más abajo](#defensoría-del-pueblo-caba)) y se aplican en ese orden — primero
+`catalogs` y `organigram`, porque `recipient`/`recommendation` tienen foreign
+keys hacia ellas. **Estas migraciones siempre corren**, independientemente del
+feature flag `DEFENSORIA_ENABLED`, que solo gatea si se montan los routers
+correspondientes.
+
+## Operación
+
+### Ubicación y persistencia del volumen
+Dentro del contenedor la base vive en `/resources/cache/sqlite/database.db`;
+en el host es `./resources/cache/sqlite/database.db`, accesible vía el bind
+mount `./resources/cache:/resources/cache` en cada variante de la API
+(`aymurai-api`, `aymurai-api-gpu`, `aymurai-api-full`, `aymurai-api-full-gpu`).
+Ese mount tiene que seguir siendo un bind mount atado al host, no al
+contenedor: si la base viviera solo en la capa escribible del contenedor,
+recrear el contenedor (redeploy, `--force-recreate`, una actualización de
+imagen) la borraría silenciosamente. Este fue un bug real en el perfil
+`api-full`, corregido en esta Fase — a la definición de compose de ese
+perfil directamente le faltaba el mount.
+
+### Respaldos automáticos
+El sidecar `db-backup` (`docker/backup/backup.py`) corre en loop, usando
+`sqlite3.Connection.backup()` — seguro bajo WAL, a diferencia de copiar el
+archivo con `cp`, que puede capturarlo a mitad de un checkpoint — y escribe
+snapshots fechados `database_<timestamp>.db` en `./resources/backups`
+(montado como `/backups` en el contenedor). El `<timestamp>` es
+`YYYYMMDDHHMMSS` en **UTC** — a diferencia del nombre del workbook exportado,
+que usa `EXPORT_TIMEZONE` (hora de Buenos Aires por default), así que un
+respaldo tomado a las 14:00 hora local se llama `…170000`. Nunca se
+sobrescribe un respaldo existente: un segundo respaldo dentro del mismo
+segundo UTC lleva un sufijo (`database_<timestamp>_01.db`, `_02`, …), que
+igual queda ordenado después del primero y antes del segundo siguiente.
+Configuración, con los defaults
+que quedaron en `docker-compose.yml`:
+- `BACKUP_SOURCE_DB` — default `/resources/cache/sqlite/database.db`
+- `BACKUP_INTERVAL_SECONDS` — default `3600` (como mucho un respaldo por hora)
+- `BACKUP_RETENTION` — default `336`; conserva los N respaldos fechados más
+  recientes y borra los demás. `BACKUP_RETENTION <= 0` desactiva la poda —
+  **no** significa "borrar todo."
+
+Una corrida cuya copia es idéntica byte a byte (sha256) al respaldo más
+reciente se descarta en vez de escribirse (el sidecar loguea
+`unchanged since …, skipped`), así que los respaldos solo se acumulan en las
+horas en que la base efectivamente cambió. Con el intervalo horario por
+default, los `336` respaldos conservados cubren (sin contar las corridas
+manuales de `make db-backup` ni los snapshots previos a una restauración,
+que también ocupan lugares):
+- **al menos 14 días** aunque la base cambiara todas las horas, de día y de
+  noche;
+- **unas 7 semanas** a un ritmo realista — ediciones de la grilla solo en
+  horario laboral (~9 horas con cambios por día, 5 días por semana ≈ 45
+  respaldos por semana);
+- todavía más a través de períodos sin actividad (feriados, fines de
+  semana), que ya no consumen lugares.
+
+El uso de disco es aproximadamente `BACKUP_RETENTION × tamaño de la base`:
+una base de pocos MB (una base de desarrollo con un puñado de documentos y
+transcripciones pesa ~4,5 MB) ocupa ~1,5 GB con la retención completa. Bajar
+`BACKUP_RETENTION` si la base crece mucho más que eso, o subirlo para tener
+más historia.
+
+`./resources/backups` vive en el **mismo disco** que la base: protege contra
+ediciones erróneas, borrados accidentales y un archivo de base corrupto, no
+contra perder el disco o la máquina. Copiar los respaldos fuera del host
+(otro disco, un recurso compartido de red, medios offline) periódicamente es
+responsabilidad de quien administra el sistema; cualquier archivo
+`database_*.db` completo se puede copiar sin riesgo con `cp`/`rsync` común
+(el único que se está escribiendo es el `.partial` oculto).
+
+Para un respaldo manual e inmediato fuera del intervalo: `make db-backup`,
+que corre el mismo script una sola vez (`--once`) y termina.
+
+El loop en sí no arranca solo — hay que iniciarlo una vez con
+`make db-backup-up`; de ahí en más `restart: always` lo mantiene corriendo
+entre reinicios del host y del container (`make db-backup-stop` lo para,
+`make db-backup-logs` sigue su output).
+
+La parada es ordenada: el servicio corre con `init: true` y el script maneja
+SIGTERM terminando el respaldo en curso, si lo hay, y saliendo antes del
+siguiente, así que `make db-backup-stop` vuelve en alrededor de un segundo en
+vez de agotar el período de gracia de 10s de Docker. Cada copia se escribe
+como un archivo oculto `.database_<timestamp>_<aleatorio>.db.partial` (único
+por corrida, así que un `make db-backup` que corre junto al loop nunca toca
+el archivo del loop) y solo recibe su nombre final cuando está completa; si alguna vez una corrida muere de golpe, el `.partial`
+que queda nunca es candidato a restaurar, y el loop borra cualquier archivo
+así la próxima vez que arranca.
+
+### Restaurar un respaldo
+Parar la API antes de restaurar — `make db-restore` lo hace por sí solo,
+parando cada variante de la API más `db-backup` y negándose a continuar si
+alguna sigue reportada como corriendo. Después:
+```
+make db-restore BACKUP_FILE=database_<timestamp>.db
+```
+Como red de seguridad, si existe un `database.db` vivo cuando corre
+`db-restore`, primero toma un snapshot automático invocando una vez el
+sidecar `db-backup` (lo mismo que `make db-backup`) antes de tocar nada — el
+estado previo a la restauración queda en `./resources/backups` como un
+respaldo fechado más, no en un archivo aparte (o, si nada cambió desde el
+último respaldo, el snapshot se saltea porque ese último respaldo ya tiene
+exactamente los mismos bytes). Esto corre además de
+cualquier verificación manual que hayas hecho antes, no en su lugar.
+
+Siempre que `db-restore` termina después de haber parado los containers,
+vuelve a levantar el sidecar `db-backup` (`docker compose up -d db-backup`,
+lo mismo que `make db-backup-up`) — después de una restauración exitosa, y
+también cuando corta antes: al negarse porque un container sigue corriendo,
+si falla el snapshot previo a la restauración, o ante un error de permisos
+en `cp`/`mv`. Un fallo imprime
+`db-restore FAILED (exit N); the db-backup sidecar was restarted.`; si el
+reinicio mismo falla, imprime un aviso indicando que corras
+`make db-backup-up`. Un fallo nunca deja una base a medio escribir: el
+respaldo se copia primero a `database.db.restoring`, y solo cuando esa copia
+salió bien se borran los `-wal`/`-shm` viejos y se mueve la copia a su
+lugar, así que `database.db` siempre es o el archivo viejo intacto o el
+restaurado. Después de una restauración exitosa, la primera corrida del
+sidecar respalda la base restaurada. La API queda parada a propósito:
+levantala vos con `make api-up` o `make api-full-up` después de revisar la
+restauración.
+
+**Poda justo después de restaurar.** El snapshot previo a la restauración
+se toma con la poda desactivada, pero el sidecar reiniciado respalda
+enseguida la base restaurada y poda de vuelta a `BACKUP_RETENTION`. Con el
+conjunto completo, el snapshot más esa primera corrida lo dejan dos por
+encima del tope, así que los dos respaldos **más viejos** se borran en el
+acto — y pueden ser justo el archivo desde el que restauraste, o los que
+pensabas probar después. Antes de restaurar, copiá fuera de
+`./resources/backups` cualquier respaldo que todavía puedas necesitar (por
+ejemplo `cp resources/backups/database_<timestamp>.db ~/candidatos-restore/`),
+y volvé a copiarlo cuando quieras restaurarlo. Si vas a probar varias
+restauraciones seguidas, corré también `make db-backup-stop` justo después
+de cada una, para que el sidecar no siga agregando respaldos y podando entre
+intentos.
+
+En un deploy nuevo, los directorios con bind mount (`resources/cache/`,
+`resources/backups/`) pueden quedar con dueño root por Docker; las
+operaciones sobre archivos del lado del host que hace `db-restore`
+(los pasos `cp`/`mv`/`rm`) necesitan permiso para escribir ahí, así que puede
+hacer falta ajustar el dueño de esos directorios o correr esos pasos con
+privilegios suficientes antes de restaurar.
+
+### Verificar un respaldo
+Un respaldo no verificado no es un respaldo. Copiarlo a un path temporal
+— nunca sobre la base viva — y comprobar que tiene datos reales, por
+ejemplo contando filas de una tabla conocida:
+```
+cp ./resources/backups/database_<timestamp>.db /tmp/verify.db
+sqlite3 /tmp/verify.db "PRAGMA integrity_check; SELECT COUNT(*) FROM recommendation;"
+rm -f /tmp/verify.db /tmp/verify.db-wal /tmp/verify.db-shm
+```
+Consultar la copia, no el archivo en `./resources/backups`: los respaldos
+conservan el modo de journal WAL de la base viva, así que abrir uno hace que
+SQLite cree archivos `-wal`/`-shm` al lado. Sin permiso de escritura sobre
+el directorio (lo habitual en un bind mount de Docker con dueño root) hasta
+un `SELECT` falla, por ejemplo con "attempt to write a readonly database";
+con permiso, se corre el riesgo de dejar archivos sueltos en el directorio
+de respaldos.
+Un archivo SQLite estructuralmente válido y no vacío, con un conteo de filas
+plausible, es lo que significa "verificado" acá; que el archivo exista no
+alcanza.
+
+### El workbook exportado no es un respaldo
+El workbook que exporta la feature de la Defensoría del Pueblo es un reporte
+de solo lectura generado a partir de la base; no se puede reimportar y no
+sustituye a un respaldo de la base de datos. Ver
+[ADR-0014](../../adr/0014-workbook-exportado-de-solo-lectura.md).
 
 ## Diagrama ER
 Se renderiza inline para que no pueda quedar desfasado respecto de una imagen
@@ -96,10 +268,123 @@ erDiagram
         DATETIME updated_at
     }
 
+    dataset {
+        UUID id PK
+        TEXT code
+        TEXT name
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recommendation {
+        UUID id PK
+        UUID dataset_id FK
+        UUID document_id
+        TEXT recommendation_number
+        TEXT recommendation_date_text
+        DATE recommendation_date
+        UUID topic_id FK
+        UUID subtopic_id FK
+        BOOLEAN personal_data
+        TEXT publishable_content
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    recipient {
+        UUID id PK
+        UUID recommendation_id FK
+        INTEGER order
+        TEXT raw_name
+        TEXT raw_position
+        TEXT normalized_name
+        TEXT normalized_position
+        BOOLEAN is_primary
+        UUID macro_sector_id FK
+        UUID unit_id FK
+        UUID sector_id FK
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    llm_extraction {
+        UUID id PK
+        TEXT file_name
+        TEXT source_text
+        JSON prediction
+        JSON config
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    topic {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    subtopic {
+        UUID id PK
+        UUID topic_id FK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    macro_sector {
+        UUID id PK
+        TEXT code
+        TEXT name
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_unit {
+        UUID id PK
+        UUID parent_id FK
+        TEXT name
+        TEXT acronym
+        TEXT short_name
+        BOOLEAN is_sector
+        BOOLEAN active
+        INTEGER order
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    organigram_holder {
+        UUID id PK
+        UUID unit_id FK
+        TEXT name
+        BOOLEAN is_current
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
     anonymization_document ||--o{ anonymization_document_paragraph : links
     anonymization_paragraph ||--o{ anonymization_document_paragraph : links
     datapublic_document ||--o{ datapublic_document_paragraph : links
     datapublic_paragraph ||--o{ datapublic_document_paragraph : links
+
+    dataset ||--o{ recommendation : "dataset_id"
+    topic ||--o{ subtopic : "topic_id"
+    topic ||--o{ recommendation : "topic_id (nullable)"
+    subtopic ||--o{ recommendation : "subtopic_id (nullable)"
+    recommendation ||--o{ recipient : "recommendation_id"
+    macro_sector ||--o{ recipient : "macro_sector_id (nullable)"
+    organigram_unit ||--o{ recipient : "unit_id (nullable)"
+    organigram_unit ||--o{ recipient : "sector_id (nullable)"
+    organigram_unit ||--o{ organigram_unit : "parent_id (nullable)"
+    organigram_unit ||--o{ organigram_holder : "unit_id"
 ```
 
 ## Tablas
@@ -199,6 +484,171 @@ A diferencia de `llm_summarization`, acá las lecturas **sí** colapsan:
 `ASRDocument.from_transcription` devuelve `validation or transcription`, así que
 una transcripción validada tapa a la del modelo.
 
+## Defensoría del Pueblo (CABA)
+Nueve tablas respaldan la customización para la Defensoría del Pueblo (ver la
+[referencia de pipeline](../pipelines/defensoria/README.md)). Sus routers se
+montan solo cuando `DEFENSORIA_ENABLED=true`, pero **las tablas, migraciones
+y datos de seed siempre existen**, sin importar el flag.
+
+El enforcement de foreign keys de SQLite (`PRAGMA foreign_keys=ON`) se agregó
+por conexión específicamente porque este esquema está cargado de FKs
+(`aymurai/database/session.py`); aplica a toda la base, no solo a estas
+tablas.
+
+### `llm_extraction`
+Cache autónomo de extracción cruda — sin foreign keys. Se indexa por un hash
+de contenido provisto por el cliente, no por un id generado por la app.
+
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key, **provisto por el cliente** (el `document_id` del request) |
+| `file_name` | `TEXT` | sí | Nombre de archivo original, si se conoce |
+| `source_text` | `TEXT` | no | Texto del documento sobre el que corrió la extracción |
+| `prediction` | `JSON` | no | Salida cruda del LLM, tal cual |
+| `config` | `JSON` | no | Config de generación (`model`, `options`, `catalogs_hash`) |
+| `created_at` | `DATETIME` | no | Default server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza ante cambios |
+
+### `dataset`
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | no | Único. Una única fila fija, `"defensoria-recommendations"`, creada de forma lazy; no hay endpoint de creación |
+| `name` | `TEXT` | no | Etiqueta de display |
+| `created_at` | `DATETIME` | no | Default server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza ante cambios |
+
+### `recommendation`
+El registro a nivel documento validado por una persona — solo existe después
+de `PUT /api/llm/data-extraction/{document_id}/validate`.
+
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `dataset_id` | `UUID` | no | FK -> `dataset.id`, indexada |
+| `document_id` | `UUID` | no | Indexada. **No es FK de base de datos** — se correlaciona por convención con `llm_extraction.id` (ambos son el hash de contenido provisto por el cliente), pero la integridad referencial entre ambos no está impuesta por la DB |
+| `recommendation_number` | `TEXT` | sí | |
+| `recommendation_date_text` | `TEXT` | sí | Fecha en prosa tal cual, del modelo o de una persona |
+| `recommendation_date` | `DATE` | sí | Parseo normalizado de lo anterior; `null` cuando la prosa no parsea |
+| `topic_id` | `UUID` | sí | FK -> `topic.id` |
+| `subtopic_id` | `UUID` | sí | FK -> `subtopic.id` |
+| `personal_data` | `BOOLEAN` | sí | Tri-estado: `NULL` significa que todavía no se respondió |
+| `publishable_content` | `TEXT` | no | |
+| `created_at` | `DATETIME` | no | Default server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza ante cambios |
+
+Constraint único: `(dataset_id, document_id)`.
+
+### `recipient`
+Una oficina/persona destinataria asociada a una `recommendation`.
+
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `recommendation_id` | `UUID` | no | FK -> `recommendation.id`, indexada |
+| `order` | `INTEGER` | no | Default `0` |
+| `raw_name` | `TEXT` | sí | Nombre extraído/ingresado tal cual |
+| `raw_position` | `TEXT` | sí | Cargo extraído/ingresado tal cual |
+| `normalized_name` | `TEXT` | sí | Indexada; alimenta el índice aprendido del matching de organigrama |
+| `normalized_position` | `TEXT` | sí | Indexada; alimenta el índice aprendido |
+| `is_primary` | `BOOLEAN` | no | Default `False` |
+| `macro_sector_id` | `UUID` | sí | FK -> `macro_sector.id` |
+| `unit_id` | `UUID` | sí | FK -> `organigram_unit.id`; confirmado por una persona |
+| `sector_id` | `UUID` | sí | FK -> `organigram_unit.id` (segundo vínculo a la misma tabla); confirmado por una persona **independientemente** de `unit_id`, denormalizado a propósito para que una reorganización posterior del organigrama no reescriba retroactivamente el historial |
+| `created_at` | `DATETIME` | no | Default server `CURRENT_TIMESTAMP` |
+| `updated_at` | `DATETIME` | sí | Se actualiza ante cambios |
+
+Invariantes a nivel aplicación (no impuestas por la DB), chequeadas en
+`recommendation_upsert`/`_reconcile_recipients`, no por un constraint o
+trigger: `sector_id` siempre tiene que nombrar una unidad con
+`is_sector=true`, y cuando `unit_id` y `sector_id` están ambos seteados,
+`sector_id` tiene que ser un ancestro-o-sí-mismo `is_sector` de `unit_id`
+(pertenencia, no identidad con lo que sugeriría automáticamente
+`resolve_sector(unit_id)` — ese helper salta sectores desactivados, así que
+no siempre es el más cercano). Todo el llamado de validación es una sola
+transacción (ADR-0009): un destinatario rechazado también hace rollback de
+los cambios propios de la fila `recommendation`.
+
+### `topic` / `subtopic` / `macro_sector`
+Los catálogos de clasificación que usan la extracción y la validación.
+
+**`topic`**
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | sí | Único; el código `area` original de la Defensoría, `null` para topics creados por la app |
+| `name` | `TEXT` | no | |
+| `active` | `BOOLEAN` | no | Default `True`; flag de soft-delete |
+| `order` | `INTEGER` | no | Default `0`, orden de display |
+| `created_at` / `updated_at` | `DATETIME` | no / sí | Estándar |
+
+**`subtopic`**
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `topic_id` | `UUID` | no | FK -> `topic.id` |
+| `code` | `TEXT` | sí | Único (global, no por topic); el `codigo` de la Defensoría |
+| `name` | `TEXT` | no | |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | no | Default `0` |
+| `created_at` / `updated_at` | `DATETIME` | no / sí | Estándar |
+
+Constraints únicos: `(code)`, `(topic_id, name)`.
+
+**`macro_sector`**
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `code` | `TEXT` | no | Único; uno de `GCBA`, `ORGANISMOS_NACIONALES`, `OBRA_SOCIAL_PREPAGA`, `EMPRESA`. Gobierna comportamiento — solo `GCBA` dispara el matching de organigrama — y nunca es editable vía API |
+| `name` | `TEXT` | no | Etiqueta de display editable |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | no | Default `0` |
+| `created_at` / `updated_at` | `DATETIME` | no / sí | Estándar |
+
+Conjunto fijo y sembrado de 4 filas — la API puede
+renombrar/reordenar/desactivar un macro-sector pero nunca crear o borrar uno.
+
+### `organigram_unit` / `organigram_holder`
+El organigrama institucional.
+
+**`organigram_unit`**
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key. Para filas sembradas, es un `uuid5` determinístico del path de la unidad, fijo para siempre una vez asignado (nunca se recalcula al renombrar); las unidades creadas vía la API reciben un `uuid4` aleatorio en cambio, porque no tienen un path del cual derivarlo |
+| `parent_id` | `UUID` | sí | FK -> `organigram_unit.id` (árbol auto-referencial), indexada |
+| `name` | `TEXT` | no | |
+| `acronym` | `TEXT` | sí | p. ej. `AGIP` |
+| `short_name` | `TEXT` | sí | Override curado para un puñado de organismos autónomos |
+| `is_sector` | `BOOLEAN` | no | Default `False`; flag curado que marca "ancestro-o-sí-misma más profundo que cuenta como sector" |
+| `active` | `BOOLEAN` | no | Default `True` |
+| `order` | `INTEGER` | sí | Orden de display entre hermanos |
+| `created_at` / `updated_at` | `DATETIME` | no / sí | Estándar |
+
+**`organigram_holder`**
+| Columna | Tipo | Nulo | Notas |
+|---|---|---|---|
+| `id` | `UUID` | no | Primary key |
+| `unit_id` | `UUID` | no | FK -> `organigram_unit.id`, indexada |
+| `name` | `TEXT` | no | Nombre del titular |
+| `is_current` | `BOOLEAN` | no | Default `False`; curado, no "la última fila" |
+| `created_at` / `updated_at` | `DATETIME` | no / sí | Estándar; el historial es append-only — asignar un nuevo titular actual siempre inserta una fila y pasa el anterior a `False`, nunca actualiza in place |
+
+Índice único parcial sobre `(unit_id) WHERE is_current = 1` — como máximo un
+titular actual por unidad, impuesto a nivel DB.
+
+### Constraints y borrados
+No hay `ON DELETE CASCADE` en ningún lado — toda foreign key es
+`NO ACTION`/`RESTRICT` plana. Los "borrados" en `topic`, `subtopic`,
+`macro_sector` y `organigram_unit` son todos soft (`active=false`); no hay
+ruta de hard-delete para ninguna. Las filas de `recipient` que se caen
+durante una re-validación, y los upserts de `llm_extraction`/`recommendation`,
+son las únicas escrituras/borrados duros de esta feature.
+
+### Sembrado
+`aymurai/scripts/seed.py` (subcomandos `catalogs` y `organigram`) es un paso
+**manual** de CLI — a diferencia de `alembic upgrade head`, no corre
+automáticamente al iniciar la API. Ver la
+[referencia de pipeline](../pipelines/defensoria/README.md#sembrado-del-organigrama-y-los-catálogos).
 
 ## Mapeo endpoint -> persistencia
 
@@ -248,6 +698,36 @@ una transcripción validada tapa a la del modelo.
 - `POST /api/asr/validation/document/{document_id}`
   - Escribe `validation` (y `name` cuando se envía un `title`).
 
+### Defensoría del Pueblo (CABA)
+Gateado por `DEFENSORIA_ENABLED`; ver la
+[referencia de pipeline](../pipelines/defensoria/README.md).
+
+- `POST /api/llm/data-extraction`
+  - Lee `llm_extraction` por `document_id` cuando `use_cache=true`.
+  - Si no hay hit, inserta/reemplaza la fila de `llm_extraction` con la predicción cruda.
+  - Lee `topic`, `subtopic`, `macro_sector` para armar la taxonomía viva del prompt.
+  - Lee `organigram_unit`/`organigram_holder`/`recipient` (índice aprendido)
+    para resolver el `unit_id`/`sector_id` sugerido de cada destinatario —
+    nunca se persiste en este paso.
+- `PUT /api/llm/data-extraction/{document_id}/validate`
+  - Requiere una fila existente en `llm_extraction`; `404` si no.
+  - Hace upsert de `recommendation` (único por `dataset_id` + `document_id`,
+    creando de forma lazy la única fila de `dataset` en el primer uso).
+  - Reconcilia filas de `recipient` (update-by-id / insert-if-new / delete-if-missing).
+- `GET /api/llm/data-extraction/recommendations[/{recommendation_id}]`
+  - Lee `recommendation` (+ `recipient`, `topic`, `subtopic`, `organigram_unit`
+    asociados); `404` si un id específico no existe.
+- `GET /api/llm/data-extraction/export`
+  - Lee solo `recommendation` y `recipient` — nunca `llm_extraction`.
+- `POST/GET/PATCH/DELETE /api/organigram/units[/{unit_id}]`, `.../holders[/{holder_id}]`
+  - CRUD completo sobre `organigram_unit` y `organigram_holder`; los borrados
+    son soft (`active=false`) para unidades, y asignar un titular inserta una
+    nueva fila de `organigram_holder` en vez de actualizar in place.
+- `POST/GET/PATCH/DELETE /api/catalogs/topics[/{topic_id}]`, `.../subtopics[/{subtopic_id}]`, `.../macro_sectors[/{macro_sector_id}]`
+  - CRUD completo (macro-sectores: solo edición/desactivación) sobre `topic`,
+    `subtopic`, `macro_sector`. `POST .../subtopics/{id}/reassign` repunta
+    `recipient`/otras filas referenciantes a un `subtopic_id` distinto antes
+    de un borrado.
 
 ## Nota legacy
 Los módulos de rutas para CRUD de dataset (`/api/datapublic/dataset/*`) existen en código pero no están montados en el router público. No deben tratarse como API pública activa hasta su exposición en `core.router`.

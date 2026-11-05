@@ -6,16 +6,18 @@ import {
 } from "@tanstack/react-router";
 import type { Icon } from "phosphor-react";
 import { useTranslation } from "react-i18next";
-import BuiltBy from "@/components/brand/built-by";
+import AppCredits from "@/components/brand/app-credits";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
-import { FEATURE_ICON } from "@/constants/config";
+import { FEATURE_ICON, isDefensoriaEnabled } from "@/constants/config";
 import APIProtected from "@/features/APIProtected";
 import { css } from "@/styled/css";
 import { Grid, Stack, styled } from "@/styled/jsx";
 import { FeatureFlowEnum } from "@/types/features";
 
 const featureCard = css({ minH: "[195px]" });
+
+const cardLink = css({ display: "block", h: "full" });
 
 interface FeatureCardLinkProps extends LinkComponentProps {
   title: string;
@@ -29,7 +31,7 @@ function FeatureCardLink({
   ...props
 }: FeatureCardLinkProps) {
   return (
-    <Link className={css({ display: "block", h: "full" })} {...props}>
+    <Link className={cardLink} {...props}>
       <CardTool
         className={featureCard}
         icon={<Icon />}
@@ -69,9 +71,9 @@ const featureGrid = css({
   },
 });
 
+// `AppCredits` centres its own contents, so this only has to place the block:
+// pushed to the bottom of the content column, clear of the feature grid.
 const builtBy = css({
-  display: "flex",
-  justifyContent: "center",
   mt: "auto",
   pt: "16",
   pb: "8",
@@ -88,6 +90,7 @@ function RouteComponent() {
     "anonymizer",
     "voice-to-text",
     "summarizer",
+    "recommendations",
   ]);
 
   return (
@@ -101,13 +104,23 @@ function RouteComponent() {
                 {t("home.features.greeting")}
               </styled.h1>
               <Grid gap="6" className={featureGrid}>
-                <FeatureCardLink
-                  to="/$feature"
-                  params={{ feature: FeatureFlowEnum.Dataset }}
-                  title={t("dataset:title")}
-                  subtitle={t("dataset:subtitle")}
-                  icon={FEATURE_ICON.DATA_SET}
-                />
+                {isDefensoriaEnabled() ? (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Recommendations }}
+                    title={t("dataset:title")}
+                    subtitle={t("recommendations:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                ) : (
+                  <FeatureCardLink
+                    to="/$feature"
+                    params={{ feature: FeatureFlowEnum.Dataset }}
+                    title={t("dataset:title")}
+                    subtitle={t("dataset:subtitle")}
+                    icon={FEATURE_ICON.DATA_SET}
+                  />
+                )}
                 <FeatureCardLink
                   to="/$feature"
                   params={{ feature: FeatureFlowEnum.Anonymizer }}
@@ -130,9 +143,7 @@ function RouteComponent() {
                   icon={FEATURE_ICON.SUMMARIZER}
                 />
               </Grid>
-              <div className={builtBy}>
-                <BuiltBy />
-              </div>
+              <AppCredits className={builtBy} />
             </div>
           </div>
         </MainContent>

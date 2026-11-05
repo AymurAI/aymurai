@@ -1,7 +1,23 @@
 import locale
 
-# set locale to es_AR to handle month names
-locale.setlocale(locale.LC_ALL, "es_AR.UTF-8")
+from aymurai.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Set locale to es_AR to handle Spanish month names in %B patterns below.
+# Deployment images provision this locale explicitly (see docker/api/Dockerfile
+# and .github/workflows/pytest.yml), but not every machine that imports this
+# module has it (e.g. macOS can't install arbitrary locales at all) -- without
+# this guard, the import itself would crash there. When it's missing, prose
+# date/month patterns just won't match (callers already treat "no match" as a
+# normal outcome); numeric patterns are locale-independent and keep working.
+try:
+    locale.setlocale(locale.LC_ALL, "es_AR.UTF-8")
+except locale.Error:
+    logger.warning(
+        "es_AR.UTF-8 locale not available -- Spanish month-name date patterns "
+        "won't match on this machine"
+    )
 
 DATES = [
     r"%-d/%-m/%Y",

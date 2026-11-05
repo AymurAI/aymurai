@@ -42,12 +42,17 @@ type ScrollAreaProps = ComponentPropsWithoutRef<
   typeof ScrollAreaPrimitive.Viewport
 > & {
   viewportRef?: Ref<HTMLDivElement>;
+  /** Which scrollbar(s) to render. Radix only shows a bar on the axis that
+   *  actually overflows, so rendering the horizontal one unconditionally
+   *  for `"horizontal"`/`"both"` is safe — it stays invisible otherwise. */
+  orientation?: "vertical" | "horizontal" | "both";
 };
 
 function ScrollArea({
   className,
   viewportRef,
   children,
+  orientation = "vertical",
   ...props
 }: ScrollAreaProps) {
   return (
@@ -59,12 +64,22 @@ function ScrollArea({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      <ScrollAreaPrimitive.Scrollbar
-        orientation="vertical"
-        className={scrollbarStyle}
-      >
-        <ScrollAreaPrimitive.Thumb className={thumbStyle} />
-      </ScrollAreaPrimitive.Scrollbar>
+      {(orientation === "vertical" || orientation === "both") && (
+        <ScrollAreaPrimitive.Scrollbar
+          orientation="vertical"
+          className={scrollbarStyle}
+        >
+          <ScrollAreaPrimitive.Thumb className={thumbStyle} />
+        </ScrollAreaPrimitive.Scrollbar>
+      )}
+      {(orientation === "horizontal" || orientation === "both") && (
+        <ScrollAreaPrimitive.Scrollbar
+          orientation="horizontal"
+          className={scrollbarStyle}
+        >
+          <ScrollAreaPrimitive.Thumb className={thumbStyle} />
+        </ScrollAreaPrimitive.Scrollbar>
+      )}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   );

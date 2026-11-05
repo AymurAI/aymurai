@@ -32,6 +32,29 @@ listadas aparte en [Variables leídas fuera de `Settings`](#variables-leídas-fu
 `http://localhost,https://localhost,http://localhost:8080,http://localhost:3000,0.0.0.0:8899,0.0.0.0:3000`
 y se parte por comas.
 
+> `CORS_ORIGINS` también tiene que permitir el origen de la app de escritorio:
+> Chromium manda `Origin: null` cuando el renderer de Electron carga la página
+> vía `file://`. Sin `null` en la lista permitida, la API responde sin (o, en
+> un preflight, rechaza con 400 en vez de otorgar)
+> `Access-Control-Allow-Origin` y el navegador bloquea la respuesta
+> cross-origin **completa** — el pedido del cliente de escritorio falla como
+> error de red y nunca ve el status, el body ni ningún header (incluido
+> `Content-Disposition` para el nombre del archivo exportado). Con `null`
+> permitido, los headers listados en `expose_headers` (hoy solo
+> `Content-Disposition`) también se pueden leer.
+>
+> **Compromiso de seguridad.** `null` no es un origen privado: todo iframe con
+> `sandbox`, URL `data:` y página de archivo local manda `Origin: null`
+> también. Como la API está configurada con `allow_credentials=True`
+> (`aymurai/api/main.py`, `CORSMiddleware`), permitir `null` deja que
+> *cualquier* página web que visite el usuario embeba un iframe con `sandbox`
+> que llame a la API local y lea sus respuestas — y la API local no tiene
+> autenticación. Se permite hoy solo porque la app de Electron carga su UI vía
+> `file://`; el arreglo previsto es servir el renderer desde un protocolo
+> propio (por ejemplo `app://`) y permitir ese origen puntual en vez de
+> `null`. Dejá `null` fuera de `CORS_ORIGINS` en cualquier deploy que no sea
+> la app de escritorio.
+
 > `LOG_LEVEL` se resuelve una sola vez al importar e indexa un mapa fijo. Un valor
 > fuera de esas cuatro claves lanza `KeyError` en la primera llamada a
 > `get_logger` en lugar de caer a un default.
@@ -41,6 +64,7 @@ y se parte por comas.
 | Variable | Default | Propósito |
 |---|---|---|
 | `SQLALCHEMY_DATABASE_URI` | `sqlite:////resources/cache/sqlite/database.db` | URI de la base; Alembic migra a head al iniciar |
+| `SQLITE_BUSY_TIMEOUT_MS` | `5000` | Cuánto espera una escritura a otro escritor antes de "database is locked" |
 | `RESOURCES_BASEPATH` | `/resources` | Raíz de recursos embebidos (pipelines, prompts, muestras) |
 | `CACHE_BASEPATH` | `/resources/cache` | Raíz de cache de modelos/artefactos. También acepta `AYMURAI_CACHE_BASEPATH` |
 | `FRONTEND_DIST_DIR` | `frontend-dist` | Directorio servido en `GET /`. También acepta `AYMURAI_FRONTEND_DIST_DIR` |
@@ -49,6 +73,20 @@ y se parte por comas.
 
 Montá un volumen del host en `/resources/cache` para conservar la base y los
 caches entre reinicios del container.
+
+## Backups
+
+### Variables que consume Compose, no la API
+Configuran el servicio sidecar `db-backup` y nunca llegan al proceso de la API. Compose las sustituye en `docker-compose.yml` (`${BACKUP_RETENTION:-336}`, etc.) tomándolas primero del entorno del shell y después del archivo `.env` del directorio del proyecto; las entradas `env_file` no intervienen en esa sustitución. Dónde setearlas depende entonces de cómo se invoque Compose:
+- **Vía `make`** (`make db-backup-up`, `make db-restore`, …): el Makefile hace `include .env` e `include .env.common` y `export` de cada variable nombrada en ellos, así que los valores de **cualquiera** de los dos archivos llegan a la interpolación de Compose (una variable presente en ambos toma el valor de `.env.common`, que se incluye último).
+- **`docker compose …` directo**: solo se leen el entorno del shell y el `.env` del proyecto — un valor seteado solo en `.env.common` no tiene efecto.
+
+| Variable | Default | Propósito |
+|---|---|---|
+| `BACKUP_SOURCE_DB` | `/resources/cache/sqlite/database.db` | Path a la base SQLite dentro del container `db-backup` |
+| `BACKUP_DEST_DIR` | `/backups` | Dónde se escriben los backups fechados dentro del container |
+| `BACKUP_INTERVAL_SECONDS` | `3600` | Segundos entre backups automáticos mientras el sidecar está corriendo (ver `make db-backup-up`); una corrida idéntica al último backup se saltea |
+| `BACKUP_RETENTION` | `336` | Cuántos backups fechados conservar; `0` o negativo desactiva la poda. Con corridas horarias que solo escriben si hubo cambios, `336` cubre al menos 14 días de cambios ininterrumpidos (sin contar backups manuales ni snapshots previos a una restauración) y ~7 semanas de ediciones en horario laboral — ver [Respaldos automáticos](../database/README.md#respaldos-automáticos) |
 
 ## Inferencia
 
@@ -106,14 +144,38 @@ Configuran el servicio `llamacpp` en sí y nunca llegan al proceso Python.
 |---|---|---|
 | `LLAMACPP_MODELS_DIR` | `~/.llama.cpp/models` | Directorio del host montado read-only en `/models` |
 | `LLAMACPP_MODEL_FILE` | *(requerida)* | Nombre del GGUF dentro de ese directorio |
-| `LLAMACPP_CTX_SIZE` | `16384` | Ventana de contexto del server (`-c`) |
-| `LLM_REASONING` | `auto` | `on` / `off` / `auto`; se traduce a `LLAMA_ARG_REASONING` |
-| `LLM_THINK_BUDGET` | `-1` | `-1` sin límite / `0` corte inmediato / `N` presupuesto de tokens; se traduce a `LLAMA_ARG_THINK_BUDGET` |
+| `LLAMACPP_CTX_SIZE` | `65536` | Ventana de contexto del server (`-c`), dimensionada para el corpus medido de Defensoría |
 
-El razonamiento es un asunto **de arranque**: llama.cpp no tiene presupuesto de
-thinking por request, y `enable_thinking` depende del modelo. Si los resúmenes
-vuelven vacíos, el modelo está gastando todo su `max_tokens` en razonamiento —
-subí `max_tokens` o poné `LLM_THINK_BUDGET=0`.
+El servicio de Compose fija llama.cpp en el build `b10615`. La extracción de
+Defensoría manda `reasoning_effort: "none"` por request; la sumarización conserva
+el comportamiento por defecto del modelo. No desactives razonamiento globalmente
+al iniciar el server, porque también cambia la ruta de sumarización.
+
+## Defensoría del Pueblo (extracción de datos)
+
+Las rutas `/api/llm/data-extraction*`, `/api/organigram/*` y `/api/catalogs/*`
+implementan la customización para la Defensoría del Pueblo (CABA) — ver la
+[referencia de pipeline](../pipelines/defensoria/README.md). Comparten
+`LLAMACPP_BASE_URL`/`LLAMACPP_API_KEY` con la sumarización con LLM.
+
+| Variable | Default | Propósito |
+|---|---|---|
+| `DEFENSORIA_ENABLED` | `False` | Monta los tres routers de arriba cuando es `true`. Tablas/migraciones/seeds siempre corren, sin importar el valor |
+| `DATA_EXTRACTION_MAX_TOKENS` | `1024` | `max_tokens` para el llamado de extracción |
+| `DATA_EXTRACTION_MAX_RETRIES` | `2` | Intentos extra ante salida JSON/schema inválida (3 intentos en total) |
+| `DATA_EXTRACTION_SEARCH_BACKEND` | `hybrid` | Scorer del matching de organigrama: `fuzzy`, `embeddings` o `hybrid` |
+| `DATA_EXTRACTION_TOP_K` | `5` | Sectores alternativos rankeados devueltos por destinatario (`sector_candidates`) |
+| `DATA_EXTRACTION_HYBRID_WEIGHT` | `0.25` | Peso del score de embeddings en modo `hybrid`; fuzzy se queda con el resto |
+| `DATA_EXTRACTION_NAME_EVIDENCE_WEIGHT` | `1.0` | Descuento aplicado a un match por nombre de titular antes de compararlo con su umbral |
+| `DATA_EXTRACTION_NAME_SCORE_THRESHOLD` | `90` | Score mínimo para que un match por nombre de titular resuelva un destinatario |
+| `DATA_EXTRACTION_POSITION_SCORE_THRESHOLD` | `85` | Score mínimo para que un match de cargo/posición resuelva un destinatario |
+| `EXPORT_TIMEZONE` | `America/Argentina/Buenos_Aires` | Zona horaria en la que el export `.xlsx`/`.csv` formatea timestamps naive-UTC |
+
+El matching de organigrama solo corre para destinatarios cuyo macro-sector es
+`GCBA`; cualquier otro macro-sector corta directo a "sin match" sin importar
+estos umbrales. Ver
+[matching de organigrama](../pipelines/defensoria/README.md#matching-de-organigrama)
+para el orden de resolución completo.
 
 ## Transcripción ASR
 
@@ -182,14 +244,14 @@ manera habitual, y se evalúan al importar:
 | `PDF_WATERMARK_FONT_REGULAR`, `PDF_WATERMARK_FONT_BOLD` | `aymurai/text/anonymization/pdf/watermark.py` (el env tiene precedencia sobre el campo homónimo de `Settings`) |
 
 ## Sobre `.env.schema`
-El `.env.schema` de la raíz lo generó `varlock init`, que escaneó las dependencias
-instaladas y emitió varios cientos de variables de PyTorch, Jupyter y
-herramientas de build que AymurAI nunca lee. Todavía contiene el placeholder
-`EXAMPLE_ITEM="delete me!"`. **No lo trates como el contrato de configuración** —
-esta página lo es. Arrancá desde `.env.common` y agregá solo lo que necesites.
+El `.env.schema` de la raíz es el contrato de despliegue legible por máquinas:
+contiene sólo settings de AymurAI y Compose, tipos, defaults seguros y marcas de
+sensibilidad. Guardá los secretos en el secret store del despliegue o en un
+override local ignorado por Git y validá el resultado con `varlock load --agent`.
 
 ## Documentos relacionados
 - Índice de documentación: [../README.md](../README.md)
 - Referencia de API: [../api/README.md](../api/README.md)
 - Base de datos interna: [../database/README.md](../database/README.md)
 - Índice de pipelines: [../pipelines/README.md](../pipelines/README.md)
+- Despliegue de Defensoría: [../deployment/defensoria.md](../deployment/defensoria.md)

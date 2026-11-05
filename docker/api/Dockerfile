@@ -18,14 +18,16 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 ARG APP_VERSION
+ARG DEFENSORIA_ENABLED=false
 ENV APP_VERSION=${APP_VERSION}
+ENV VITE_DEFENSORIA_ENABLED=${DEFENSORIA_ENABLED}
 RUN pnpm run panda:codegen && pnpm run build:web
 
 
 # -------------------
 # Build Stage
 # -------------------
-FROM python:3.13-slim-bullseye AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 # Install Git
 RUN apt-get update && \
@@ -61,12 +63,14 @@ RUN --mount=type=bind,source=.git,target=.git \
 # -------------------
 # Base API Stage
 # -------------------
-FROM python:3.13-slim-bullseye AS aymurai-api
+FROM python:3.13-slim-bookworm AS aymurai-api
 
 # Set environment variables
+ARG DEFENSORIA_ENABLED=false
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    DEFENSORIA_ENABLED=${DEFENSORIA_ENABLED}
 
 # Configure locales
 RUN apt update && \

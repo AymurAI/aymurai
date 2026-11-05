@@ -15,7 +15,7 @@ import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
 import VoiceOnboarding from "@/components/voice-to-text/onboarding";
-import { DOCUMENT_EXTENSIONS } from "@/constants/config";
+import { DOCUMENT_EXTENSIONS, isDefensoriaEnabled } from "@/constants/config";
 import { useFileDispatch } from "@/hooks";
 import { addFiles, removeAllFiles } from "@/reducers/file/actions";
 import { useSetTutorialSeen, useTutorialSeen } from "@/store/useLocal";
@@ -111,6 +111,15 @@ function DocumentOnboarding() {
               {t("onboarding.validFormats")}
             </styled.p>
           )}
+          {feature === FeatureFlowEnum.Recommendations &&
+            isDefensoriaEnabled() && (
+              <Button
+                variant="secondary"
+                onClick={() => navigate({ to: "/home/dataset" })}
+              >
+                {t("finish.viewGrilla")}
+              </Button>
+            )}
           <Button onClick={handleOpenInput}>
             {t("onboarding.loadDocuments")}
           </Button>

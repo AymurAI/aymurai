@@ -1,0 +1,120 @@
+# ADR-0013 — La marca de sugerencia es el acto de validar: un campo no validado queda vacío, no inferido
+
+**Fecha:** 2026-09-17 · **Estado:** aceptada
+
+## Contexto
+
+El formulario de validación nació con cada campo **precargado** con la respuesta del modelo, y además con esa
+misma respuesta repetida al lado como marca violeta de sugerencia. Dos problemas, uno de UI y uno de datos.
+
+El de UI se encontró primero: como el valor y la sugerencia eran el mismo string en el primer render, la marca
+no podía aceptarse ni descartarse de forma significativa — no había nada que aceptar. Peor con los `Select` de
+`@aymurai/ui`, que renderizan su marca **sólo cuando no hay valor**: precargar el campo dejaba la marca
+directamente inalcanzable, y Tema, Subtema y Ámbito parecían campos ya resueltos en vez de campos pendientes.
+
+El de datos es el que importa: **un campo precargado se guarda validado aunque nadie lo haya mirado.** La
+persona apreta Validar y el dataset registra la respuesta del modelo como si un humano la hubiera confirmado.
+Es exactamente lo que el flujo de la Defensoría existe para evitar; el requisito declarado es que no haya que
+confiar a ciegas en la resolución de la IA.
+
+## Decisión
+
+**Todo campo que el modelo respondió arranca en blanco, con su respuesta viviendo únicamente en una marca
+violeta clickeable. El valor guardado es sólo lo que una persona aceptó o escribió.**
+
+Aceptar la marca y escribir/elegir algo propio son el mismo gesto para el formulario: los dos llenan el campo y
+los dos hacen desaparecer la marca. Vaciar un campo devuelve la marca, porque vuelve a no haber respuesta
+humana.
+
+Alcanza a `recommendation_number`, `recommendation_date`, y por destinatario `name`, `position`,
+`macro_sector` y el par `unit_id`/`sector_id` —que viajan siempre juntos, nunca uno solo—, más `topic` y
+`subtopic`. En el hook es `blankValidatedFields`.
+
+**Quedan afuera, deliberadamente:** `recommendation_date_text` (prosa cruda que nunca se edita, sólo se muestra
+como contexto — PLAN.md §D.3 la conserva verbatim), y los campos cuyo control no puede llevar una marca:
+`personal_data` e `is_primary` (pares de radios) y `publishable_content` (textarea). Esos tres siguen
+precargados con lo que dijo el modelo.
+
+## Evidencia
+
+- El camino de datos está verificado punta a punta: `toPayload` manda `topic: null` si nadie lo tocó;
+  `_resolve_topic_subtopic` mapea un label nulo a `topic_id = None` **sin error ni aviso**
+  (`aymurai/database/crud/recommendation.py`); y el export escribe `""` en la columna TEMA
+  (`data_extraction_export.py`). O sea: el campo no validado llega vacío hasta la planilla, sin ruido en el
+  medio.
+- La marca de los `Select` no hubo que construirla: `@aymurai/ui` ya la renderiza como `Suggestion`
+  clickeable dentro del trigger, y el formulario ya le pasaba el prop `suggestion`. La rama era inalcanzable
+  sólo por la precarga. Blanquear el valor fue todo el mecanismo — no se tocó la librería.
+- La decisión se fue tomando de a pedazos, por síntoma, antes de estar declarada: `ff76aeb` (dejar de duplicar
+  el texto de la sugerencia dentro del valor), `9493d2f` (restaurar la marca inline siempre visible), `aec3ba8`
+  (unidad y sector), `baaa830` (Tema, Subtema y Ámbito). Este ADR es el primer lugar donde se enuncia como
+  regla.
+
+## Consecuencias
+
+- **Cambia la semántica del dataset**: un campo vacío ahora significa *"nadie lo validó"*, no *"el modelo no
+  supo"*. Antes esos dos casos eran indistinguibles, porque el segundo se guardaba con la respuesta del modelo
+  igual que un campo confirmado. Cualquier consulta o métrica sobre completitud tiene que leerse con esto en
+  la mano.
+- **Se puede guardar una recomendación con TEMA en blanco.** El server no lo impide y este ADR no agrega un
+  gate: la decisión es que el dato refleje lo que pasó, no que el formulario obligue. Si la Defensoría
+  necesita que Tema sea obligatorio, eso es una decisión aparte, y el lugar natural es el mismo gate que ya
+  bloquea el guardado por inconsistencia sector/unidad (ver [ADR-0009](0009-sector-id-validado-independiente-de-unit-id.md)).
+- **La respuesta del modelo nunca se pierde**: sigue viajando en `prediction`, que se persiste completo, y la
+  marca la ofrece mientras el campo esté vacío. Lo que cambia es que deja de colarse sola a la fila validada.
+- **Una sugerencia fuera de catálogo tiene que ser una opción del `Select`.** La marca resuelve el id contra
+  la lista de opciones, y aceptarla hace el mismo lookup: una sugerencia ausente de la lista sería invisible
+  *e* inaceptable, justo lo contrario del keep-and-flag que el formulario ya hacía. Por eso las opciones se
+  arman desde los valores **y** las sugerencias, y el aviso de fuera-de-catálogo mira lo que está en pantalla
+  (`value ?? suggestion`), no sólo lo aceptado.
+- **Asimetría conocida**: los tres campos que no llevan marca (`personal_data`, `is_primary`,
+  `publishable_content`) siguen guardándose con la respuesta del modelo sin intervención humana. Para
+  `publishable_content` es razonable —es una síntesis larga que se edita, no se confirma—; para los dos
+  booleanos es una deuda: hoy no hay forma de distinguir "contestó que no" de "no lo miró", salvo por
+  `personal_data`, que ya es tri-estado y arranca en `null` cuando el modelo tampoco respondió.
+
+### El formulario avisa antes de guardar en blanco *(enmienda 2026-09-18)*
+
+La consecuencia de más arriba —*se puede guardar una recomendación con TEMA en blanco*— se venía cumpliendo
+sin que nadie se enterara. Apretar Validar con la marca violeta todavía en pantalla guardaba ese campo vacío,
+sin ruido, exactamente igual que si la persona hubiera decidido dejarlo así. El dato quedaba bien; la
+decisión, no: no era una decisión, era un descuido.
+
+Ahora el primer Validar con campos pendientes **no guarda**: muestra un toast de warning que los nombra uno
+por uno ("Sin validar: Tema, Destinatario 1: Cargo") y el botón pasa a decir "Guardar de todos modos". El
+segundo Validar guarda igual, con esos campos vacíos. Cualquier edición en el medio recalcula la lista y
+vuelve a pedir la confirmación, porque el sí que se dio era por la lista anterior.
+
+**Esto no es la alternativa "bloquear el guardado hasta que todos los campos estén validados" que este ADR
+rechazó.** Aquella convertía cada recomendación en N clicks obligatorios y no dejaba salida; ésta cuesta un
+click, una sola vez, y deja pasar. Lo que cambia no es *qué* se puede guardar —sigue siendo todo— sino que
+guardar en blanco pasó a ser un gesto deliberado en vez de un silencio. El gate que sí bloquea sigue siendo
+uno solo, el de sector/unidad ([ADR-0009](0009-sector-id-validado-independiente-de-unit-id.md)), y tiene
+prioridad: un botón deshabilitado por esa inconsistencia nunca llega a este aviso.
+
+El aviso mira exactamente los campos que este ADR blanquea (`blankValidatedFields`) y con el mismo criterio
+que la marca en pantalla: `!value && !!suggestion`, o sea *el modelo contestó y todavía nadie tocó eso*. Un
+campo que el modelo dejó vacío no se reclama, porque no hay nada que validar — un blanco ahí es sólo un
+blanco. Los tres campos que este ADR deja precargados (`personal_data`, `is_primary`,
+`publishable_content`) siguen afuera, con la misma asimetría conocida: se guardan con la respuesta del modelo
+y el aviso no los menciona. `unit_id`/`sector_id` se nombran una sola vez, como el par que son.
+
+Hay un hueco conocido en ese mismo criterio para unidad/sector: `RecipientUnitCombobox`
+(`recipient-unit-combobox.tsx`) no sólo pinta la marca cuando el modelo sugirió algo, también la pinta
+cuando no sugirió nada pero la búsqueda del organigrama igual rankeó un candidato (`topRow`), y ese
+candidato no llega a esta función pura. En ese caso puntual la marca está en pantalla, Validar no avisa, y
+el campo se guarda vacío en silencio — exactamente el descuido que esta enmienda existe para cerrar, pero
+sin cerrar del todo para esta combinación.
+
+## Alternativas consideradas
+
+- **Precargar el valor y marcar visualmente los campos no confirmados** (un borde, un ícono de pendiente).
+  Rechazada: el dato guardado seguiría siendo el del modelo, así que no resuelve el problema de fondo; sólo lo
+  hace más visible mientras la pantalla está abierta.
+- **Guardar la respuesta del modelo y además un flag `validated_by_human` por campo.** Rechazada por costo:
+  una columna extra por campo en la fila del dataset, o una tabla de auditoría, para expresar lo mismo que ya
+  expresa un campo vacío. `prediction` completo ya queda persistido, así que la respuesta del modelo siempre
+  se puede recuperar y comparar contra lo validado.
+- **Bloquear el guardado hasta que todos los campos estén validados.** Rechazada acá, no descartada para
+  siempre: convierte cada recomendación en un trámite de N clicks obligatorios, incluso cuando el modelo
+  acertó todo. Si hace falta, corresponde decidirlo campo por campo y con el gate como mecanismo.

@@ -19,7 +19,7 @@
       "!**/playwright/.cache",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/.worktrees",
+      "!.worktrees",
       "!**/.claude/settings.local.json",
       "!**/.orquestalite",
       "!**/tasks",

@@ -13,6 +13,20 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: standard
+            defensoria_enabled: 'false'
+            tag_suffix: ''
+            floating_lite_tag: latest
+            floating_full_tag: full
+          - variant: defensoria
+            defensoria_enabled: 'true'
+            tag_suffix: '-defensoria'
+            floating_lite_tag: defensoria
+            floating_full_tag: full-defensoria
 
     steps:
       # Step 1: Check out the repository
@@ -50,6 +64,29 @@ jobs:
           fi
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
+      - name: Resolve image tags
+        id: images
+        env:
+          VERSION_TAG: ${{ steps.tag.outputs.TAG }}
+          TAG_SUFFIX: ${{ matrix.tag_suffix }}
+          FLOATING_LITE_TAG: ${{ matrix.floating_lite_tag }}
+          FLOATING_FULL_TAG: ${{ matrix.floating_full_tag }}
+        run: |
+          {
+            echo 'LITE_TAGS<<EOF'
+            echo "ghcr.io/aymurai/aymurai:${VERSION_TAG}${TAG_SUFFIX}"
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "ghcr.io/aymurai/aymurai:${FLOATING_LITE_TAG}"
+            fi
+            echo 'EOF'
+            echo 'FULL_TAGS<<EOF'
+            echo "ghcr.io/aymurai/aymurai:full-${VERSION_TAG}${TAG_SUFFIX}"
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "ghcr.io/aymurai/aymurai:${FLOATING_FULL_TAG}"
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       # Step 4: Build and push the Docker images
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
@@ -61,9 +98,8 @@ jobs:
           build-args: |
             SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
             APP_VERSION=${{ steps.tag.outputs.TAG }}
-          tags: |
-            ghcr.io/aymurai/api:${{ steps.tag.outputs.TAG }}
-            ghcr.io/aymurai/api:latest
+            DEFENSORIA_ENABLED=${{ matrix.defensoria_enabled }}
+          tags: ${{ steps.images.outputs.LITE_TAGS }}
 
       - name: Build and push Docker full image
         uses: docker/build-push-action@v7
@@ -75,6 +111,5 @@ jobs:
           build-args: |
             SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.tag.outputs.TAG }}
             APP_VERSION=${{ steps.tag.outputs.TAG }}
-          tags: |
-            ghcr.io/aymurai/api:full-${{ steps.tag.outputs.TAG }}
-            ghcr.io/aymurai/api:full
+            DEFENSORIA_ENABLED=${{ matrix.defensoria_enabled }}
+          tags: ${{ steps.images.outputs.FULL_TAGS }}

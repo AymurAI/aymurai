@@ -1,0 +1,235 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import RecommendationProcess from "./recommendation-process";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+const mockFiles = [{ data: new File(["x"], "acta.pdf") }];
+vi.mock("@/hooks", () => ({
+  useFiles: () => mockFiles,
+  useFileDispatch: () => vi.fn(),
+}));
+
+const abort = vi.fn();
+let mockExtraction: {
+  status: string;
+  origin: string | null;
+  error: string | null;
+  isScannedPdf: boolean;
+  abort: typeof abort;
+};
+vi.mock("@/hooks/useDataExtraction", () => ({
+  useDataExtraction: () => mockExtraction,
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+}));
+
+// Header/BackButton compose Radix `Link`/`createLink` from
+// `@tanstack/react-router`, which needs a real router context — stub them
+// like the sibling summarizer/voice-to-text process tests do.
+vi.mock("@/components/layout/header", () => ({
+  default: () => <header />,
+}));
+vi.mock("@/components/ui/back-button", () => ({
+  default: () => <button type="button">back</button>,
+}));
+
+vi.mock("@/services/taskbar", () => ({
+  default: { notify: vi.fn() },
+}));
+
+vi.mock("@/features/RequireFile", () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+function setStatus(overrides: Partial<typeof mockExtraction> = {}) {
+  mockExtraction = {
+    status: "processing",
+    origin: null,
+    error: null,
+    isScannedPdf: false,
+    abort,
+    ...overrides,
+  };
+}
+
+describe("RecommendationProcess", () => {
+  it("shows a spinner while extracting, not a checkmark", () => {
+    setStatus({ status: "extracting" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.getByRole("button", { name: "process.stop" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("process.completedAria"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the checkmark and hides Detener once ready", () => {
+    setStatus({ status: "ready" });
+    render(<RecommendationProcess />);
+    expect(screen.getByLabelText("process.completedAria")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.stop" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the processing title/subtitle while running, not the finished copy", () => {
+    setStatus({ status: "extracting" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.processingTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.processingSubtitle")).toBeInTheDocument();
+    expect(screen.queryByText("process.finishedTitle")).not.toBeInTheDocument();
+  });
+
+  it("switches to the finished title/subtitle once ready, not the processing copy", () => {
+    setStatus({ status: "ready" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.finishedTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.finishedSubtitle")).toBeInTheDocument();
+    expect(
+      screen.queryByText("process.processingTitle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the error title/subtitle (not processing/finished) when the extraction failed", () => {
+    setStatus({ status: "error" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.errorTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.errorSubtitle")).toBeInTheDocument();
+    expect(
+      screen.queryByText("process.processingTitle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the stopped title/subtitle (not the error copy) after a manual Stop", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.stoppedTitle")).toBeInTheDocument();
+    expect(screen.getByText("process.stoppedSubtitle")).toBeInTheDocument();
+    expect(screen.queryByText("process.errorTitle")).not.toBeInTheDocument();
+  });
+
+  it("Detener calls abort", () => {
+    setStatus({ status: "checking" });
+    render(<RecommendationProcess />);
+    fireEvent.click(screen.getByRole("button", { name: "process.stop" }));
+    expect(abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the stored-inference callout only once ready from a cached extraction", () => {
+    setStatus({ status: "ready", origin: "stored-inference" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.storedInference")).toBeInTheDocument();
+  });
+
+  it("announces a recovered validation, not just a recovered inference", () => {
+    setStatus({ status: "ready", origin: "validation" });
+    render(<RecommendationProcess />);
+    expect(screen.getByText("process.alreadyValidated")).toBeInTheDocument();
+    // The two recoveries are different states and must not both fire.
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not announce a validation before the extraction is ready", () => {
+    setStatus({ status: "checking", origin: "validation" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.alreadyValidated"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show the stored-inference callout for a fresh extraction", () => {
+    setStatus({ status: "ready", origin: "inference" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show the stored-inference callout before the extraction is ready", () => {
+    setStatus({ status: "checking", origin: "stored-inference" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.queryByText("process.storedInference"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables 'Siguiente' until the extraction is ready", () => {
+    setStatus({ status: "extracting" });
+    render(<RecommendationProcess />);
+    expect(screen.getByRole("button", { name: "process.next" })).toBeDisabled();
+  });
+
+  it("enables 'Siguiente' once the extraction is ready", () => {
+    setStatus({ status: "ready" });
+    render(<RecommendationProcess />);
+    expect(
+      screen.getByRole("button", { name: "process.next" }),
+    ).not.toBeDisabled();
+  });
+
+  it("offers no Reintentar button after a plain error — only Volver, matching Anonimizador/Resumen", () => {
+    setStatus({ status: "error", isScannedPdf: false });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.errorText")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.retry" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no Reintentar button after a manual Stop, with its own banner, not the error copy", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+
+    // Stop is not an error: it must not use the error copy, but it does get
+    // its own message (in the same banner style as the error one, matching
+    // Anonimizador/Resumen). Recovery is only via BackButton + Continuar,
+    // same as those two flows -- there is no Reintentar affordance here.
+    expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
+    expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.retry" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("dismisses the stopped banner via its close button, matching the other process screens", () => {
+    setStatus({ status: "stopped" });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.stoppedText")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByText("process.stoppedText")).not.toBeInTheDocument();
+  });
+
+  it("dismisses the error banner via its close button", () => {
+    setStatus({ status: "error", isScannedPdf: false });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.errorText")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss notification" }),
+    );
+    expect(screen.queryByText("process.errorText")).not.toBeInTheDocument();
+  });
+
+  it("never shows a Reintentar button for the scanned-PDF terminal error either", () => {
+    setStatus({ status: "error", isScannedPdf: true });
+    render(<RecommendationProcess />);
+
+    expect(screen.getByText("process.noTextError")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "process.retry" }),
+    ).not.toBeInTheDocument();
+  });
+});

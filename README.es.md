@@ -35,7 +35,7 @@ El frontend puede ejecutarse como aplicación web servida por FastAPI o como apl
 Ejecutar la imagen full de la API (incluye recursos de producción):
 
 ```bash
-docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/api:full
+docker run -d --name aymurai-backend -p 8899:8899 ghcr.io/aymurai/aymurai:full
 ```
 
 Opcional: persistir DB/cache fuera del container (volumen host montado en `/resources/cache`):
@@ -45,7 +45,7 @@ mkdir -p ./aymurai-cache
 
 docker run -d --name aymurai-backend -p 8899:8899 \
   -v "$(pwd)/aymurai-cache:/resources/cache" \
-  ghcr.io/aymurai/api:full
+  ghcr.io/aymurai/aymurai:full
 ```
 
 Opcional: runtime con GPU (requiere NVIDIA Container Toolkit):
@@ -53,7 +53,7 @@ Opcional: runtime con GPU (requiere NVIDIA Container Toolkit):
 ```bash
 docker run -d --name aymurai-backend-gpu --gpus all \
   -p 8899:8899 \
-  ghcr.io/aymurai/api:full
+  ghcr.io/aymurai/aymurai:full
 ```
 
 > Exponer una GPU al container no alcanza para correr inferencia en ella. Las dos
@@ -121,23 +121,15 @@ OpenAI. La imagen de llama.cpp no incluye pesos — hay que proveer un GGUF:
 ```bash
 LLAMACPP_MODELS_DIR=/ruta/a/modelos/gguf
 LLAMACPP_MODEL_FILE=tu-modelo.gguf
-LLAMACPP_CTX_SIZE=16384          # ventana de contexto del server (-c)
+LLAMACPP_CTX_SIZE=65536          # ventana de contexto del server (-c)
 ```
 
 `docker compose up llamacpp` lo sirve en `:8080`, y la API lo alcanza vía
 `LLAMACPP_BASE_URL`.
 
-El razonamiento ("thinking") se configura **al iniciar el server**, no por
-request — el budgeting por request no existe upstream, y `enable_thinking`
-depende del modelo:
-
-| Variable | Valores | Efecto |
-|---|---|---|
-| `LLM_REASONING` | `on` / `off` / `auto` | razonamiento activado/desactivado (default: se detecta según el template) |
-| `LLM_THINK_BUDGET` | `-1` / `0` / `N` | sin límite / corte inmediato / presupuesto de tokens |
-
-Si los resúmenes vuelven vacíos, el modelo está agotando `max_tokens` en el
-razonamiento: subí `max_tokens`, o poné `LLM_THINK_BUDGET=0`.
+Compose fija llama.cpp en el build `b10615`. La extracción de Defensoría
+desactiva razonamiento por request; la sumarización conserva el comportamiento
+por defecto del modelo.
 
 ## Resumen de runtime
 - Framework: `FastAPI`
@@ -179,7 +171,7 @@ Para contratos request/response y ejemplos completos, ver [docs/es/api/README.md
 Para mover una imagen a un entorno sin internet:
 
 ```bash
-docker image save ghcr.io/aymurai/api:full -o aymurai-api-full.tar
+docker image save ghcr.io/aymurai/aymurai:full -o aymurai-api-full.tar
 docker load -i aymurai-api-full.tar
 ```
 

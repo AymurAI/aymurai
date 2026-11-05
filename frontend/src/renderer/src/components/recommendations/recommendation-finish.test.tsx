@@ -1,0 +1,137 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import RecommendationFinish from "./recommendation-finish";
+
+// Real (but scoped) strings for the three keys the tests assert against by
+// visible/accessible text, identity fallback for the rest -- same pattern
+// `file-preview/index.test.tsx` uses, needed here because the brief's tests
+// match buttons by name rather than the raw key.
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      if (key === "finish.download") return "Exportar set de datos";
+      if (key === "finish.restart") return "Procesar otro documento";
+      if (key === "finish.viewGrilla") return "Ir a seguimiento";
+      return key;
+    },
+  }),
+}));
+
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => navigate,
+}));
+
+const mockFiles = [
+  {
+    data: new File(["x"], "acta.pdf"),
+    paragraphs: [],
+    selected: true,
+    validationObject: {},
+  },
+];
+vi.mock("@/hooks", () => ({ useFiles: () => mockFiles }));
+
+const { mockDownload, mockDownloadBlob } = vi.hoisted(() => ({
+  mockDownload: vi.fn(),
+  mockDownloadBlob: vi.fn(),
+}));
+vi.mock("@/services/aymurai/dataExtraction", () => ({
+  downloadRecommendationsExport: () => ({ mutationFn: mockDownload }),
+}));
+vi.mock("@/services/export/download-blob", () => ({
+  downloadBlob: mockDownloadBlob,
+}));
+
+function renderFinish(onRestart = vi.fn()) {
+  const client = new QueryClient({
+    defaultOptions: { mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <RecommendationFinish onRestart={onRestart} />
+    </QueryClientProvider>,
+  );
+}
+
+describe("RecommendationFinish", () => {
+  beforeEach(() => {
+    mockDownload.mockReset();
+    mockDownload.mockResolvedValue({
+      blob: new Blob(["xlsx"]),
+      fileName: "recomendaciones_20260921231500.xlsx",
+    });
+    mockDownloadBlob.mockClear();
+    navigate.mockClear();
+    // biome-ignore lint/performance/noDelete: restoring the browser shape
+    delete (window as { filesystem?: unknown }).filesystem;
+  });
+
+  it("downloads the export from the server", async () => {
+    renderFinish();
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
+    await waitFor(() => expect(mockDownloadBlob).toHaveBeenCalled());
+    expect(mockDownload).toHaveBeenCalledWith("xlsx", expect.anything());
+    expect(mockDownloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "recomendaciones_20260921231500.xlsx",
+    );
+  });
+
+  it("never writes a local workbook", async () => {
+    // The local .xlsx is no longer the source of truth (ANALYSIS §C.2/§C.3).
+    window.filesystem = {
+      excel: { write: vi.fn() },
+    } as unknown as Window["filesystem"];
+    renderFinish();
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
+    await waitFor(() => expect(mockDownloadBlob).toHaveBeenCalled());
+    expect(window.filesystem?.excel?.write).not.toHaveBeenCalled();
+  });
+
+  it("shows the validated file", () => {
+    renderFinish();
+    expect(screen.getByText("acta.pdf")).toBeInTheDocument();
+  });
+
+  it("calls onRestart when the restart action is clicked", () => {
+    const onRestart = vi.fn();
+    renderFinish(onRestart);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Procesar otro documento" }),
+    );
+    expect(onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an error and lets the person retry when the download fails", async () => {
+    mockDownload.mockRejectedValueOnce(new Error("500"));
+    renderFinish();
+    fireEvent.click(screen.getByRole("button", { name: /exportar/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: /exportar/i }),
+    ).not.toBeDisabled();
+  });
+});
+
+describe("RecommendationFinish — grilla entry point", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("does not render the 'Ir a seguimiento' button when the flag is off", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "false");
+    renderFinish();
+    expect(
+      screen.queryByRole("button", { name: "Ir a seguimiento" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("navigates to the grilla when 'Ir a seguimiento' is clicked with the flag on", () => {
+    vi.stubEnv("VITE_DEFENSORIA_ENABLED", "true");
+    renderFinish();
+    fireEvent.click(screen.getByRole("button", { name: "Ir a seguimiento" }));
+    expect(navigate).toHaveBeenCalledWith({ to: "/home/dataset" });
+  });
+});

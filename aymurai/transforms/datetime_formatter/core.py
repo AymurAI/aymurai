@@ -1,4 +1,6 @@
+import re
 from copy import deepcopy
+from datetime import datetime
 
 from datetime_matcher import DatetimeMatcher
 
@@ -7,6 +9,38 @@ from aymurai.meta.types import DataItem
 from aymurai.utils.misc import get_element
 
 from .patterns import patterns
+
+_DAY_TOKEN_PATTERN = re.compile(r"\d{1,2}")
+
+
+def extract_valid_datetime(
+    dtm: DatetimeMatcher, pattern: str, text: str
+) -> datetime | None:
+    """
+    Wraps `DatetimeMatcher.extract_datetime`, guarding against its silent
+    misparse of out-of-range days -- e.g. "32 de enero de 2024" comes back as
+    day 2 instead of failing, since the underlying regex has no bounds check.
+    Every day-of-month a date pattern extracts must actually appear verbatim
+    as a 1-2 digit token in the source text; patterns with no day component
+    (e.g. hour-only ones) are returned as-is.
+
+    Args:
+        dtm (DatetimeMatcher): Matcher instance to delegate to.
+        pattern (str): The strptime-style pattern being tried.
+        text (str): Text to extract a datetime from.
+
+    Returns:
+        datetime | None: The extracted datetime, or None if it didn't match
+            or failed the day sanity check.
+    """
+    parsed = dtm.extract_datetime(pattern, text)
+    if parsed is None:
+        return None
+    if "%d" not in pattern and "%-d" not in pattern:
+        return parsed
+
+    day_tokens = {int(m) for m in _DAY_TOKEN_PATTERN.findall(text)}
+    return parsed if parsed.day in day_tokens else None
 
 
 class DatetimeFormatter(Transform):
@@ -42,17 +76,17 @@ class DatetimeFormatter(Transform):
         pats = patterns.get(label, [])
         suggestions = []
         for pat in pats:
-            datetime = self.dtm.extract_datetime(pat, ent["text"])
-            if not datetime:
+            parsed_datetime = extract_valid_datetime(self.dtm, pat, ent["text"])
+            if not parsed_datetime:
                 continue
 
-            diff = datetime - self.day0
+            diff = parsed_datetime - self.day0
             # not a date, handle just as time
             if diff.days == 0:
-                text_repr = datetime.strftime("%H:%M")
+                text_repr = parsed_datetime.strftime("%H:%M")
             # handle it has date
             else:
-                text_repr = datetime.strftime("%d/%m/%Y")
+                text_repr = parsed_datetime.strftime("%d/%m/%Y")
             suggestions.append(text_repr)
 
         ent["attrs"]["aymurai_label_subclass"] = (

@@ -1,15 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import ConnectToHost from "@/components/home/connect-to-host";
-import HomeLayout from "@/layout/home";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/home/host")({
-  component: RouteComponent,
+  beforeLoad: () => {
+    throw redirect({ to: "/home/settings/server" });
+  },
 });
-
-function RouteComponent() {
-  return (
-    <HomeLayout>
-      <ConnectToHost />
-    </HomeLayout>
-  );
-}

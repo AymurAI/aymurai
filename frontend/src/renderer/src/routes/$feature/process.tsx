@@ -11,6 +11,7 @@ import { FileProcessing } from "@/components";
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
 import MainContent from "@/components/layout/main-content";
+import RecommendationProcess from "@/components/recommendations/recommendation-process";
 import SummaryProcess from "@/components/summarizer/summary-process";
 import BackButton from "@/components/ui/back-button";
 import VoiceProcess from "@/components/voice-to-text/process";
@@ -38,6 +39,8 @@ function RouteComponent() {
   });
   if (feature === FeatureFlowEnum.VoiceToText) return <VoiceProcess />;
   if (feature === FeatureFlowEnum.Summarizer) return <SummaryProcess />;
+  if (feature === FeatureFlowEnum.Recommendations)
+    return <RecommendationProcess />;
   return <DocumentProcess />;
 }
 

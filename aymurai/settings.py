@@ -56,6 +56,15 @@ class Settings(BaseSettings):
 
     SQLALCHEMY_DATABASE_URI: str = "sqlite:////resources/cache/sqlite/database.db"
 
+    # How long a SQLite connection waits before raising "database is locked"
+    # when another connection holds the writer. With WAL, readers never block
+    # the writer, so this only matters between concurrent writers -- tens of
+    # documents/month with 3-5 people makes this infrequent. Python's
+    # sqlite3.connect() already defaults to a 5s timeout (busy_timeout=5000),
+    # so the default here keeps that behaviour; the setting exists to make
+    # the wait configurable.
+    SQLITE_BUSY_TIMEOUT_MS: int = 5000
+
     RESOURCES_BASEPATH: str = "/resources"
     CACHE_BASEPATH: str = Field(
         default="/resources/cache",
@@ -128,6 +137,28 @@ class Settings(BaseSettings):
     # llama.cpp Config (llama-server — OpenAI-compatible server)
     LLAMACPP_BASE_URL: str | None = None
     LLAMACPP_API_KEY: str = "not-needed"
+
+    # Defensoría del Pueblo (CABA) customization. Gates router registration only —
+    # tables/migrations/seeds always run regardless of this flag.
+    DEFENSORIA_ENABLED: bool = False
+
+    # /llm/data-extraction config
+    DATA_EXTRACTION_MAX_TOKENS: int = 1024
+    DATA_EXTRACTION_MAX_RETRIES: int = 2
+
+    # Organigram cross-reference (recipient name/cargo -> organigram_unit)
+    DATA_EXTRACTION_SEARCH_BACKEND: str = "hybrid"  # fuzzy | embeddings | hybrid
+    DATA_EXTRACTION_TOP_K: int = 5
+    # embeddings weight; fuzzy gets the rest
+    DATA_EXTRACTION_HYBRID_WEIGHT: float = 0.25
+    DATA_EXTRACTION_NAME_EVIDENCE_WEIGHT: float = 1.0
+    DATA_EXTRACTION_NAME_SCORE_THRESHOLD: float = 90
+    DATA_EXTRACTION_POSITION_SCORE_THRESHOLD: float = 85
+
+    # Timezone the dataset export formats dates in -- created_at/updated_at
+    # are stored naive UTC (SQLite's CURRENT_TIMESTAMP), so this must be
+    # applied explicitly rather than relying on the process's own TZ.
+    EXPORT_TIMEZONE: str = "America/Argentina/Buenos_Aires"
 
 
 load_env()

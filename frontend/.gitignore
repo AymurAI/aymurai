@@ -13,6 +13,9 @@ node_modules/*
 /coverage
 .husky
 
+# TypeScript incremental build cache (tsconfig.*.json's `composite`/`incremental`)
+*.tsbuildinfo
+
 # production
 # NOTE: /build is electron-builder's buildResources dir (icons, entitlements) — source
 # inputs that must be committed, not build output. Actual outputs are /dist and /out.

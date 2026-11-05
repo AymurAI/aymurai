@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  fireEvent,
+  type RenderResult,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ConnectToHost from "./connect-to-host";
@@ -28,25 +34,53 @@ vi.mock("@/services/aymurai", () => ({
 vi.mock("@/store/useLocal", () => ({
   useServerHost: () => null,
   useServerHostActions: () => ({ setServerHost: vi.fn() }),
+  getServerHost: () => null,
 }));
+
+vi.mock("@/services/api", () => ({
+  default: { defaults: { baseURL: undefined } },
+  getApiBaseUrl: () => undefined,
+}));
+
+// `ConnectToHost` clears the previous server's cached data on disconnect, so
+// it needs a client in scope. Declared as a component so `rerender` can mount
+// the same tree, provider included.
+function Wrapped() {
+  return (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <ConnectToHost />
+    </QueryClientProvider>
+  );
+}
+
+function renderForm(): RenderResult {
+  return render(<Wrapped />);
+}
 
 describe("ConnectToHost — default server address", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("renders the AymurAI brand logo above the form", () => {
+  it("leaves the brand logo to the app header, rather than repeating it", () => {
     vi.stubEnv("VITE_APP_MODE", "web");
 
-    render(<ConnectToHost />);
+    renderForm();
 
-    expect(screen.getByAltText("Logotipo AymurAI")).toBeInTheDocument();
+    // The vertical logo used to sit above this form because the screen had no
+    // chrome of its own. `HomeLayout` now carries the full-bleed `AppHeader`,
+    // so a second logo here would be the same mark twice on one screen.
+    expect(screen.queryByAltText("Logotipo AymurAI")).not.toBeInTheDocument();
   });
 
   it("prefills the field with the web app's own origin when no host is saved yet", () => {
     vi.stubEnv("VITE_APP_MODE", "web");
 
-    render(<ConnectToHost />);
+    renderForm();
 
     expect(screen.getByRole("textbox")).toHaveValue(window.location.origin);
   });
@@ -54,7 +88,7 @@ describe("ConnectToHost — default server address", () => {
   it("leaves the field empty on desktop when no host is saved yet", () => {
     vi.stubEnv("VITE_APP_MODE", "electron");
 
-    render(<ConnectToHost />);
+    renderForm();
 
     expect(screen.getByRole("textbox")).toHaveValue("");
   });
@@ -78,7 +112,7 @@ describe("ConnectToHost — error logging", () => {
       },
     );
 
-    render(<ConnectToHost />);
+    renderForm();
     fireEvent.click(
       screen.getByRole("button", { name: "home.host.connectServerSubmit" }),
     );
@@ -93,9 +127,9 @@ describe("ConnectToHost — error logging", () => {
       .mockImplementation(() => {});
     mockedError = new Error("connection failed");
 
-    const { rerender } = render(<ConnectToHost />);
-    rerender(<ConnectToHost />);
-    rerender(<ConnectToHost />);
+    const { rerender } = renderForm();
+    rerender(<Wrapped />);
+    rerender(<Wrapped />);
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });

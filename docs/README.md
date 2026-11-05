@@ -7,6 +7,7 @@ Operational documentation for AymurAI `v2.0.0`.
 - Repository entrypoint: [../README.md](../README.md)
 - API reference: [api/README.md](api/README.md)
 - Configuration reference: [configuration/README.md](configuration/README.md)
+- Defensoria deployment runbook: [deployment/defensoria.md](deployment/defensoria.md)
 - Internal database schema: [database/README.md](database/README.md)
 - Frontend development and packaging: [../frontend/README.md](../frontend/README.md)
 
@@ -16,6 +17,7 @@ Operational documentation for AymurAI `v2.0.0`.
 - Datapublic flow: [pipelines/datapublic/README.md](pipelines/datapublic/README.md)
 - Summarization flow: [pipelines/summarization/README.md](pipelines/summarization/README.md)
 - Transcription (ASR) flow: [pipelines/transcription/README.md](pipelines/transcription/README.md)
+- Defensoría del Pueblo (CABA) data extraction (feature-flagged): [pipelines/defensoria/README.md](pipelines/defensoria/README.md)
 
 ## Entities
 - Entities index: [entities/README.md](entities/README.md)
@@ -34,6 +36,7 @@ proposals; the pages say so explicitly where they diverge from production.
 
 - Entity disambiguation: [anonymization/README.md](anonymization/README.md)
 - Disambiguation evaluation metric (Spanish only): [metrics/entity-disambiguation-metric.md](metrics/entity-disambiguation-metric.md)
+- Defensoría del Pueblo (CABA) design record — analysis, plan, ADRs (Spanish only): [defensoria/README.md](defensoria/README.md)
 
 ## Governance
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

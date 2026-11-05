@@ -157,6 +157,27 @@ def test_should_return_document_with_paragraphs_when_uploading_docx(
 
 @pytest.mark.integration
 @patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
+def test_should_return_the_uploaded_files_original_name(mock_extraction, client):
+    """`file_name` must carry the upload's original filename through, so
+    `/llm/data-extraction` can later record it on `llm_extraction` instead of
+    always storing None (the historical gap: nothing captured it at all)."""
+    mock_extraction.return_value = "Contenido."
+
+    files = {
+        "file": (
+            "Resolucion-1234-24.docx",
+            b"test content",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    }
+    response = client.post("/api/document-extract", files=files)
+
+    assert response.status_code == 200
+    assert response.json()["file_name"] == "Resolucion-1234-24.docx"
+
+
+@pytest.mark.integration
+@patch("aymurai.api.endpoints.routers.misc.document_extract.run_safe_text_extraction")
 def test_should_return_document_via_misc_prefix_when_uploading(mock_extraction, client):
     """Test that /misc/document-extract endpoint works."""
     mock_extraction.return_value = "Sample text"

@@ -1,0 +1,2651 @@
+{
+  "topics": [
+    {
+      "id": "topic-acc",
+      "code": "ACC",
+      "name": "DERECHOS DE LAS PERSONAS CON DISCAPACIDAD",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-amb",
+      "code": "AMB",
+      "name": "AMBIENTE y CAMBIO CLIMÁTICO",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-com",
+      "code": "COM",
+      "name": "COMUNICACIONES",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-cyt",
+      "code": "CYT",
+      "name": "EDUCACION, CULTURA, CIENCIA y TECNOLOGIA",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-dl",
+      "code": "DL",
+      "name": "DERECHOS LABORALES",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-dpd",
+      "code": "DPD",
+      "name": "DEMOCRACIA, PARTICIPACIÓN y DESCENTRALIZACIÓN",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-dpe",
+      "code": "DPE",
+      "name": "DATOS PERSONALES y DERECHOS EN ENTORNOS DIGITALES",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-dr",
+      "code": "DR",
+      "name": "DEPORTES y RECREACIÓN",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-gds",
+      "code": "GDS",
+      "name": "GENERO y DIVERSIDAD SEXUAL",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-is",
+      "code": "IS",
+      "name": "POLÍTICAS DE INCLUSIÓN SOCIAL",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-jpd",
+      "code": "JPD",
+      "name": "DERECHOS HUMANOS, ACCESO A LA JUSTICIA Y PROTECCIÓN CONTRA LA DISCRIMINACIÓN",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-mca",
+      "code": "MCA",
+      "name": "MEDIACIÓN, CONCILIACIÓN y ARBITRAJE",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-naj",
+      "code": "NAJ",
+      "name": "NIÑEZ, ADOLESCENCIA y JUVENTUD",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-oext",
+      "code": "OEXT",
+      "name": "ORGANISMOS EXTERNOS",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-pmg",
+      "code": "PMG",
+      "name": "DERECHOS DE LAS PERSONAS MIGRANTES",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-pmj",
+      "code": "PMJ",
+      "name": "DERECHOS DE LAS PERSONAS MAYORES, JUBILADAS",
+      "active": true,
+      "order": 16,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-ptt",
+      "code": "PTT",
+      "name": "VÍA PÚBLICA, TRÁNSITO y TRANSPORTE",
+      "active": true,
+      "order": 17,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-sal",
+      "code": "SAL",
+      "name": "SALUD",
+      "active": true,
+      "order": 18,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-sm",
+      "code": "SM",
+      "name": "SALUD MENTAL",
+      "active": true,
+      "order": 19,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-sp",
+      "code": "SP",
+      "name": "SERVICIOS PÚBLICOS",
+      "active": true,
+      "order": 20,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-tur",
+      "code": "TUR",
+      "name": "TURISMO",
+      "active": true,
+      "order": 21,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-uca",
+      "code": "UCA",
+      "name": "DERECHOS DE USUARIOS/AS, CONSUMIDORES/AS y ADMINISTRADOS/AS",
+      "active": true,
+      "order": 22,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-upc",
+      "code": "UPC",
+      "name": "DERECHOS URBANOS, ESPACIO PÚBLICO Y CONTROL COMUNAL",
+      "active": true,
+      "order": 23,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-viv",
+      "code": "VIV",
+      "name": "VIVIENDA",
+      "active": true,
+      "order": 24,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "topic-vts",
+      "code": "VTS",
+      "name": "VIOLENCIA INSTITUCIONAL, PREVENCIÓN DE LA TORTURA y SEGURIDAD CIUDADANA",
+      "active": true,
+      "order": 25,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    }
+  ],
+  "subtopics": [
+    {
+      "id": "sub-acc20221",
+      "topic_id": "topic-acc",
+      "code": "ACC20221",
+      "name": "Accesibilidad y movilidad",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20222",
+      "topic_id": "topic-acc",
+      "code": "ACC20222",
+      "name": "Certificados para personas con discapacidad (CUD)",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20223",
+      "topic_id": "topic-acc",
+      "code": "ACC20223",
+      "name": "Cupo laboral, pequeños comercios y políticas de inclusión",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20224",
+      "topic_id": "topic-acc",
+      "code": "ACC20224",
+      "name": "Curatela",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20225",
+      "topic_id": "topic-acc",
+      "code": "ACC20225",
+      "name": "Exenciones y franquicias impositivas",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20226",
+      "topic_id": "topic-acc",
+      "code": "ACC20226",
+      "name": "Gestión de elementos ortopédicos y prestaciones de salud (COPIDIS y Prog. Federal Incluir Salud)",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20227",
+      "topic_id": "topic-acc",
+      "code": "ACC20227",
+      "name": "Pensiones no contributivas. Certificado médico oficial",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-acc20228",
+      "topic_id": "topic-acc",
+      "code": "ACC20228",
+      "name": "Reclamos de personas con CUD a obras sociales y empresas de medicina prepaga",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20221",
+      "topic_id": "topic-amb",
+      "code": "AMB20221",
+      "name": "ACUMAR. Seguimiento de Plan Integral de Saneamiento",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20222",
+      "topic_id": "topic-amb",
+      "code": "AMB20222",
+      "name": "Cambio climático. Energías renovables y eficiencia energética",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20223",
+      "topic_id": "topic-amb",
+      "code": "AMB20223",
+      "name": "Cementerio de Autos",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20224",
+      "topic_id": "topic-amb",
+      "code": "AMB20224",
+      "name": "Contaminación Sonora",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20225",
+      "topic_id": "topic-amb",
+      "code": "AMB20225",
+      "name": "Contaminación con efluentes líquidos, emanaciones y olores nauseabundos",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20226",
+      "topic_id": "topic-amb",
+      "code": "AMB20226",
+      "name": "Evaluación de Impacto y Seguro Ambiental",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20227",
+      "topic_id": "topic-amb",
+      "code": "AMB20227",
+      "name": "Inundaciones",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20228",
+      "topic_id": "topic-amb",
+      "code": "AMB20228",
+      "name": "Manejo de sustancias peligrosas",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb20229",
+      "topic_id": "topic-amb",
+      "code": "AMB20229",
+      "name": "Restauración ecológica y reservas",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202210",
+      "topic_id": "topic-amb",
+      "code": "AMB202210",
+      "name": "Reciclado y recuperación de residuos domicialiarios",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202211",
+      "topic_id": "topic-amb",
+      "code": "AMB202211",
+      "name": "Residuos peligrosos y patogénicos",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202212",
+      "topic_id": "topic-amb",
+      "code": "AMB202212",
+      "name": "Ruidos molestos (fuente no difusa)",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202213",
+      "topic_id": "topic-amb",
+      "code": "AMB202213",
+      "name": "Fauna urbana (silvestre y sinantrópica)",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202214",
+      "topic_id": "topic-amb",
+      "code": "AMB202214",
+      "name": "Animales de compañía. Tenencia responsable y casos de maltrato",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-amb202215",
+      "topic_id": "topic-amb",
+      "code": "AMB202215",
+      "name": "Problemas con el Inst. Pasteur y atención veterinaria",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20221",
+      "topic_id": "topic-com",
+      "code": "COM20221",
+      "name": "Control de antenas",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20222",
+      "topic_id": "topic-com",
+      "code": "COM20222",
+      "name": "Correo postal y encomiendas",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20226",
+      "topic_id": "topic-com",
+      "code": "COM20226",
+      "name": "Reclamos colectivos en telecomunicaciones",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20223",
+      "topic_id": "topic-com",
+      "code": "COM20223",
+      "name": "Incumplimientos y reclamos al ENACOM",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20224",
+      "topic_id": "topic-com",
+      "code": "COM20224",
+      "name": "Internet, telefonía fija y televisión",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20225",
+      "topic_id": "topic-com",
+      "code": "COM20225",
+      "name": "Plataformas de contenido",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-com20227",
+      "topic_id": "topic-com",
+      "code": "COM20227",
+      "name": "Telefonía móvil",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20221",
+      "topic_id": "topic-cyt",
+      "code": "CYT20221",
+      "name": "Reclamos de centros de estudiantes y cooperadoras escolares",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20222",
+      "topic_id": "topic-cyt",
+      "code": "CYT20222",
+      "name": "Ciencia y tecnología",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20223",
+      "topic_id": "topic-cyt",
+      "code": "CYT20223",
+      "name": "Educación privada",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20224",
+      "topic_id": "topic-cyt",
+      "code": "CYT20224",
+      "name": "Educación estatal. Becas",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20225",
+      "topic_id": "topic-cyt",
+      "code": "CYT20225",
+      "name": "Educación estatal. Inscripciones y falta de vacantes",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20226",
+      "topic_id": "topic-cyt",
+      "code": "CYT20226",
+      "name": "Educación estatal. Infraestructura, mantenimiento y seguridad de escuelas",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20227",
+      "topic_id": "topic-cyt",
+      "code": "CYT20227",
+      "name": "Educación estatal. Falta de materiales e insumos",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20228",
+      "topic_id": "topic-cyt",
+      "code": "CYT20228",
+      "name": "Educación estatal. Comedores escolares y viandas",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt20229",
+      "topic_id": "topic-cyt",
+      "code": "CYT20229",
+      "name": "Educación sexual integral",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202210",
+      "topic_id": "topic-cyt",
+      "code": "CYT202210",
+      "name": "Establecimientos de otras jurisdicciones",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202211",
+      "topic_id": "topic-cyt",
+      "code": "CYT202211",
+      "name": "Inclusión educativa",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202212",
+      "topic_id": "topic-cyt",
+      "code": "CYT202212",
+      "name": "Netbooks. Plan Sarmiento y Conectar igualdad",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202213",
+      "topic_id": "topic-cyt",
+      "code": "CYT202213",
+      "name": "Programas socioeducativos",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202214",
+      "topic_id": "topic-cyt",
+      "code": "CYT202214",
+      "name": "Situaciones de violencia, discriminación, convivencia y medidas disciplinarias",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202215",
+      "topic_id": "topic-cyt",
+      "code": "CYT202215",
+      "name": "Afectación de clases (extensión de jornada, suspensión, falta de cobertura de cargos)",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202216",
+      "topic_id": "topic-cyt",
+      "code": "CYT202216",
+      "name": "Títulos, pases, certificados y equivalencias",
+      "active": true,
+      "order": 16,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202217",
+      "topic_id": "topic-cyt",
+      "code": "CYT202217",
+      "name": "Transporte escolar y boleto estudiantil",
+      "active": true,
+      "order": 17,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202218",
+      "topic_id": "topic-cyt",
+      "code": "CYT202218",
+      "name": "Espacios culturales (bibliotecas, museos, centros culturales, teatros)",
+      "active": true,
+      "order": 18,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-cyt202219",
+      "topic_id": "topic-cyt",
+      "code": "CYT202219",
+      "name": "Programas y actividades del Ministerio de Cultura",
+      "active": true,
+      "order": 19,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20221",
+      "topic_id": "topic-dl",
+      "code": "DL20221",
+      "name": "Derechos laborales en el ámbito privado",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20223",
+      "topic_id": "topic-dl",
+      "code": "DL20223",
+      "name": "Violencia laboral en el ámbito privado",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20227",
+      "topic_id": "topic-dl",
+      "code": "DL20227",
+      "name": "Trabajo irregular y no registración",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl202211",
+      "topic_id": "topic-dl",
+      "code": "DL202211",
+      "name": "Aportes previsionales y seguridad social",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20228",
+      "topic_id": "topic-dl",
+      "code": "DL20228",
+      "name": "Políticas de promoción del empleo y economía popular",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20225",
+      "topic_id": "topic-dl",
+      "code": "DL20225",
+      "name": "Seguridad, higiene y salud ocupacional en el ámbito privado",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20226",
+      "topic_id": "topic-dl",
+      "code": "DL20226",
+      "name": "Seguridad, higiene y salud ocupacional en el ámbito público",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20229",
+      "topic_id": "topic-dl",
+      "code": "DL20229",
+      "name": "Asignaciones familiares",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl202210",
+      "topic_id": "topic-dl",
+      "code": "DL202210",
+      "name": "Seguro de desempleo",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20222",
+      "topic_id": "topic-dl",
+      "code": "DL20222",
+      "name": "Empleo público",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dl20224",
+      "topic_id": "topic-dl",
+      "code": "DL20224",
+      "name": "Violencia laboral en el ámbito público",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpd20221",
+      "topic_id": "topic-dpd",
+      "code": "DPD20221",
+      "name": "Derechos políticos y procesos electorales",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpd20222",
+      "topic_id": "topic-dpd",
+      "code": "DPD20222",
+      "name": "Mecanismos de participación ciudadana e iniciativa parlamentaria",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpd20223",
+      "topic_id": "topic-dpd",
+      "code": "DPD20223",
+      "name": "Comunas, Consejos Consultivos y programas descentralizados",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20221",
+      "topic_id": "topic-dpe",
+      "code": "DPE20221",
+      "name": "Dictámenes sobre actividad del Órgano Garante del Derecho de Acceso a la Información",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20222",
+      "topic_id": "topic-dpe",
+      "code": "DPE20222",
+      "name": "Registro de bases de datos personales",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20223",
+      "topic_id": "topic-dpe",
+      "code": "DPE20223",
+      "name": "Consultas sobre bases, tratamiento inadecuado de datos personales y derechos de sus titulares",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20224",
+      "topic_id": "topic-dpe",
+      "code": "DPE20224",
+      "name": "Políticas basadas en tecnologías digitales",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20225",
+      "topic_id": "topic-dpe",
+      "code": "DPE20225",
+      "name": "Vulneración de derechos en entornos digitales",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dpe20226",
+      "topic_id": "topic-dpe",
+      "code": "DPE20226",
+      "name": "Violencia de género digital",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20221",
+      "topic_id": "topic-dr",
+      "code": "DR20221",
+      "name": "Colonias de vacaciones",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20222",
+      "topic_id": "topic-dr",
+      "code": "DR20222",
+      "name": "Deportes y discapacidad",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20223",
+      "topic_id": "topic-dr",
+      "code": "DR20223",
+      "name": "Infraestructura deportiva",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20224",
+      "topic_id": "topic-dr",
+      "code": "DR20224",
+      "name": "Polideportivos",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20225",
+      "topic_id": "topic-dr",
+      "code": "DR20225",
+      "name": "Eventos y actividades deportivas en vía pública",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-dr20226",
+      "topic_id": "topic-dr",
+      "code": "DR20226",
+      "name": "Federaciones, clubes y gimnasios",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20224",
+      "topic_id": "topic-gds",
+      "code": "GDS20224",
+      "name": "Afectación de derechos de personas LGBTIQ+",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20225",
+      "topic_id": "topic-gds",
+      "code": "GDS20225",
+      "name": "Inscripciones registrales igualitarias",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20226",
+      "topic_id": "topic-gds",
+      "code": "GDS20226",
+      "name": "Documentación personal por identidad de género",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20221",
+      "topic_id": "topic-gds",
+      "code": "GDS20221",
+      "name": "Explotación sexual, trata y prostitución",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20222",
+      "topic_id": "topic-gds",
+      "code": "GDS20222",
+      "name": "Políticas públicas de igualdad de género",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-gds20223",
+      "topic_id": "topic-gds",
+      "code": "GDS20223",
+      "name": "Violencia de género",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20221",
+      "topic_id": "topic-is",
+      "code": "IS20221",
+      "name": "Asignaciones universales",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20222",
+      "topic_id": "topic-is",
+      "code": "IS20222",
+      "name": "Ciudadanía Porteña y Ticket Social",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20223",
+      "topic_id": "topic-is",
+      "code": "IS20223",
+      "name": "Comedores comunitarios",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20224",
+      "topic_id": "topic-is",
+      "code": "IS20224",
+      "name": "Pedidos de asistencia inmediata (bolsa de comida, leche, pañales, colchones)",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20225",
+      "topic_id": "topic-is",
+      "code": "IS20225",
+      "name": "Programas del GCBA (Adolescencia, Nuestras Familias, FIT, Preasis)",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-is20226",
+      "topic_id": "topic-is",
+      "code": "IS20226",
+      "name": "Programas del Gobierno Nacional (Tarjeta Alimentar, Progresar, Potenciar Trabajo)",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20227",
+      "topic_id": "topic-jpd",
+      "code": "JPD20227",
+      "name": "Implementación de la Ley contra la Discriminación (Ley 5.261)",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20223",
+      "topic_id": "topic-jpd",
+      "code": "JPD20223",
+      "name": "Identidad biológica",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20221",
+      "topic_id": "topic-jpd",
+      "code": "JPD20221",
+      "name": "Difusión, promoción, asesoramiento e investigación sobre derechos humanos",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20224",
+      "topic_id": "topic-jpd",
+      "code": "JPD20224",
+      "name": "Patrocinio jurídico. Asesoramiento",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20222",
+      "topic_id": "topic-jpd",
+      "code": "JPD20222",
+      "name": "Políticas de derechos humanos y programas de subsidios y/o reparación",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20225",
+      "topic_id": "topic-jpd",
+      "code": "JPD20225",
+      "name": "Patrocinio jurídico. Audiencias y mediaciones",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-jpd20226",
+      "topic_id": "topic-jpd",
+      "code": "JPD20226",
+      "name": "Patrocinio jurídico. Causas Judiciales",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-mca20221",
+      "topic_id": "topic-mca",
+      "code": "MCA20221",
+      "name": "Gestión de conflictos vecinales",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-mca20222",
+      "topic_id": "topic-mca",
+      "code": "MCA20222",
+      "name": "Conciliaciones con autoridades gubernamentales u organismos públicos",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-mca20223",
+      "topic_id": "topic-mca",
+      "code": "MCA20223",
+      "name": "Mediaciones con empresas o instituciones privadas",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-naj20221",
+      "topic_id": "topic-naj",
+      "code": "NAJ20221",
+      "name": "Niñas/os y adolescentes en instituciones y situación de calle",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-naj20222",
+      "topic_id": "topic-naj",
+      "code": "NAJ20222",
+      "name": "Niñas/os y adolescentes víctimas de violencia",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-naj20223",
+      "topic_id": "topic-naj",
+      "code": "NAJ20223",
+      "name": "Acceso a derechos civiles y sociales de niñas/os y adolescentes",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-naj20224",
+      "topic_id": "topic-naj",
+      "code": "NAJ20224",
+      "name": "Organizaciones juveniles",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-naj20225",
+      "topic_id": "topic-naj",
+      "code": "NAJ20225",
+      "name": "Jóvenes con derechos vulnerados",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-oext20221",
+      "topic_id": "topic-oext",
+      "code": "OEXT20221",
+      "name": "Renaper",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-oext20222",
+      "topic_id": "topic-oext",
+      "code": "OEXT20222",
+      "name": "PAMI",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-oext20223",
+      "topic_id": "topic-oext",
+      "code": "OEXT20223",
+      "name": "ANSES",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-oext20224",
+      "topic_id": "topic-oext",
+      "code": "OEXT20224",
+      "name": "Ministerio Público de la Defensa",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmg20221",
+      "topic_id": "topic-pmg",
+      "code": "PMG20221",
+      "name": "Procesos de ciudadanía",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmg20222",
+      "topic_id": "topic-pmg",
+      "code": "PMG20222",
+      "name": "Trámites y documentación migratoria",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmg20223",
+      "topic_id": "topic-pmg",
+      "code": "PMG20223",
+      "name": "Restricción a derechos por falta de documentación",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmg20224",
+      "topic_id": "topic-pmg",
+      "code": "PMG20224",
+      "name": "Diversidad cultural",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20222",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20222",
+      "name": "Geriatricos y hogares. Solicitudes de internación, irregularidades y maltrato",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20223",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20223",
+      "name": "Jubilaciones, pensiones y retiros por invalidez",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20224",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20224",
+      "name": "PAMI. Atención médica y vacunación",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20225",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20225",
+      "name": "PAMI. Afiliación, cambio de cápita y reintegros",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20226",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20226",
+      "name": "PAMI. Medicamentos, protesis e insumos",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20227",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20227",
+      "name": "PAMI.Traslados, internaciones y cirugías",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20228",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20228",
+      "name": "PAMI. Subsidios y prestaciones (alimentaria, bolsón, social, sepelios, persona cuidadora)",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20229",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20229",
+      "name": "Programas alternativos a internación geriátrica (hogares de día, comedores, vivir en casa)",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-pmj20221",
+      "topic_id": "topic-pmj",
+      "code": "PMJ20221",
+      "name": "Trámites y reclamos a ANSES",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20224",
+      "topic_id": "topic-ptt",
+      "code": "PTT20224",
+      "name": "Autopistas",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20225",
+      "topic_id": "topic-ptt",
+      "code": "PTT20225",
+      "name": "Bicicletas - bicisendas",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20221",
+      "topic_id": "topic-ptt",
+      "code": "PTT20221",
+      "name": "Alumbrado",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20222",
+      "topic_id": "topic-ptt",
+      "code": "PTT20222",
+      "name": "Aceras y calzadas",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20223",
+      "topic_id": "topic-ptt",
+      "code": "PTT20223",
+      "name": "Arbolado. Solicitud de corte de ramas y raíces",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20228",
+      "topic_id": "topic-ptt",
+      "code": "PTT20228",
+      "name": "Multas e infracciones de tránsito",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20229",
+      "topic_id": "topic-ptt",
+      "code": "PTT20229",
+      "name": "Obstáculos en vía pública (canteros, anclajes, postes, cableados)",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202212",
+      "topic_id": "topic-ptt",
+      "code": "PTT202212",
+      "name": "Semáforos y señalizaciones",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20226",
+      "topic_id": "topic-ptt",
+      "code": "PTT20226",
+      "name": "Colectivos, Ómnibus y METROBUS",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt20227",
+      "topic_id": "topic-ptt",
+      "code": "PTT20227",
+      "name": "FFCC",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202210",
+      "topic_id": "topic-ptt",
+      "code": "PTT202210",
+      "name": "Reclamos a la CNRT",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202211",
+      "topic_id": "topic-ptt",
+      "code": "PTT202211",
+      "name": "Seguridad víal. Siniestros",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202213",
+      "topic_id": "topic-ptt",
+      "code": "PTT202213",
+      "name": "Subtes",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202214",
+      "topic_id": "topic-ptt",
+      "code": "PTT202214",
+      "name": "Tarifa social",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202215",
+      "topic_id": "topic-ptt",
+      "code": "PTT202215",
+      "name": "Tarjeta SUBE",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202216",
+      "topic_id": "topic-ptt",
+      "code": "PTT202216",
+      "name": "Taxis y remises",
+      "active": true,
+      "order": 16,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-ptt202217",
+      "topic_id": "topic-ptt",
+      "code": "PTT202217",
+      "name": "Tránsito pesado",
+      "active": true,
+      "order": 17,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20221",
+      "topic_id": "topic-sal",
+      "code": "SAL20221",
+      "name": "Obras sociales. Altas, bajas, opción de cambio, co-pagos",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20222",
+      "topic_id": "topic-sal",
+      "code": "SAL20222",
+      "name": "Obras sociales. Atención e internación domiciliaria. Cuidados paliativos",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20223",
+      "topic_id": "topic-sal",
+      "code": "SAL20223",
+      "name": "Obras sociales. Demora en turnos",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20224",
+      "topic_id": "topic-sal",
+      "code": "SAL20224",
+      "name": "Obras sociales. Problemas en guardias, tratamientos e internaciones",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20225",
+      "topic_id": "topic-sal",
+      "code": "SAL20225",
+      "name": "Obras sociales. Maltrato y discriminación en la atención",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20226",
+      "topic_id": "topic-sal",
+      "code": "SAL20226",
+      "name": "Obras sociales. Medicamentos, protesis e insumos",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20227",
+      "topic_id": "topic-sal",
+      "code": "SAL20227",
+      "name": "Obras sociales. Prestaciones medicas en geriátricos",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20228",
+      "topic_id": "topic-sal",
+      "code": "SAL20228",
+      "name": "Medicina prepaga. Altas, bajas, traspasos, co-pagos",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal20229",
+      "topic_id": "topic-sal",
+      "code": "SAL20229",
+      "name": "Medicina prepaga. Atención e internación domiciliaria. Cuidados paliativos",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202210",
+      "topic_id": "topic-sal",
+      "code": "SAL202210",
+      "name": "Medicina prepaga. Demora en turnos",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202211",
+      "topic_id": "topic-sal",
+      "code": "SAL202211",
+      "name": "Medicina prepaga. Problemas en guardias, tratamientos e internaciones",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202212",
+      "topic_id": "topic-sal",
+      "code": "SAL202212",
+      "name": "Medicina prepaga. Maltrato y discriminación en la atención",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202213",
+      "topic_id": "topic-sal",
+      "code": "SAL202213",
+      "name": "Medicina prepaga. Medicamentos, protesis e insumos",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202214",
+      "topic_id": "topic-sal",
+      "code": "SAL202214",
+      "name": "Medicina prepaga. Prestaciones médicas en geriátricos",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202215",
+      "topic_id": "topic-sal",
+      "code": "SAL202215",
+      "name": "Salud Pública. Atención e internación domiciliaria. Cuidados paliativos",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202216",
+      "topic_id": "topic-sal",
+      "code": "SAL202216",
+      "name": "Salud Pública. Demora en turnos",
+      "active": true,
+      "order": 16,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202217",
+      "topic_id": "topic-sal",
+      "code": "SAL202217",
+      "name": "Salud Pública. Problemas en guardias, tratamientos e internaciones",
+      "active": true,
+      "order": 17,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202218",
+      "topic_id": "topic-sal",
+      "code": "SAL202218",
+      "name": "Salud Pública. Establecimientos sanitarios. Infraestructura y mantenimiento",
+      "active": true,
+      "order": 18,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202219",
+      "topic_id": "topic-sal",
+      "code": "SAL202219",
+      "name": "Salud Pública. Medicamentos, protesis e insumos",
+      "active": true,
+      "order": 19,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202220",
+      "topic_id": "topic-sal",
+      "code": "SAL202220",
+      "name": "Salud Pública. Maltrato y discriminación en la atención",
+      "active": true,
+      "order": 20,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202221",
+      "topic_id": "topic-sal",
+      "code": "SAL202221",
+      "name": "SAME",
+      "active": true,
+      "order": 21,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202222",
+      "topic_id": "topic-sal",
+      "code": "SAL202222",
+      "name": "Solicitud de historia clínica, confidencialidad y consentimiento informado",
+      "active": true,
+      "order": 22,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202223",
+      "topic_id": "topic-sal",
+      "code": "SAL202223",
+      "name": "Vacunación",
+      "active": true,
+      "order": 23,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202224",
+      "topic_id": "topic-sal",
+      "code": "SAL202224",
+      "name": "Hisopado y PCR",
+      "active": true,
+      "order": 24,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sal202225",
+      "topic_id": "topic-sal",
+      "code": "SAL202225",
+      "name": "Violencia obstétrica",
+      "active": true,
+      "order": 25,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sm20231",
+      "topic_id": "topic-sm",
+      "code": "SM20231",
+      "name": "Activación del protocolo para situaciónes de crisis y  solicitudes de áreas temáticas",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sm20232",
+      "topic_id": "topic-sm",
+      "code": "SM20232",
+      "name": "Conflictos vecinales vinculados a la salud mental",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-smca20226",
+      "topic_id": "topic-sm",
+      "code": "SMCA20226",
+      "name": "Salud mental. Problemas de atención, acceso, internación y tratamiento",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-smca20224",
+      "topic_id": "topic-sm",
+      "code": "SMCA20224",
+      "name": "Intervención en situaciones de crisis y atención a personas damnificadas",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-smca20222",
+      "topic_id": "topic-sm",
+      "code": "SMCA20222",
+      "name": "Adicciones. Problemas de atención, acceso, internación y tratamiento",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20221",
+      "topic_id": "topic-sp",
+      "code": "SP20221",
+      "name": "Agua y cloacas",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20222",
+      "topic_id": "topic-sp",
+      "code": "SP20222",
+      "name": "Agua y cloacas. Tarifa social y segmentación",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20223",
+      "topic_id": "topic-sp",
+      "code": "SP20223",
+      "name": "Cementerios",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20224",
+      "topic_id": "topic-sp",
+      "code": "SP20224",
+      "name": "Control de plagas",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20225",
+      "topic_id": "topic-sp",
+      "code": "SP20225",
+      "name": "Energía. EDENOR",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20226",
+      "topic_id": "topic-sp",
+      "code": "SP20226",
+      "name": "Energía. EDESUR",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20227",
+      "topic_id": "topic-sp",
+      "code": "SP20227",
+      "name": "Energía. Tarifa social y segmentación",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20228",
+      "topic_id": "topic-sp",
+      "code": "SP20228",
+      "name": "Estacionamiento medido",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp20229",
+      "topic_id": "topic-sp",
+      "code": "SP20229",
+      "name": "Gas",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp202210",
+      "topic_id": "topic-sp",
+      "code": "SP202210",
+      "name": "Gas. Tarifa social y segmentación",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp202211",
+      "topic_id": "topic-sp",
+      "code": "SP202211",
+      "name": "Higiene urbana. Baldíos, predios o casas abandonadas",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp202212",
+      "topic_id": "topic-sp",
+      "code": "SP202212",
+      "name": "Higiene urbana. Irregularidades en recolección de residuos domiciliarios",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp202213",
+      "topic_id": "topic-sp",
+      "code": "SP202213",
+      "name": "Vehículos abandonados",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-sp202214",
+      "topic_id": "topic-sp",
+      "code": "SP202214",
+      "name": "Verificación Técnica Vehicular (VTV)",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20221",
+      "topic_id": "topic-tur",
+      "code": "TUR20221",
+      "name": "Aeropuertos, puertos y terminales de micros",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20222",
+      "topic_id": "topic-tur",
+      "code": "TUR20222",
+      "name": "Agencia de viajes. Pasajes, prestaciones y paquetes turísticos",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20223",
+      "topic_id": "topic-tur",
+      "code": "TUR20223",
+      "name": "Agencia de viajes. Turismo estudiantil",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20224",
+      "topic_id": "topic-tur",
+      "code": "TUR20224",
+      "name": "Alojamiento (reserva directa en hoteles y alquileres temporarios para turistas hasta 3 meses)",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20225",
+      "topic_id": "topic-tur",
+      "code": "TUR20225",
+      "name": "Asistencia al viajero y seguros de cancelación",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20226",
+      "topic_id": "topic-tur",
+      "code": "TUR20226",
+      "name": "Información y servicios a turistas",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20227",
+      "topic_id": "topic-tur",
+      "code": "TUR20227",
+      "name": "Líneas áereas (compra y/o servicio directo)",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20228",
+      "topic_id": "topic-tur",
+      "code": "TUR20228",
+      "name": "Medios de transporte (contratación directa de cruceros, bus turístico, alquiler de autos)",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur20229",
+      "topic_id": "topic-tur",
+      "code": "TUR20229",
+      "name": "Orientación a turista en trámites en migraciones, sanidad de fronteras, aduana, AFIP, RENAPER y consulados",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur202210",
+      "topic_id": "topic-tur",
+      "code": "TUR202210",
+      "name": "Orientación a turista varado en el país o en el extranjero",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur202211",
+      "topic_id": "topic-tur",
+      "code": "TUR202211",
+      "name": "Orientación a turista vinculado a delitos y/o contravenciones",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur202212",
+      "topic_id": "topic-tur",
+      "code": "TUR202212",
+      "name": "Previaje",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-tur202213",
+      "topic_id": "topic-tur",
+      "code": "TUR202213",
+      "name": "Turismo accesible y turismo social",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20225",
+      "topic_id": "topic-uca",
+      "code": "UCA20225",
+      "name": "Registro No Llame",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20221",
+      "topic_id": "topic-uca",
+      "code": "UCA20221",
+      "name": "Automotores",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20222",
+      "topic_id": "topic-uca",
+      "code": "UCA20222",
+      "name": "Medicina prepaga. Registro y condiciones de contratación",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20223",
+      "topic_id": "topic-uca",
+      "code": "UCA20223",
+      "name": "Quejas contra la atención de la Dir. General de Defensa y Protección al Consumidor",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20224",
+      "topic_id": "topic-uca",
+      "code": "UCA20224",
+      "name": "Reclamos ante la Administración Gubernamental de Ingresos Públicos (AGIP) - ABL, Ingresos Brutos, Patentes",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20226",
+      "topic_id": "topic-uca",
+      "code": "UCA20226",
+      "name": "Reclamos por incumplimientos de proveedores en relaciones de consumo",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20227",
+      "topic_id": "topic-uca",
+      "code": "UCA20227",
+      "name": "Servicios bancarios y financieros",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20228",
+      "topic_id": "topic-uca",
+      "code": "UCA20228",
+      "name": "Trámite de documentación personal (DNI, partidas).",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-uca20229",
+      "topic_id": "topic-uca",
+      "code": "UCA20229",
+      "name": "Trámite de licencia de conducir",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202221",
+      "topic_id": "topic-upc",
+      "code": "UPC202221",
+      "name": "Riesgo de derrumbe",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20221",
+      "topic_id": "topic-upc",
+      "code": "UPC20221",
+      "name": "Actividades comerciales e industriales. Permisos, habilitaciones y condiciones de funcionamiento",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20222",
+      "topic_id": "topic-upc",
+      "code": "UPC20222",
+      "name": "Cartelería y publicidad en vía pública",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20223",
+      "topic_id": "topic-upc",
+      "code": "UPC20223",
+      "name": "Concesiones",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20224",
+      "topic_id": "topic-upc",
+      "code": "UPC20224",
+      "name": "Daños edilicios producidos por edificios públicos",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20225",
+      "topic_id": "topic-upc",
+      "code": "UPC20225",
+      "name": "Edificios privados. Condiciones de seguridad",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20226",
+      "topic_id": "topic-upc",
+      "code": "UPC20226",
+      "name": "Edificios públicos. Administración, mantenimiento y condiciones de seguridad",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20227",
+      "topic_id": "topic-upc",
+      "code": "UPC20227",
+      "name": "Ferias",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20228",
+      "topic_id": "topic-upc",
+      "code": "UPC20228",
+      "name": "Higiene y salud alimentaria",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc20229",
+      "topic_id": "topic-upc",
+      "code": "UPC20229",
+      "name": "Hoteles",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202210",
+      "topic_id": "topic-upc",
+      "code": "UPC202210",
+      "name": "Locales bailables y discotecas",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202211",
+      "topic_id": "topic-upc",
+      "code": "UPC202211",
+      "name": "Mala atención y demora en trámites ante organismos de gobierno y comunas",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202212",
+      "topic_id": "topic-upc",
+      "code": "UPC202212",
+      "name": "Obras particulares",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202213",
+      "topic_id": "topic-upc",
+      "code": "UPC202213",
+      "name": "Obras públicas",
+      "active": true,
+      "order": 14,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202214",
+      "topic_id": "topic-upc",
+      "code": "UPC202214",
+      "name": "Parques y plazas",
+      "active": true,
+      "order": 15,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202215",
+      "topic_id": "topic-upc",
+      "code": "UPC202215",
+      "name": "Patrimonio Público. Áreas de Protección Histórica y edificios catalogados",
+      "active": true,
+      "order": 16,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202216",
+      "topic_id": "topic-upc",
+      "code": "UPC202216",
+      "name": "Ocupación del espacio público",
+      "active": true,
+      "order": 17,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202217",
+      "topic_id": "topic-upc",
+      "code": "UPC202217",
+      "name": "Puestos de venta en la vía pública y venta ambulante",
+      "active": true,
+      "order": 18,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202218",
+      "topic_id": "topic-upc",
+      "code": "UPC202218",
+      "name": "Proveedores del Gobierno de la Ciudad de Buenos Aires. Legalidad de los contratos",
+      "active": true,
+      "order": 19,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202219",
+      "topic_id": "topic-upc",
+      "code": "UPC202219",
+      "name": "Proyectos urbanísticos",
+      "active": true,
+      "order": 20,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-upc202220",
+      "topic_id": "topic-upc",
+      "code": "UPC202220",
+      "name": "Villas y asentamientos (planes de urbanización)",
+      "active": true,
+      "order": 21,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv202214",
+      "topic_id": "topic-viv",
+      "code": "VIV202214",
+      "name": "Personas residentes en Hoteles",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20222",
+      "topic_id": "topic-viv",
+      "code": "VIV20222",
+      "name": "Complejos Habitacionales",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20223",
+      "topic_id": "topic-viv",
+      "code": "VIV20223",
+      "name": "Créditos (Ley 341 a personas y cooperativas, Primera Casa, UVA)",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20226",
+      "topic_id": "topic-viv",
+      "code": "VIV20226",
+      "name": "Inconvenientes con inmobiliarias",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20227",
+      "topic_id": "topic-viv",
+      "code": "VIV20227",
+      "name": "Programas específicos (Ex AU3, Casa Amarilla, Ley 324, La Boca, Barrio Olímpico, Ley 624)",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20228",
+      "topic_id": "topic-viv",
+      "code": "VIV20228",
+      "name": "Registro, inconvenitentes con administraciones de consorcio y expensas",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv202213",
+      "topic_id": "topic-viv",
+      "code": "VIV202213",
+      "name": "Problemas con el contrato de alquiler y vulneración de derechos de personas inquilinas",
+      "active": true,
+      "order": 7,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv202212",
+      "topic_id": "topic-viv",
+      "code": "VIV202212",
+      "name": "Villas y asentamientos (viviendas, servicios, obras de emergencias y relocalizaciones)",
+      "active": true,
+      "order": 8,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20224",
+      "topic_id": "topic-viv",
+      "code": "VIV20224",
+      "name": "Desalojos",
+      "active": true,
+      "order": 9,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv202210",
+      "topic_id": "topic-viv",
+      "code": "VIV202210",
+      "name": "Subsidio habitacional. Decreto 690/06 y 960/08",
+      "active": true,
+      "order": 10,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv202211",
+      "topic_id": "topic-viv",
+      "code": "VIV202211",
+      "name": "Programas de apoyo habitacional. Decretos 1234/04, 97/05 y 574/09",
+      "active": true,
+      "order": 11,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20225",
+      "topic_id": "topic-viv",
+      "code": "VIV20225",
+      "name": "Hogares",
+      "active": true,
+      "order": 12,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-viv20229",
+      "topic_id": "topic-viv",
+      "code": "VIV20229",
+      "name": "Situación de calle. Centros de Inclusión Social (ex paradores) y Programa Buenos Aires Presente (BAP)",
+      "active": true,
+      "order": 13,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20221",
+      "topic_id": "topic-vts",
+      "code": "VTS20221",
+      "name": "Condiciones de lugares de encierro",
+      "active": true,
+      "order": 1,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20222",
+      "topic_id": "topic-vts",
+      "code": "VTS20222",
+      "name": "Tortura y/o malos tratos en contexto de encierro",
+      "active": true,
+      "order": 2,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20223",
+      "topic_id": "topic-vts",
+      "code": "VTS20223",
+      "name": "Políticas y reclamos sobre seguridad ciudadana",
+      "active": true,
+      "order": 3,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20224",
+      "topic_id": "topic-vts",
+      "code": "VTS20224",
+      "name": "Violencia por las fuerzas de seguridad pública",
+      "active": true,
+      "order": 4,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20225",
+      "topic_id": "topic-vts",
+      "code": "VTS20225",
+      "name": "Corrupción de fuerzas de seguridad pública",
+      "active": true,
+      "order": 5,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "sub-vts20226",
+      "topic_id": "topic-vts",
+      "code": "VTS20226",
+      "name": "Violencia por personal de seguridad privada",
+      "active": true,
+      "order": 6,
+      "created_at": "2026-08-28T00:00:00Z",
+      "updated_at": "2026-08-28T00:00:00Z"
+    }
+  ]
+}

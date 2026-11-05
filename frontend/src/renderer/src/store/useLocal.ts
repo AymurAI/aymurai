@@ -34,6 +34,7 @@ export const useLocalStore = create<LocalStorageStore>()(
           [FeatureFlowEnum.Dataset]: false,
           [FeatureFlowEnum.VoiceToText]: false,
           [FeatureFlowEnum.Summarizer]: false,
+          [FeatureFlowEnum.Recommendations]: false,
         },
         hasSeenTutorial: (feature: FeatureFlowEnum) =>
           get().tutorialsSeen[feature],
@@ -65,7 +66,7 @@ export const useLocalStore = create<LocalStorageStore>()(
             };
           } catch {
             // An unparseable stored value must not wedge boot — drop it and let
-            // the user reconnect from /home/host.
+            // the user reconnect from /home/settings/server.
             return { ...state, serverHost: null };
           }
         },

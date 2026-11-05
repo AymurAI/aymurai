@@ -18,8 +18,14 @@ import { Route as FeaturePreviewRouteImport } from './routes/$feature/preview'
 import { Route as FeatureProcessRouteImport } from './routes/$feature/process'
 import { Route as FeatureValidationRouteImport } from './routes/$feature/validation'
 import { Route as HomeIndexRouteImport } from './routes/home/index'
+import { Route as HomeDatasetRouteImport } from './routes/home/dataset'
 import { Route as HomeFeaturesRouteImport } from './routes/home/features'
 import { Route as HomeHostRouteImport } from './routes/home/host'
+import { Route as HomeDatasetRecommendationIdRouteImport } from './routes/home/dataset_.$recommendationId'
+import { Route as HomeSettingsIndexRouteImport } from './routes/home/settings/index'
+import { Route as HomeSettingsOrganigramRouteImport } from './routes/home/settings/organigram'
+import { Route as HomeSettingsServerRouteImport } from './routes/home/settings/server'
+import { Route as HomeSettingsTaxonomyRouteImport } from './routes/home/settings/taxonomy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,6 +72,11 @@ const HomeIndexRoute = HomeIndexRouteImport.update({
   path: '/home/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeDatasetRoute = HomeDatasetRouteImport.update({
+  id: '/home/dataset',
+  path: '/home/dataset',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeFeaturesRoute = HomeFeaturesRouteImport.update({
   id: '/home/features',
   path: '/home/features',
@@ -74,6 +85,32 @@ const HomeFeaturesRoute = HomeFeaturesRouteImport.update({
 const HomeHostRoute = HomeHostRouteImport.update({
   id: '/home/host',
   path: '/home/host',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeDatasetRecommendationIdRoute =
+  HomeDatasetRecommendationIdRouteImport.update({
+    id: '/home/dataset_/$recommendationId',
+    path: '/home/dataset/$recommendationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const HomeSettingsIndexRoute = HomeSettingsIndexRouteImport.update({
+  id: '/home/settings/',
+  path: '/home/settings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsOrganigramRoute = HomeSettingsOrganigramRouteImport.update({
+  id: '/home/settings/organigram',
+  path: '/home/settings/organigram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsServerRoute = HomeSettingsServerRouteImport.update({
+  id: '/home/settings/server',
+  path: '/home/settings/server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeSettingsTaxonomyRoute = HomeSettingsTaxonomyRouteImport.update({
+  id: '/home/settings/taxonomy',
+  path: '/home/settings/taxonomy',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -85,10 +122,16 @@ export interface FileRoutesByFullPath {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/dataset/$recommendationId': typeof HomeDatasetRecommendationIdRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings/': typeof HomeSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -97,10 +140,16 @@ export interface FileRoutesByTo {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature': typeof FeatureIndexRoute
   '/home': typeof HomeIndexRoute
+  '/home/dataset/$recommendationId': typeof HomeDatasetRecommendationIdRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings': typeof HomeSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -111,10 +160,16 @@ export interface FileRoutesById {
   '/$feature/preview': typeof FeaturePreviewRoute
   '/$feature/process': typeof FeatureProcessRoute
   '/$feature/validation': typeof FeatureValidationRoute
+  '/home/dataset': typeof HomeDatasetRoute
   '/home/features': typeof HomeFeaturesRoute
   '/home/host': typeof HomeHostRoute
   '/$feature/': typeof FeatureIndexRoute
   '/home/': typeof HomeIndexRoute
+  '/home/dataset_/$recommendationId': typeof HomeDatasetRecommendationIdRoute
+  '/home/settings/organigram': typeof HomeSettingsOrganigramRoute
+  '/home/settings/server': typeof HomeSettingsServerRoute
+  '/home/settings/taxonomy': typeof HomeSettingsTaxonomyRoute
+  '/home/settings/': typeof HomeSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -126,10 +181,16 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/dataset/$recommendationId'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -138,10 +199,16 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature'
     | '/home'
+    | '/home/dataset/$recommendationId'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings'
   id:
     | '__root__'
     | '/'
@@ -151,18 +218,30 @@ export interface FileRouteTypes {
     | '/$feature/preview'
     | '/$feature/process'
     | '/$feature/validation'
+    | '/home/dataset'
     | '/home/features'
     | '/home/host'
     | '/$feature/'
     | '/home/'
+    | '/home/dataset_/$recommendationId'
+    | '/home/settings/organigram'
+    | '/home/settings/server'
+    | '/home/settings/taxonomy'
+    | '/home/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FeatureRouteRoute: typeof FeatureRouteRouteWithChildren
+  HomeDatasetRoute: typeof HomeDatasetRoute
   HomeFeaturesRoute: typeof HomeFeaturesRoute
   HomeHostRoute: typeof HomeHostRoute
   HomeIndexRoute: typeof HomeIndexRoute
+  HomeDatasetRecommendationIdRoute: typeof HomeDatasetRecommendationIdRoute
+  HomeSettingsOrganigramRoute: typeof HomeSettingsOrganigramRoute
+  HomeSettingsServerRoute: typeof HomeSettingsServerRoute
+  HomeSettingsTaxonomyRoute: typeof HomeSettingsTaxonomyRoute
+  HomeSettingsIndexRoute: typeof HomeSettingsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -230,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home/dataset': {
+      id: '/home/dataset'
+      path: '/home/dataset'
+      fullPath: '/home/dataset'
+      preLoaderRoute: typeof HomeDatasetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home/features': {
       id: '/home/features'
       path: '/home/features'
@@ -242,6 +328,41 @@ declare module '@tanstack/react-router' {
       path: '/home/host'
       fullPath: '/home/host'
       preLoaderRoute: typeof HomeHostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/dataset_/$recommendationId': {
+      id: '/home/dataset_/$recommendationId'
+      path: '/home/dataset/$recommendationId'
+      fullPath: '/home/dataset/$recommendationId'
+      preLoaderRoute: typeof HomeDatasetRecommendationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/': {
+      id: '/home/settings/'
+      path: '/home/settings'
+      fullPath: '/home/settings/'
+      preLoaderRoute: typeof HomeSettingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/organigram': {
+      id: '/home/settings/organigram'
+      path: '/home/settings/organigram'
+      fullPath: '/home/settings/organigram'
+      preLoaderRoute: typeof HomeSettingsOrganigramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/server': {
+      id: '/home/settings/server'
+      path: '/home/settings/server'
+      fullPath: '/home/settings/server'
+      preLoaderRoute: typeof HomeSettingsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/settings/taxonomy': {
+      id: '/home/settings/taxonomy'
+      path: '/home/settings/taxonomy'
+      fullPath: '/home/settings/taxonomy'
+      preLoaderRoute: typeof HomeSettingsTaxonomyRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -272,9 +393,15 @@ const FeatureRouteRouteWithChildren = FeatureRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FeatureRouteRoute: FeatureRouteRouteWithChildren,
+  HomeDatasetRoute: HomeDatasetRoute,
   HomeFeaturesRoute: HomeFeaturesRoute,
   HomeHostRoute: HomeHostRoute,
   HomeIndexRoute: HomeIndexRoute,
+  HomeDatasetRecommendationIdRoute: HomeDatasetRecommendationIdRoute,
+  HomeSettingsOrganigramRoute: HomeSettingsOrganigramRoute,
+  HomeSettingsServerRoute: HomeSettingsServerRoute,
+  HomeSettingsTaxonomyRoute: HomeSettingsTaxonomyRoute,
+  HomeSettingsIndexRoute: HomeSettingsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

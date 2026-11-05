@@ -97,6 +97,7 @@ class Document(BaseModel):
     header: list[str] | None = None
     footer: list[str] | None = None
     page_count: int | None = None
+    file_name: str | None = None
 
 
 class ASRParagraph(BaseModel):

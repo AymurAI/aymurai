@@ -70,31 +70,29 @@ export default function ConnectToHost() {
   };
 
   return (
-    <Stack align="center" gap={{ base: "[1rem]", xl: "12" }} width="[400px]">
-      <styled.img
-        src={`${import.meta.env.BASE_URL}brand/aymurai-vert-darkpurple.svg`}
-        alt="Logotipo AymurAI"
-        width={{ base: "[100px]", xl: "[180px]" }}
-      />
-      <form onSubmit={tryConnection} className={css({ width: "full" })}>
-        <Stack justify="center" gap="3" width="full">
-          <h2 className={css({ textStyle: "subtitle.sm.strong" })}>
-            {t("home.host.connectServerExplanation")}
-          </h2>
+    <form onSubmit={tryConnection} className={css({ width: "full" })}>
+      <Stack justify="center" gap="4" width="full">
+        <styled.h2 textStyle="subtitle.md.strong">
+          {t("home.host.connectServerExplanation")}
+        </styled.h2>
 
-          <TextField
-            label={t("home.host.connectServerLabel")}
-            placeholder="http://"
-            value={host}
-            onChange={handleChange}
-            error={error ? errorMessage(error) : undefined}
-          />
+        <TextField
+          label={t("home.host.connectServerLabel")}
+          placeholder="http://"
+          value={host}
+          onChange={handleChange}
+          error={error ? errorMessage(error) : undefined}
+        />
 
+        {/* No companion "disconnect": pointing the app somewhere else is what
+            a user actually wants, and that is this same button with a new
+            address. Being connected to nothing is not a useful state. */}
+        <styled.div alignSelf="center">
           <Button type="submit" isLoading={isPending}>
             {t("home.host.connectServerSubmit")}
           </Button>
-        </Stack>
-      </form>
-    </Stack>
+        </styled.div>
+      </Stack>
+    </form>
   );
 }

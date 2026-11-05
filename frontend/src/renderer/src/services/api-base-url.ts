@@ -65,3 +65,15 @@ export function normalizeServerHost(input: string): string {
 export function toApiBaseUrl(input: string): string {
   return `${normalizeServerHost(input)}${API_PREFIX}`;
 }
+
+/**
+ * Inverse of `toApiBaseUrl`: the canonical, displayable server address behind
+ * a client base URL. Used to name the server a user is already talking to when
+ * nothing was ever saved by hand — the web app resolves its own origin.
+ */
+export function fromApiBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.endsWith(API_PREFIX)
+    ? trimmed.slice(0, -API_PREFIX.length).replace(/\/+$/, "")
+    : trimmed;
+}

@@ -51,6 +51,71 @@ coro-logs:
 coro-pull:
 	docker compose pull $(CORO_SERVICE)
 
+db-backup:
+	docker compose run --rm db-backup --once
+db-backup-up:
+	docker compose up -d db-backup
+db-backup-stop:
+	docker compose stop db-backup
+db-backup-logs:
+	docker compose logs -f db-backup
+# db-restore replaces the live database file: it stops every API variant
+# (CPU and GPU, lite and full) plus the backup sidecar and verifies none are
+# still running before touching anything -- docker compose stop on a
+# container that isn't running exits 0 silently, so stopping only the
+# CPU-default services would let a GPU variant keep writing to the database
+# while it's overwritten. It also removes the old -wal/-shm sidecars before
+# copying in the restored file, not after: leaving them around even briefly
+# next to a new/truncated database.db would make SQLite replay WAL entries
+# from the database being discarded onto the new one, corrupting it. The
+# pre-restore safety snapshot reuses the db-backup sidecar's one-shot backup
+# instead of a plain `cp`, for the same WAL-safety reason backup.py itself
+# doesn't use `cp` -- it lands as an ordinary database_<timestamp>.db in the
+# normal backup set rather than a distinctly-named pre-restore_ file (or is
+# skipped when the latest backup already holds identical bytes). That
+# snapshot overrides BACKUP_RETENTION=0 for this one invocation only: at
+# steady state the backup set is already at the retention cap, so taking one
+# more snapshot without disabling pruning would make the sidecar's own prune
+# step delete the oldest file -- which can be the exact backup being restored.
+# Everything from stopping the containers onwards runs in one shell with an
+# EXIT trap that brings the sidecar back up (same as `make db-backup-up`)
+# however the shell ends -- success, the "still running" refusal, a failed
+# pre-restore snapshot, or a cp/mv permission error -- so a restore never
+# leaves backups switched off. That is safe at every failure point because
+# database.db is always either the untouched old file or the fully restored
+# one: the copy goes to database.db.restoring first, and only once it
+# succeeded are the old -wal/-shm removed and the copy mv'd into place.
+db-restore:
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "usage: make db-restore BACKUP_FILE=database_20260921231500.db"; \
+		exit 1; \
+	fi
+	@if [ ! -f resources/backups/$(BACKUP_FILE) ]; then \
+		echo "no such backup: resources/backups/$(BACKUP_FILE)"; \
+		exit 1; \
+	fi
+	@set -e; \
+	trap 'status=$$?; \
+		if docker compose up -d db-backup; then \
+			if [ $$status -ne 0 ]; then echo "db-restore FAILED (exit $$status); the db-backup sidecar was restarted." >&2; fi; \
+		else \
+			echo "WARNING: could not restart the db-backup sidecar; start it with: make db-backup-up" >&2; \
+		fi' EXIT; \
+	set -x; \
+	docker compose stop aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup || true; \
+	still="$$(docker compose ps -q aymurai-api aymurai-api-gpu aymurai-api-full aymurai-api-full-gpu db-backup)"; \
+	if [ -n "$$still" ]; then \
+		echo "refusing to restore: an API container is still running" >&2; exit 1; \
+	fi; \
+	if [ -f resources/cache/sqlite/database.db ]; then \
+		docker compose run --rm -e BACKUP_RETENTION=0 db-backup --once; \
+	fi; \
+	cp resources/backups/$(BACKUP_FILE) resources/cache/sqlite/database.db.restoring; \
+	rm -f resources/cache/sqlite/database.db-wal resources/cache/sqlite/database.db-shm; \
+	mv resources/cache/sqlite/database.db.restoring resources/cache/sqlite/database.db; \
+	set +x; \
+	echo "Restored $(BACKUP_FILE); the db-backup sidecar is being restarted. Start the API again with 'make api-up' or 'make api-full-up'."
+
 stress-test:
 	uv run --group loadtest locust -f locustfile.py --host http://localhost:8899
 
