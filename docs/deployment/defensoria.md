@@ -29,5 +29,5 @@ flagged frontend navigation, one end-to-end document, and the XLSX export.
 Take a one-shot database backup before every update and roll back by restoring
 the previous versioned image without re-seeding.
 
-The detailed operator commands and the current `case` prerequisites are in the
+The detailed operator commands are in the
 [Spanish runbook](../es/deployment/defensoria.md).

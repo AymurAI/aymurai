@@ -88,11 +88,3 @@ Verificá, en orden:
 Antes de actualizar, ejecutá el backup one-shot. Para rollback, fijá la imagen
 versionada anterior, recreá sólo la API y conservá el volumen de
 `/resources/cache`; no vuelvas a sembrar para revertir una versión.
-
-## Estado específico de `case`
-
-Al 1 de octubre de 2026, `aymurai.collectiveai.io` y
-`aymurai.staging.collectiveai.io` responden desde `186.124.141.93`, pero
-`aymurai.defensoria.collectiveai.io` todavía no resuelve. Antes del despliegue
-faltan el registro DNS y acceso SSH autorizado para inspeccionar el proxy y
-elegir un puerto libre sin interferir con las dos instancias existentes.
